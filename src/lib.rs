@@ -43,9 +43,8 @@ pub struct TaskLog {
     children: Option<(TaskId, TaskId)>,
 }
 
-/// Structs for fast and thread safe logging of execution times of tasks.
-/// Each registry contains one.
-pub struct Logger<'a> {
+/// ThreadPool for fast and thread safe logging of execution times of tasks.
+pub struct LoggedPool<'a> {
     /// One vector of events for each thread.
     tasks_logs: Vec<UnsafeCell<Vec<RayonEvent>>>,
     /// We use an atomic usize to generate unique ids for tasks.
@@ -54,15 +53,15 @@ pub struct Logger<'a> {
     pool: &'a ThreadPool,
 }
 
-unsafe impl<'a> Sync for Logger<'a> {}
+unsafe impl<'a> Sync for LoggedPool<'a> {}
 
 const MAX_LOGGED_TASKS: usize = 10_000;
 
-impl<'a> Logger<'a> {
+impl<'a> LoggedPool<'a> {
     /// Create a new events logging structure.
     pub fn new(pool: &'a ThreadPool) -> Self {
         let n_threads = pool.current_num_threads();
-        Logger {
+        LoggedPool {
             tasks_logs: (0..n_threads)
                 .map(|_| UnsafeCell::new(Vec::with_capacity(MAX_LOGGED_TASKS)))
                 .collect(),
@@ -97,6 +96,21 @@ impl<'a> Logger<'a> {
         self.log(RayonEvent::Join(id_a, id_b));
 
         rayon::join_context(ca, cb)
+    }
+
+    pub fn install<OP, R>(&self, op: OP) -> R
+    where
+        OP: FnOnce() -> R + Send,
+        R: Send,
+    {
+        let id = self.next_id();
+        let c = || {
+            self.log(RayonEvent::TaskStart(id, precise_time_ns()));
+            let result = op();
+            self.log(RayonEvent::TaskEnd(id, precise_time_ns()));
+            result
+        };
+        self.pool.install(c)
     }
 
     /// Execute a logging join.
