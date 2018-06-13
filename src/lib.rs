@@ -1,6 +1,5 @@
 //! This crate provides logging facilities to evaluate performances
 //! of code parallelized with the rayon parallel computing library.
-#![feature(unboxed_closures, fn_traits)]
 extern crate rayon;
 
 extern crate time;
@@ -59,16 +58,6 @@ unsafe impl<'a> Sync for Logger<'a> {}
 
 const MAX_LOGGED_TASKS: usize = 10_000;
 
-/// Encapsulate some closure into another one which will log execution times.
-pub struct LoggingClosure<'a: 'b, 'b, RA: Send, A: FnOnce(FnContext) -> RA + Send> {
-    /// Real code to execute
-    pub real_closure: A,
-    /// Our unique task id
-    pub id: TaskId,
-    /// Where do we store logs ?
-    pub logger: &'b Logger<'a>,
-}
-
 impl<'a> Logger<'a> {
     /// Create a new events logging structure.
     pub fn new(pool: &'a ThreadPool) -> Self {
@@ -89,9 +78,23 @@ impl<'a> Logger<'a> {
         RA: Send,
         RB: Send,
     {
-        let ca = self.logging_closure(oper_a);
-        let cb = self.logging_closure(oper_b);
-        self.log(RayonEvent::Join(ca.id, cb.id));
+        let id_a = self.next_id();
+        let ca = |c| {
+            self.log(RayonEvent::TaskStart(id_a, precise_time_ns()));
+            let result = oper_a(c);
+            self.log(RayonEvent::TaskEnd(id_a, precise_time_ns()));
+            result
+        };
+
+        let id_b = self.next_id();
+        let cb = |c| {
+            self.log(RayonEvent::TaskStart(id_b, precise_time_ns()));
+            let result = oper_b(c);
+            self.log(RayonEvent::TaskEnd(id_b, precise_time_ns()));
+            result
+        };
+
+        self.log(RayonEvent::Join(id_a, id_b));
 
         rayon::join_context(ca, cb)
     }
@@ -104,26 +107,32 @@ impl<'a> Logger<'a> {
         RA: Send,
         RB: Send,
     {
-        let ca = self.logging_closure(|_| oper_a());
-        let cb = self.logging_closure(|_| oper_b());
-        self.log(RayonEvent::Join(ca.id, cb.id));
+        let id_a = self.next_id();
+        let ca = || {
+            self.log(RayonEvent::TaskStart(id_a, precise_time_ns()));
+            let result = oper_a();
+            self.log(RayonEvent::TaskEnd(id_a, precise_time_ns()));
+            result
+        };
 
-        rayon::join_context(ca, cb)
+        let id_b = self.next_id();
+        let cb = || {
+            self.log(RayonEvent::TaskStart(id_b, precise_time_ns()));
+            let result = oper_b();
+            self.log(RayonEvent::TaskEnd(id_b, precise_time_ns()));
+            result
+        };
+
+        self.log(RayonEvent::Join(id_a, id_b));
+
+        rayon::join(ca, cb)
     }
 
-    /// Create a new closure which will log record and log execution times on execution.
-    /// It gets a unique ID.
-    pub fn logging_closure<RA, A>(&self, oper: A) -> LoggingClosure<RA, A>
-    where
-        A: FnOnce(FnContext) -> RA + Send,
-        RA: Send,
-    {
-        LoggingClosure {
-            real_closure: oper,
-            id: self.next_task_id.fetch_add(1, Ordering::SeqCst),
-            logger: &self,
-        }
+    /// Return id for next task (updates counter).
+    fn next_id(&self) -> usize {
+        self.next_task_id.fetch_add(1, Ordering::SeqCst)
     }
+
     /// Add given event to logs of given thread.
     fn log(&self, event: RayonEvent) {
         if let Some(thread_id) = self.pool.current_thread_index() {
@@ -190,21 +199,5 @@ impl<'a> Logger<'a> {
             "{}",
             serde_json::to_string(&tasks_info).unwrap()
         ))
-    }
-}
-
-impl<'a, 'b, RA: Send, A: FnOnce(FnContext) -> RA + Send> FnOnce<(FnContext,)>
-    for LoggingClosure<'a, 'b, RA, A>
-{
-    type Output = RA;
-    extern "rust-call" fn call_once(self, context: (FnContext,)) -> Self::Output {
-        {
-            self.logger
-                .log(RayonEvent::TaskStart(self.id, precise_time_ns()));
-            let result = (self.real_closure)(context.0);
-            self.logger
-                .log(RayonEvent::TaskEnd(self.id, precise_time_ns()));
-            result
-        }
     }
 }
