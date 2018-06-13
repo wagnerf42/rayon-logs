@@ -1,2 +1,2 @@
 # rayon-logs
-logging library for rayon
+logging library for rayon (work in progress)
