@@ -1,6 +1,4 @@
-extern crate rayon;
 extern crate rayon_logs;
-use rayon::prelude::*;
 use rayon_logs::{prelude::*, LoggedPoolBuilder};
 
 fn main() {

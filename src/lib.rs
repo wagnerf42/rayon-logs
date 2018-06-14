@@ -9,6 +9,7 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 
+mod storage;
 mod iterator;
 pub use iterator::Logged;
 mod pool;

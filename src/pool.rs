@@ -2,12 +2,12 @@
 
 use rayon::{join, join_context, FnContext, ThreadPool};
 use serde_json;
-use std::cell::UnsafeCell;
 use std::fs::File;
 use std::io;
 use std::ops::Drop;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
+use storage::Storage;
 use time::precise_time_ns;
 
 use {RayonEvent, TaskId, TaskLog};
@@ -15,7 +15,7 @@ use {RayonEvent, TaskId, TaskLog};
 /// ThreadPool for fast and thread safe logging of execution times of tasks.
 pub struct LoggedPool {
     /// One vector of events for each thread.
-    tasks_logs: Vec<UnsafeCell<Vec<RayonEvent>>>,
+    tasks_logs: Vec<Storage>,
     /// We use an atomic usize to generate unique ids for tasks.
     next_task_id: AtomicUsize,
     /// We use an atomic usize to generate unique ids for iterators.
@@ -36,16 +36,12 @@ impl Drop for LoggedPool {
 
 unsafe impl Sync for LoggedPool {}
 
-const MAX_LOGGED_TASKS: usize = 10_000;
-
 impl LoggedPool {
     /// Create a new events logging structure.
     pub(crate) fn new(pool: ThreadPool, logs_filename: Option<String>) -> Self {
         let n_threads = pool.current_num_threads();
         LoggedPool {
-            tasks_logs: (0..n_threads)
-                .map(|_| UnsafeCell::new(Vec::with_capacity(MAX_LOGGED_TASKS)))
-                .collect(),
+            tasks_logs: (0..n_threads).map(|_| Storage::new()).collect(),
             next_task_id: ATOMIC_USIZE_INIT,
             next_iterator_id: ATOMIC_USIZE_INIT,
             pool,
@@ -139,9 +135,7 @@ impl LoggedPool {
     /// Add given event to logs of given thread.
     pub(crate) fn log(&self, event: RayonEvent) {
         if let Some(thread_id) = self.pool.current_thread_index() {
-            unsafe { self.tasks_logs[thread_id].get().as_mut() }
-                .unwrap()
-                .push(event)
+            self.tasks_logs[thread_id].push(event)
         }
     }
 
@@ -164,9 +158,7 @@ impl LoggedPool {
             .tasks_logs
             .iter()
             .filter_map(|l| {
-                unsafe { l.get().as_ref() }
-                    .unwrap()
-                    .iter()
+                l.logs()
                     .filter_map(|e| match e {
                         RayonEvent::TaskStart(_, time) => Some(time),
                         _ => None,
@@ -177,7 +169,7 @@ impl LoggedPool {
             .unwrap();
 
         for (thread_id, thread_log) in self.tasks_logs.iter().enumerate() {
-            unsafe { thread_log.get().as_ref() }.unwrap().iter().fold(
+            thread_log.logs().fold(
                 Vec::new(),
                 |mut active_tasks: Vec<TaskId>, event: &RayonEvent| -> Vec<TaskId> {
                     match *event {
