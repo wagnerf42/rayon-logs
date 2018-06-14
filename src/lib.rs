@@ -14,6 +14,8 @@ pub use iterator::Logged;
 mod pool;
 pub use pool::LoggedPool;
 pub mod prelude;
+mod builder;
+pub use builder::LoggedPoolBuilder;
 
 type TaskId = usize;
 type TimeStamp = u64;

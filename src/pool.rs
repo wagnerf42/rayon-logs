@@ -5,6 +5,7 @@ use serde_json;
 use std::cell::UnsafeCell;
 use std::fs::File;
 use std::io;
+use std::ops::Drop;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 use time::precise_time_ns;
@@ -12,22 +13,32 @@ use time::precise_time_ns;
 use {RayonEvent, TaskId, TaskLog};
 
 /// ThreadPool for fast and thread safe logging of execution times of tasks.
-pub struct LoggedPool<'a> {
+pub struct LoggedPool {
     /// One vector of events for each thread.
     tasks_logs: Vec<UnsafeCell<Vec<RayonEvent>>>,
     /// We use an atomic usize to generate unique ids for tasks.
     next_task_id: AtomicUsize,
     /// We need to know the thread pool to figure out thread indices.
-    pool: &'a ThreadPool,
+    pool: ThreadPool,
+    /// If we have a filename here, we automatically save logs on drop.
+    logs_filename: Option<String>,
 }
 
-unsafe impl<'a> Sync for LoggedPool<'a> {}
+impl Drop for LoggedPool {
+    fn drop(&mut self) {
+        if let &Some(ref filename) = &self.logs_filename {
+            self.save_logs(filename).expect("saving logs failed");
+        }
+    }
+}
+
+unsafe impl Sync for LoggedPool {}
 
 const MAX_LOGGED_TASKS: usize = 10_000;
 
-impl<'a> LoggedPool<'a> {
+impl LoggedPool {
     /// Create a new events logging structure.
-    pub fn new(pool: &'a ThreadPool) -> Self {
+    pub(crate) fn new(pool: ThreadPool, logs_filename: Option<String>) -> Self {
         let n_threads = pool.current_num_threads();
         LoggedPool {
             tasks_logs: (0..n_threads)
@@ -35,6 +46,7 @@ impl<'a> LoggedPool<'a> {
                 .collect(),
             next_task_id: ATOMIC_USIZE_INIT,
             pool,
+            logs_filename,
         }
     }
     /// Execute a logging join_context.

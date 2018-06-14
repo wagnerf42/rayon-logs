@@ -11,7 +11,7 @@ use LoggedPool;
 #[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
 pub struct Logged<'a, I: ParallelIterator> {
     base: I,
-    pool: &'a LoggedPool<'a>,
+    pool: &'a LoggedPool,
 }
 
 impl<'a, I: ParallelIterator> Logged<'a, I> {
