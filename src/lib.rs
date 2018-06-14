@@ -9,6 +9,8 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 
+pub mod iterator;
+
 use rayon::{FnContext, ThreadPool};
 ///! Small submodule for performance related logs.
 //use registry::WorkerThread;
@@ -40,7 +42,7 @@ pub struct TaskLog {
     start_time: TimeStamp,
     end_time: TimeStamp,
     thread_id: usize,
-    children: Option<(TaskId, TaskId)>,
+    children: Vec<TaskId>,
 }
 
 /// ThreadPool for fast and thread safe logging of execution times of tasks.
@@ -158,13 +160,18 @@ impl<'a> LoggedPool<'a> {
 
     /// Save log file of currently recorded tasks logs.
     pub fn save_logs<P: AsRef<Path>>(&self, path: P) -> Result<(), io::Error> {
-        let mut buffer = File::create(path)?;
+        let file = File::create(path)?;
 
         let tasks_number = self.next_task_id.load(Ordering::SeqCst);
-        let mut tasks_info: Vec<TaskLog> = Vec::with_capacity(tasks_number);
-        unsafe {
-            tasks_info.set_len(tasks_number);
-        }
+        let mut tasks_info: Vec<_> = (0..tasks_number)
+            .map(|_| TaskLog {
+                start_time: 0, // will be filled later
+                end_time: 0,
+                thread_id: 0,
+                children: Vec::new(),
+            })
+            .collect();
+
         // get min time
         let start_time = self
             .tasks_logs
@@ -189,7 +196,8 @@ impl<'a> LoggedPool<'a> {
                     match event {
                         &RayonEvent::Join(a, b) => {
                             if let Some(active_task) = active_tasks.last() {
-                                tasks_info[*active_task].children = Some((a, b));
+                                tasks_info[*active_task].children.push(a);
+                                tasks_info[*active_task].children.push(b);
                             }
                             active_tasks
                         }
@@ -208,10 +216,7 @@ impl<'a> LoggedPool<'a> {
                 },
             );
         }
-
-        buffer.write_fmt(format_args!(
-            "{}",
-            serde_json::to_string(&tasks_info).unwrap()
-        ))
+        serde_json::to_writer(file, &tasks_info).expect("failed serializing");
+        Ok(())
     }
 }
