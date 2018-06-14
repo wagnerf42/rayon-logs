@@ -1,5 +1,7 @@
+//! Provides logging for parallel iterators.
 use rayon::iter::plumbing::*;
 use rayon::iter::*;
+use LoggedPool;
 
 /// `Logged` is an iterator that logs all tasks created in a `LoggedPool`.
 ///
@@ -7,22 +9,22 @@ use rayon::iter::*;
 ///
 /// [`ParallelIterator`]: trait.ParallelIterator.html
 #[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
-#[derive(Debug, Clone)]
-pub struct Logged<I: ParallelIterator> {
+pub struct Logged<'a, I: ParallelIterator> {
     base: I,
+    pool: &'a LoggedPool<'a>,
 }
 
-/// Create a new `Logged` iterator.
-///
-/// NB: a free fn because it is NOT part of the end-user API.
-pub fn new<I>(base: I) -> Logged<I>
-where
-    I: ParallelIterator,
-{
-    Logged { base: base }
+impl<'a, I: ParallelIterator> Logged<'a, I> {
+    /// Create a new `Logged` iterator.
+    pub(crate) fn new(base: I, pool: &'a LoggedPool) -> Logged<'a, I>
+    where
+        I: ParallelIterator,
+    {
+        Logged { base, pool }
+    }
 }
 
-impl<T, I> ParallelIterator for Logged<I>
+impl<'a, T, I> ParallelIterator for Logged<'a, I>
 where
     I: ParallelIterator<Item = T>,
     T: Send,
@@ -42,10 +44,10 @@ where
     }
 }
 
-impl<'a, T, I> IndexedParallelIterator for Logged<I>
+impl<'a, T, I> IndexedParallelIterator for Logged<'a, I>
 where
-    I: IndexedParallelIterator<Item = &'a T>,
-    T: 'a + Send + Sync,
+    I: IndexedParallelIterator<Item = T>,
+    T: Send,
 {
     fn drive<C>(self, consumer: C) -> C::Result
     where

@@ -1,8 +1,7 @@
 extern crate rayon;
 extern crate rayon_logs;
 use rayon::prelude::*;
-use rayon::ThreadPoolBuilder;
-use rayon_logs::LoggedPool;
+use rayon_logs::{prelude::*, LoggedPool};
 
 fn main() {
     let v: Vec<u32> = (0..5000).collect();
@@ -13,7 +12,7 @@ fn main() {
     let pool = LoggedPool::new(&pool);
 
     let max = pool
-        .install(|| rayon_logs::iterator::new(v.par_iter()).max())
+        .install(|| v.par_iter().log(&pool).max())
         .cloned()
         .unwrap();
     assert_eq!(max, v.last().cloned().unwrap());
