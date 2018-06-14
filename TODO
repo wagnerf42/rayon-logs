@@ -1,0 +1,4 @@
+est-ce que cela ne vaudrait pas le coup de dissocier 
+- la maniere de recuperer l'id du thread
+(on pourrait faire du thread_local avec un compteur + init chaque thread avec le start_handler du builder par exemple)
+- l'endroit ou on stocke les logs (par exemple pour faire des groupes ?)

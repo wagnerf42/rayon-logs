@@ -1,7 +1,8 @@
 //! Provides logging for parallel iterators.
 use rayon::iter::plumbing::*;
 use rayon::iter::*;
-use LoggedPool;
+use time::precise_time_ns;
+use {IteratorId, LoggedPool, RayonEvent, TaskId};
 
 /// `Logged` is an iterator that logs all tasks created in a `LoggedPool`.
 ///
@@ -35,7 +36,12 @@ where
     where
         C: UnindexedConsumer<Self::Item>,
     {
-        let consumer1 = LoggedConsumer::new(consumer);
+        let consumer1 = LoggedConsumer {
+            base: consumer,
+            pool: self.pool,
+            part: None,
+            iterator_id: self.pool.next_iterator_id(),
+        };
         self.base.drive_unindexed(consumer1)
     }
 
@@ -53,7 +59,13 @@ where
     where
         C: Consumer<Self::Item>,
     {
-        let consumer1 = LoggedConsumer::new(consumer);
+        let part = Some((0, self.base.len()));
+        let consumer1 = LoggedConsumer {
+            base: consumer,
+            pool: self.pool,
+            part,
+            iterator_id: self.pool.next_iterator_id(),
+        };
         self.base.drive(consumer1)
     }
 
@@ -65,7 +77,7 @@ where
     where
         CB: ProducerCallback<Self::Item>,
     {
-        return self.base.with_producer(Callback { callback: callback });
+        return self.base.with_producer(Callback { callback });
 
         struct Callback<CB> {
             callback: CB,
@@ -82,7 +94,7 @@ where
             where
                 P: Producer<Item = T>,
             {
-                let producer = LoggedProducer { base: base };
+                let producer = LoggedProducer { base };
                 self.callback.callback(producer)
             }
         }
@@ -134,38 +146,55 @@ where
 /// ////////////////////////////////////////////////////////////////////////
 /// Consumer implementation
 
-struct LoggedConsumer<C> {
+struct LoggedConsumer<'a, C> {
     base: C,
+    pool: &'a LoggedPool,
+    part: Option<(usize, usize)>,
+    iterator_id: IteratorId,
 }
 
-impl<C> LoggedConsumer<C> {
-    fn new(base: C) -> Self {
-        LoggedConsumer { base: base }
-    }
-}
-
-impl<'a, T, C> Consumer<T> for LoggedConsumer<C>
+impl<'a, T, C> Consumer<T> for LoggedConsumer<'a, C>
 where
     C: Consumer<T>,
     T: Send,
 {
-    type Folder = C::Folder;
+    type Folder = LoggedFolder<'a, C::Folder>;
     type Reducer = C::Reducer;
     type Result = C::Result;
 
     fn split_at(self, index: usize) -> (Self, Self, Self::Reducer) {
         let (left, right, reducer) = self.base.split_at(index);
-        println!("splitting at {}", index);
+        let left_part = self.part.map(|(s, _)| (s, s + index));
+        let right_part = self.part.map(|(s, e)| (s + index, e));
         (
-            LoggedConsumer::new(left),
-            LoggedConsumer::new(right),
+            LoggedConsumer {
+                base: left,
+                pool: self.pool,
+                part: left_part,
+                iterator_id: self.iterator_id,
+            },
+            LoggedConsumer {
+                base: right,
+                pool: self.pool,
+                part: right_part,
+                iterator_id: self.iterator_id,
+            },
             reducer,
         )
     }
 
-    fn into_folder(self) -> Self::Folder {
-        println!("into folder");
-        self.base.into_folder()
+    fn into_folder(self) -> LoggedFolder<'a, C::Folder> {
+        let id = self.pool.next_task_id();
+
+        self.pool.log(RayonEvent::TaskStart(id, precise_time_ns()));
+        self.pool
+            .log(RayonEvent::IteratorTask(id, self.iterator_id, self.part));
+
+        LoggedFolder {
+            base: self.base.into_folder(),
+            pool: self.pool,
+            id,
+        }
     }
 
     fn full(&self) -> bool {
@@ -173,16 +202,57 @@ where
     }
 }
 
-impl<T, C> UnindexedConsumer<T> for LoggedConsumer<C>
+impl<'a, T, C> UnindexedConsumer<T> for LoggedConsumer<'a, C>
 where
     C: UnindexedConsumer<T>,
     T: Send,
 {
     fn split_off_left(&self) -> Self {
-        LoggedConsumer::new(self.base.split_off_left())
+        LoggedConsumer {
+            base: self.base.split_off_left(),
+            pool: self.pool,
+            part: None,
+            iterator_id: self.iterator_id,
+        }
     }
 
     fn to_reducer(&self) -> Self::Reducer {
         self.base.to_reducer()
+    }
+}
+
+/// ////////////////////////////////////////////////////////////////////////
+/// Folder implementation
+
+struct LoggedFolder<'a, F> {
+    base: F,
+    pool: &'a LoggedPool,
+    id: TaskId,
+}
+
+impl<'a, T, F> Folder<T> for LoggedFolder<'a, F>
+where
+    F: Folder<T>,
+    T: Send,
+{
+    type Result = F::Result;
+
+    fn consume(self, item: T) -> Self {
+        LoggedFolder {
+            base: self.base.consume(item),
+            pool: self.pool,
+            id: self.id,
+        }
+    }
+
+    fn complete(self) -> F::Result {
+        let result = self.base.complete();
+        self.pool
+            .log(RayonEvent::TaskEnd(self.id, precise_time_ns()));
+        result
+    }
+
+    fn full(&self) -> bool {
+        self.base.full()
     }
 }

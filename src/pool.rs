@@ -18,6 +18,8 @@ pub struct LoggedPool {
     tasks_logs: Vec<UnsafeCell<Vec<RayonEvent>>>,
     /// We use an atomic usize to generate unique ids for tasks.
     next_task_id: AtomicUsize,
+    /// We use an atomic usize to generate unique ids for iterators.
+    next_iterator_id: AtomicUsize,
     /// We need to know the thread pool to figure out thread indices.
     pool: ThreadPool,
     /// If we have a filename here, we automatically save logs on drop.
@@ -26,7 +28,7 @@ pub struct LoggedPool {
 
 impl Drop for LoggedPool {
     fn drop(&mut self) {
-        if let &Some(ref filename) = &self.logs_filename {
+        if let Some(ref filename) = self.logs_filename {
             self.save_logs(filename).expect("saving logs failed");
         }
     }
@@ -45,6 +47,7 @@ impl LoggedPool {
                 .map(|_| UnsafeCell::new(Vec::with_capacity(MAX_LOGGED_TASKS)))
                 .collect(),
             next_task_id: ATOMIC_USIZE_INIT,
+            next_iterator_id: ATOMIC_USIZE_INIT,
             pool,
             logs_filename,
         }
@@ -57,7 +60,7 @@ impl LoggedPool {
         RA: Send,
         RB: Send,
     {
-        let id_a = self.next_id();
+        let id_a = self.next_task_id();
         let ca = |c| {
             self.log(RayonEvent::TaskStart(id_a, precise_time_ns()));
             let result = oper_a(c);
@@ -65,7 +68,7 @@ impl LoggedPool {
             result
         };
 
-        let id_b = self.next_id();
+        let id_b = self.next_task_id();
         let cb = |c| {
             self.log(RayonEvent::TaskStart(id_b, precise_time_ns()));
             let result = oper_b(c);
@@ -84,7 +87,7 @@ impl LoggedPool {
         OP: FnOnce() -> R + Send,
         R: Send,
     {
-        let id = self.next_id();
+        let id = self.next_task_id();
         let c = || {
             self.log(RayonEvent::TaskStart(id, precise_time_ns()));
             let result = op();
@@ -102,7 +105,7 @@ impl LoggedPool {
         RA: Send,
         RB: Send,
     {
-        let id_a = self.next_id();
+        let id_a = self.next_task_id();
         let ca = || {
             self.log(RayonEvent::TaskStart(id_a, precise_time_ns()));
             let result = oper_a();
@@ -110,7 +113,7 @@ impl LoggedPool {
             result
         };
 
-        let id_b = self.next_id();
+        let id_b = self.next_task_id();
         let cb = || {
             self.log(RayonEvent::TaskStart(id_b, precise_time_ns()));
             let result = oper_b();
@@ -124,12 +127,17 @@ impl LoggedPool {
     }
 
     /// Return id for next task (updates counter).
-    fn next_id(&self) -> usize {
+    pub(crate) fn next_task_id(&self) -> usize {
         self.next_task_id.fetch_add(1, Ordering::SeqCst)
     }
 
+    /// Return id for next iterator (updates counter).
+    pub(crate) fn next_iterator_id(&self) -> usize {
+        self.next_iterator_id.fetch_add(1, Ordering::SeqCst)
+    }
+
     /// Add given event to logs of given thread.
-    fn log(&self, event: RayonEvent) {
+    pub(crate) fn log(&self, event: RayonEvent) {
         if let Some(thread_id) = self.pool.current_thread_index() {
             unsafe { self.tasks_logs[thread_id].get().as_mut() }
                 .unwrap()
@@ -172,25 +180,26 @@ impl LoggedPool {
             unsafe { thread_log.get().as_ref() }.unwrap().iter().fold(
                 Vec::new(),
                 |mut active_tasks: Vec<TaskId>, event: &RayonEvent| -> Vec<TaskId> {
-                    match event {
-                        &RayonEvent::Join(a, b) => {
+                    match *event {
+                        RayonEvent::Join(a, b) => {
                             if let Some(active_task) = active_tasks.last() {
                                 tasks_info[*active_task].children.push(a);
                                 tasks_info[*active_task].children.push(b);
                             }
                             active_tasks
                         }
-                        &RayonEvent::TaskEnd(task, time) => {
+                        RayonEvent::TaskEnd(task, time) => {
                             tasks_info[task].end_time = time - start_time;
                             active_tasks.pop();
                             active_tasks
                         }
-                        &RayonEvent::TaskStart(task, time) => {
+                        RayonEvent::TaskStart(task, time) => {
                             tasks_info[task].thread_id = thread_id;
                             tasks_info[task].start_time = time - start_time;
                             active_tasks.push(task);
                             active_tasks
                         }
+                        _ => active_tasks,
                     }
                 },
             );

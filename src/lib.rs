@@ -13,11 +13,12 @@ mod iterator;
 pub use iterator::Logged;
 mod pool;
 pub use pool::LoggedPool;
-pub mod prelude;
 mod builder;
+pub mod prelude;
 pub use builder::LoggedPoolBuilder;
 
 type TaskId = usize;
+type IteratorId = usize;
 type TimeStamp = u64;
 
 /// All types of events we can log.
@@ -29,6 +30,8 @@ enum RayonEvent {
     TaskEnd(TaskId, TimeStamp),
     /// We create two tasks with join (contains dependencies information).
     Join(TaskId, TaskId),
+    /// Log additional informations for iterators tasks.
+    IteratorTask(TaskId, IteratorId, Option<(usize, usize)>),
 }
 
 /// The final information produced for log viewers.

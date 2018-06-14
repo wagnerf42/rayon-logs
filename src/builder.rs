@@ -2,6 +2,7 @@ use rayon::{ThreadPoolBuildError, ThreadPoolBuilder};
 use LoggedPool;
 
 /// Builder for LoggedPool
+#[derive(Default)]
 pub struct LoggedPoolBuilder {
     real_builder: ThreadPoolBuilder,
     filename: Option<String>,
@@ -16,10 +17,10 @@ impl LoggedPoolBuilder {
         }
     }
     /// Specify a file to automatically save all logs when Pool will be dropped.
-    pub fn log_file<S: ToString>(self, filename: S) -> Self {
+    pub fn log_file<S: Into<String>>(self, filename: S) -> Self {
         LoggedPoolBuilder {
             real_builder: self.real_builder,
-            filename: Some(filename.to_string()),
+            filename: Some(filename.into()),
         }
     }
     /// Sets the number of threads to use.
