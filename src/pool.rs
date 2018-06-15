@@ -24,6 +24,8 @@ pub struct LoggedPool {
     pool: ThreadPool,
     /// If we have a filename here, we automatically save logs on drop.
     logs_filename: Option<String>,
+    /// When are we created (to shift all recorded times)
+    pub(crate) start: u64,
 }
 
 impl Drop for LoggedPool {
@@ -46,6 +48,7 @@ impl LoggedPool {
             next_iterator_id: ATOMIC_USIZE_INIT,
             pool,
             logs_filename,
+            start: precise_time_ns(),
         }
     }
     /// Execute a logging join_context.
@@ -58,17 +61,17 @@ impl LoggedPool {
     {
         let id_a = self.next_task_id();
         let ca = |c| {
-            self.log(RayonEvent::TaskStart(id_a, precise_time_ns()));
+            self.log(RayonEvent::TaskStart(id_a, precise_time_ns() - self.start));
             let result = oper_a(c);
-            self.log(RayonEvent::TaskEnd(id_a, precise_time_ns()));
+            self.log(RayonEvent::TaskEnd(id_a, precise_time_ns() - self.start));
             result
         };
 
         let id_b = self.next_task_id();
         let cb = |c| {
-            self.log(RayonEvent::TaskStart(id_b, precise_time_ns()));
+            self.log(RayonEvent::TaskStart(id_b, precise_time_ns() - self.start));
             let result = oper_b(c);
-            self.log(RayonEvent::TaskEnd(id_b, precise_time_ns()));
+            self.log(RayonEvent::TaskEnd(id_b, precise_time_ns() - self.start));
             result
         };
 
@@ -85,9 +88,9 @@ impl LoggedPool {
     {
         let id = self.next_task_id();
         let c = || {
-            self.log(RayonEvent::TaskStart(id, precise_time_ns()));
+            self.log(RayonEvent::TaskStart(id, precise_time_ns() - self.start));
             let result = op();
-            self.log(RayonEvent::TaskEnd(id, precise_time_ns()));
+            self.log(RayonEvent::TaskEnd(id, precise_time_ns() - self.start));
             result
         };
         self.pool.install(c)
@@ -103,17 +106,17 @@ impl LoggedPool {
     {
         let id_a = self.next_task_id();
         let ca = || {
-            self.log(RayonEvent::TaskStart(id_a, precise_time_ns()));
+            self.log(RayonEvent::TaskStart(id_a, precise_time_ns() - self.start));
             let result = oper_a();
-            self.log(RayonEvent::TaskEnd(id_a, precise_time_ns()));
+            self.log(RayonEvent::TaskEnd(id_a, precise_time_ns() - self.start));
             result
         };
 
         let id_b = self.next_task_id();
         let cb = || {
-            self.log(RayonEvent::TaskStart(id_b, precise_time_ns()));
+            self.log(RayonEvent::TaskStart(id_b, precise_time_ns() - self.start));
             let result = oper_b();
-            self.log(RayonEvent::TaskEnd(id_b, precise_time_ns()));
+            self.log(RayonEvent::TaskEnd(id_b, precise_time_ns() - self.start));
             result
         };
 
@@ -153,20 +156,9 @@ impl LoggedPool {
             })
             .collect();
 
-        // get min time
-        let start_time = self
-            .tasks_logs
-            .iter()
-            .filter_map(|l| {
-                l.logs()
-                    .filter_map(|e| match e {
-                        RayonEvent::TaskStart(_, time) => Some(time),
-                        _ => None,
-                    })
-                    .next()
-            })
-            .min()
-            .unwrap();
+        let iterators_number = self.next_iterator_id.load(Ordering::SeqCst);
+        let mut iterators_info: Vec<_> = (0..iterators_number).map(|_| Vec::new()).collect();
+        let mut iterators_fathers = Vec::new();
 
         for (thread_id, thread_log) in self.tasks_logs.iter().enumerate() {
             thread_log.logs().fold(
@@ -181,21 +173,45 @@ impl LoggedPool {
                             active_tasks
                         }
                         RayonEvent::TaskEnd(task, time) => {
-                            tasks_info[task].end_time = time - start_time;
+                            tasks_info[task].end_time = time;
                             active_tasks.pop();
                             active_tasks
                         }
                         RayonEvent::TaskStart(task, time) => {
                             tasks_info[task].thread_id = thread_id;
-                            tasks_info[task].start_time = time - start_time;
+                            tasks_info[task].start_time = time;
                             active_tasks.push(task);
                             active_tasks
                         }
-                        _ => active_tasks,
+                        RayonEvent::IteratorTask(task, iterator, part) => {
+                            let start = if let Some((start, _)) = part {
+                                start
+                            } else {
+                                0
+                            };
+                            iterators_info[iterator].push((task, start));
+                            active_tasks
+                        }
+                        RayonEvent::IteratorStart(iterator) => {
+                            if let Some(active_task) = active_tasks.last() {
+                                iterators_fathers.push((iterator, *active_task));
+                            }
+                            active_tasks
+                        }
                     }
                 },
             );
         }
+
+        // now parse iterator info to link iterator tasks to graph
+        for (iterator, father) in &iterators_fathers {
+            let mut children = &mut iterators_info[*iterator];
+            children.sort_unstable_by_key(|(_, start)| *start);
+            tasks_info[*father]
+                .children
+                .extend(children.iter().map(|(task, _)| task));
+        }
+
         serde_json::to_writer(file, &tasks_info).expect("failed serializing");
         Ok(())
     }

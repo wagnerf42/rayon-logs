@@ -9,8 +9,8 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 
-mod storage;
 mod iterator;
+mod storage;
 pub use iterator::Logged;
 mod pool;
 pub use pool::LoggedPool;
@@ -33,6 +33,8 @@ enum RayonEvent {
     Join(TaskId, TaskId),
     /// Log additional informations for iterators tasks.
     IteratorTask(TaskId, IteratorId, Option<(usize, usize)>),
+    /// Who starts a new iterator.
+    IteratorStart(IteratorId),
 }
 
 /// The final information produced for log viewers.

@@ -42,6 +42,8 @@ where
             part: None,
             iterator_id: self.pool.next_iterator_id(),
         };
+        self.pool
+            .log(RayonEvent::IteratorStart(consumer1.iterator_id));
         self.base.drive_unindexed(consumer1)
     }
 
@@ -66,6 +68,8 @@ where
             part,
             iterator_id: self.pool.next_iterator_id(),
         };
+        self.pool
+            .log(RayonEvent::IteratorStart(consumer1.iterator_id));
         self.base.drive(consumer1)
     }
 
@@ -186,7 +190,10 @@ where
     fn into_folder(self) -> LoggedFolder<'a, C::Folder> {
         let id = self.pool.next_task_id();
 
-        self.pool.log(RayonEvent::TaskStart(id, precise_time_ns()));
+        self.pool.log(RayonEvent::TaskStart(
+            id,
+            precise_time_ns() - self.pool.start,
+        ));
         self.pool
             .log(RayonEvent::IteratorTask(id, self.iterator_id, self.part));
 
@@ -247,8 +254,10 @@ where
 
     fn complete(self) -> F::Result {
         let result = self.base.complete();
-        self.pool
-            .log(RayonEvent::TaskEnd(self.id, precise_time_ns()));
+        self.pool.log(RayonEvent::TaskEnd(
+            self.id,
+            precise_time_ns() - self.pool.start,
+        ));
         result
     }
 
