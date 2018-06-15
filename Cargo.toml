@@ -3,9 +3,18 @@ name = "rayon_logs"
 version = "0.1.0"
 authors = ["frederic wagner <frederic.wagner@imag.fr>"]
 
+[[bin]]
+name ="log_viewer"
+path = "src/log_viewer.rs"
+
+
 [dependencies]
 rayon="*"
 time="*"
 serde="*"
 serde_json="*"
 serde_derive="*"
+piston_window = "*"
+num = "*"
+piston = "*"
+
