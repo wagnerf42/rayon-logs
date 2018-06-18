@@ -1,6 +1,7 @@
 extern crate serde;
 extern crate serde_json;
 // Piston
+extern crate drag_controller;
 extern crate num;
 extern crate piston;
 extern crate piston_window;
@@ -10,6 +11,7 @@ extern crate serde_derive;
 
 use piston_window::*;
 // use std::cmp;
+use drag_controller::{Drag, DragController};
 use std::env;
 use std::fs::File;
 use std::io;
@@ -28,7 +30,6 @@ pub struct Rectangle {
     pub height: f64,
     pub start_time: u64,
     pub end_time: u64,
-    pub animate: bool,
 }
 
 impl Rectangle {
@@ -41,7 +42,6 @@ impl Rectangle {
         height: f64,
         start_time: u64,
         end_time: u64,
-        animate: bool,
     ) -> Rectangle {
         Rectangle {
             color: color,
@@ -51,7 +51,6 @@ impl Rectangle {
             height: height,
             start_time: start_time,
             end_time: end_time,
-            animate: animate,
         }
     }
 
@@ -65,28 +64,16 @@ impl Rectangle {
         trans_x: &f64,
         trans_y: &f64,
     ) {
-        if self.animate {
-            if *current_time > self.start_time {
-                let width = (self.width * ((current_time - self.start_time) as f64)
-                    / ((self.end_time - self.start_time) as f64))
-                    .min(self.width);
+        if *current_time > self.start_time {
+            let width = (self.width * ((current_time - self.start_time) as f64)
+                / ((self.end_time - self.start_time) as f64))
+                .min(self.width);
 
-                window.draw_2d(event, |context, graphics| {
-                    ();
-                    rectangle(
-                        self.color,
-                        [self.x, self.y, width, self.height],
-                        context.transform.zoom(*zoom).trans(*trans_x, *trans_y),
-                        graphics,
-                    );
-                });
-            }
-        } else {
             window.draw_2d(event, |context, graphics| {
                 ();
                 rectangle(
                     self.color,
-                    [self.x, self.y, self.width, self.height],
+                    [self.x, self.y, width, self.height],
                     context.transform.zoom(*zoom).trans(*trans_x, *trans_y),
                     graphics,
                 );
@@ -151,6 +138,7 @@ pub fn create_window(title: String, width: u32, height: u32) -> PistonWindow {
     WindowSettings::new(title, [width, height])
         .exit_on_esc(true)
         .opengl(opengl)
+        .samples(4)
         .build()
         .unwrap()
 }
@@ -249,7 +237,6 @@ impl TaskVisu {
             20.0,
             self.start_time,
             self.end_time,
-            true,
         )
     }
 
@@ -262,8 +249,7 @@ impl TaskVisu {
             self.width / 2000.0,
             20.0,
             0,
-            self.end_time,
-            false,
+            1,
         )
     }
 }
@@ -309,7 +295,7 @@ pub fn get_dimensions(
                 tasks[*index].gap = (tasks[*index].width - sub_width) / (n as f64 - 1.0);
                 return (tasks[*index].width, sub_height + 1.0);
             } else {
-                tasks[*index].gap = 20000.0; // just for style purposes
+                tasks[*index].gap = 75000.0; // just for style purposes
                 return (sub_width, sub_height + 1.0);
             }
         }
@@ -356,7 +342,7 @@ pub fn set_positions(index: &usize, mut tasks: &mut [TaskVisu], mut offset: &mut
                 + tasks[children[n - 1]].width) / 2.0
                 - (tasks[*index].width / 2.0);
             // And we return the new offset
-            *offset - tasks[*index].gap
+            *offset //  - tasks[*index].gap
         }
     }
 }
@@ -370,15 +356,95 @@ fn create_taskvisu(tasks: &[TaskLog], begin_height: &f64) -> (Vec<TaskVisu>, f64
     (tasks_visu, height)
 }
 
+/// Show the commands to control the animation
 fn show_commands() {
     println!("############################ COMMANDS ###########################\n");
     println!("P           : Zoom In");
     println!("M           : Zoom Out");
     println!("Space       : Pauses the animation if playing, plays it if paused");
+    println!("Mouse Right : Pauses the animation if playing, plays it if paused");
     println!("R           : Restart Animation");
     println!("B           : Go back a few moments in time");
+    println!("S           : Slower Animation");
+    println!("F           : Faster Animation");
+    println!("Mouse Left  : Move the animation");
     println!("Arrows Keys : Move the animation");
-    println!("HJKL        : Move the animation (Vim Keys)\n");
+    println!("HJKL        : Move the animation (Vim Keys)");
+    println!("Esc         : Quit the animation\n");
+}
+
+/// Change some of the animation parameters depending on which key was pressed
+fn actions_keys(
+    event: &Event,
+    time: &mut u64,
+    time_ratio: &mut u64,
+    paused: &mut bool,
+    zoom: &mut f64,
+    trans_x: &mut f64,
+    trans_y: &mut f64,
+    ori_x: &mut f64,
+    ori_y: &mut f64,
+    trans_x_old: &mut f64,
+    trans_y_old: &mut f64,
+    drag: &mut DragController,
+) {
+    use piston::input::MouseButton;
+    use piston_window::Button::Keyboard;
+    use piston_window::Button::Mouse;
+    use piston_window::Key;
+
+    drag.event(event, |action| match action {
+        Drag::Start(x, y) => {
+            *ori_x = x;
+            *ori_y = y;
+            *trans_x_old = *trans_x;
+            *trans_y_old = *trans_y;
+            true
+        }
+        Drag::Move(x, y) => {
+            *trans_x = (x - *ori_x) + *trans_x_old;
+            *trans_y = (y - *ori_y) + *trans_y_old;
+            true
+        }
+        Drag::End(x, y) => {
+            *ori_x = x;
+            *ori_y = y;
+            false
+        }
+        Drag::Interrupt => true,
+    });
+
+    if let Some(button) = event.press_args() {
+        match button {
+            Keyboard(Key::P) => *zoom += 0.05,
+            Keyboard(Key::M) => *zoom -= 0.05,
+            Keyboard(Key::Space) => *paused = !*paused,
+            Keyboard(Key::R) => *time = 0,
+            Keyboard(Key::B) => {
+                *paused = true;
+                if *time > 5 * *time_ratio {
+                    *time -= 5 * *time_ratio;
+                } else {
+                    *time = 0;
+                }
+            }
+            Keyboard(Key::Left) => *trans_x -= 5.0,
+            Keyboard(Key::Right) => *trans_x += 5.0,
+            Keyboard(Key::Up) => *trans_y -= 5.0,
+            Keyboard(Key::Down) => *trans_y += 5.0,
+            Keyboard(Key::F) => *time_ratio += 10,
+            Keyboard(Key::S) => *time_ratio -= 10,
+            Mouse(MouseButton::Right) => *paused = !*paused,
+            _ => {}
+        }
+    };
+    if let Some([_, y]) = event.mouse_scroll_args() {
+        if y == 1.0 {
+            *zoom += 0.05;
+        } else {
+            *zoom -= 0.05;
+        }
+    };
 }
 
 fn main() {
@@ -399,70 +465,47 @@ fn main() {
     }
     // Create a window
     let mut window: PistonWindow = create_window("Rayon Log Viewer".to_string(), 800, 800);
-    let mut glyphs = set_font(
-        &window,
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf".to_string(), // May not work if there is no such file ..
-    );
+    let mut glyphs = set_font(&window, "DejaVuSans.ttf".to_string());
 
     show_commands();
     let mut vec_rectangle: Vec<Rectangle> = Vec::new();
-    let mut vec_black: Vec<Rectangle> = Vec::new();
     for file_tasks in tasks_for_visu.iter() {
         for task in file_tasks.iter() {
             let mut rec = task.to_rectangle();
             let mut rec_b = task.to_black_rectangle();
 
+            vec_rectangle.push(rec_b);
             vec_rectangle.push(rec);
-            vec_black.push(rec_b);
         }
     }
     let mut time = 0;
     let mut zoom = 1.0;
     let mut trans_x = 0.0;
     let mut trans_y = 0.0;
+    let mut trans_x_old = 0.0;
+    let mut trans_y_old = 0.0;
+    let mut pos_x = 0.0;
+    let mut pos_y = 0.0;
+    let mut drag = DragController::new();
 
     let mut paused = false;
-    let time_ratio = 50; // 1 iteration = time_ratio * 1 nanosecond
+    let mut time_ratio = 100; // 1 iteration = time_ratio * 1 nanosecond
     while let Some(event) = window.next() {
-        // Actions by key
-        if let Some(button) = event.press_args() {
-            use piston_window::Button::Keyboard;
-            use piston_window::Key;
-
-            if button == Keyboard(Key::P) {
-                zoom += 0.05; // Zoom In
-            }
-            if button == Keyboard(Key::M) {
-                zoom -= 0.05; // Zoom Out
-            }
-            if button == Keyboard(Key::Space) {
-                paused = !paused; // Pause if playing, play if paused
-            }
-            if button == Keyboard(Key::R) {
-                time = 0; // Restart
-            }
-            if button == Keyboard(Key::B) {
-                paused = true;
-                if time > 5 * time_ratio {
-                    time -= 5 * time_ratio;
-                } else {
-                    time = 0;
-                }
-            }
-            // Keys for moving the rectangles (also works with Vim keys)
-            if button == Keyboard(Key::Left) || button == Keyboard(Key::H) {
-                trans_x -= 5.0;
-            }
-            if button == Keyboard(Key::Right) || button == Keyboard(Key::L) {
-                trans_x += 5.0;
-            }
-            if button == Keyboard(Key::Up) || button == Keyboard(Key::K) {
-                trans_y -= 5.0;
-            }
-            if button == Keyboard(Key::Down) || button == Keyboard(Key::J) {
-                trans_y += 5.0;
-            };
-        }
+        // Actions by key: Apply modification to time or position depending on key pressed
+        actions_keys(
+            &event,
+            &mut time,
+            &mut time_ratio,
+            &mut paused,
+            &mut zoom,
+            &mut trans_x,
+            &mut trans_y,
+            &mut pos_x,
+            &mut pos_y,
+            &mut trans_x_old,
+            &mut trans_y_old,
+            &mut drag,
+        );
         // Clear the screen in white
         clear_screen(&mut window, &event, [1.0; 4]);
         for index in 1..args.len() {
@@ -482,7 +525,7 @@ fn main() {
         }
 
         // We draw all the rectangles
-        for rectangle in vec_black.iter_mut().chain(vec_rectangle.iter_mut()) {
+        for rectangle in vec_rectangle.iter_mut() {
             rectangle.draw(
                 &mut window,
                 &event,

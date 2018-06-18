@@ -17,4 +17,4 @@ serde_derive="*"
 piston_window = "*"
 num = "*"
 piston = "*"
-
+piston2d-drag_controller = "*"
