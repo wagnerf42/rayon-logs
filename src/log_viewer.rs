@@ -9,9 +9,8 @@ extern crate piston_window;
 #[macro_use]
 extern crate serde_derive;
 
-use piston_window::*;
-// use std::cmp;
 use drag_controller::{Drag, DragController};
+use piston_window::*;
 use std::env;
 use std::fs::File;
 use std::io;
@@ -56,13 +55,17 @@ impl Rectangle {
 
     /// Draws the rectangle
     pub fn draw(
-        &mut self,
+        &self,
         window: &mut PistonWindow,
         event: &Event,
         current_time: &u64,
         zoom: &f64,
         trans_x: &f64,
         trans_y: &f64,
+        max_width: &f64,
+        max_height: &f64,
+        window_width: &u32,
+        window_height: &u32,
     ) {
         if *current_time > self.start_time {
             let width = (self.width * ((current_time - self.start_time) as f64)
@@ -75,10 +78,10 @@ impl Rectangle {
                     self.color,
                     [self.x, self.y, width, self.height],
                     // context.transform.zoom(*zoom).trans(*trans_x, *trans_y),
-                    context
-                        .transform
-                        .trans(*trans_x, *trans_y)
-                        .scale(*zoom / 3000.0, *zoom * 20.0),
+                    context.transform.trans(*trans_x, *trans_y).scale(
+                        *zoom * (*window_width as f64) / *max_width,
+                        *zoom * (*window_height as f64) / *max_height,
+                    ),
                     graphics,
                 );
             });
@@ -142,7 +145,6 @@ pub fn create_window(title: String, width: u32, height: u32) -> PistonWindow {
     WindowSettings::new(title, [width, height])
         .exit_on_esc(true)
         .opengl(opengl)
-        .samples(4)
         .build()
         .unwrap()
 }
@@ -183,10 +185,6 @@ pub struct TaskVisu {
     end_time: TimeStamp,
     thread_id: usize,
     children: Vec<TaskId>,
-    /// activity_periods : [(duration starting the task, color of the thread),
-    /// (duration doing sub-tasks, black (=0)),
-    /// (duration ending the task, color of the thread)]
-    //activity_periods: [u64; 2],
     /// Data needed for the drawing part
     width: f64,
 }
@@ -203,13 +201,6 @@ impl TaskVisu {
                 let children = task.children.iter().map(|child| *child).collect();
                 children
             },
-            //       activity_periods: match task.children {
-            //           None => [task.end_time; 2],
-            //           Some((l, r)) => [
-            //               cmp::min(tasks[l].start_time, tasks[r].start_time),
-            //               cmp::max(tasks[l].end_time, tasks[r].end_time),
-            //           ],
-            //       },
             width: (task.end_time - task.start_time) as f64,
         }
     }
@@ -259,6 +250,9 @@ pub fn get_dimensions(index: usize, tasks: &[TaskVisu], subtree_widths: &mut [f6
     }
 }
 
+/// Generate all the rectangle for a given task
+/// if the thread is actually in the task, then it will display color
+/// else, that part of the rectangle will stay black
 fn generate_rectangles_per_task(
     index: usize,
     tasks: &[TaskVisu],
@@ -331,10 +325,18 @@ pub fn create_rectangles(
 }
 
 /// Takes the vector of all the TaskLog and returns a vector of TaskVisu ready for the animation
-fn create_taskvisu(tasks: &[TaskLog], begin_height: f64, rectangles: &mut Vec<Rectangle>) -> f64 {
+fn create_taskvisu(
+    tasks: &[TaskLog],
+    begin_height: f64,
+    rectangles: &mut Vec<Rectangle>,
+    max_width: &mut f64,
+) -> f64 {
     let tasks_visu: Vec<TaskVisu> = tasks.iter().map(|t| TaskVisu::new(t, tasks)).collect();
     let mut subtree_widths: Vec<f64> = tasks_visu.iter().map(|t| t.width).collect();
-    let (_, height) = get_dimensions(0, &tasks_visu, &mut subtree_widths);
+    let (width, height) = get_dimensions(0, &tasks_visu, &mut subtree_widths);
+    if width > *max_width {
+        *max_width = width;
+    }
     let x = (subtree_widths[0] - tasks_visu[0].width) / 2.0;
     let y = begin_height + 2.0;
     generate_rectangles_per_task(0, &tasks_visu, x, y, rectangles);
@@ -405,13 +407,13 @@ fn actions_keys(
             Keyboard(Key::P) => *zoom += 0.05,
             Keyboard(Key::M) => *zoom -= 0.05,
             Keyboard(Key::Space) => *paused = !*paused,
-            Keyboard(Key::R) => *time = 0,
+            Keyboard(Key::R) => *time = 1, // We can't say 0 because of the way the width of black rectangles is define (div by 0!)
             Keyboard(Key::B) => {
                 *paused = true;
-                if *time > 5 * *time_ratio {
-                    *time -= 5 * *time_ratio;
+                if *time > *time_ratio {
+                    *time -= *time_ratio;
                 } else {
-                    *time = 0;
+                    *time = 1;
                 }
             }
             Keyboard(Key::Left) => *trans_x -= 5.0,
@@ -440,7 +442,7 @@ fn main() {
     }
     let mut height_for_text = Vec::new();
     let mut current_height = 0.0;
-
+    let mut max_width = 0.0;
     let mut vec_rectangle: Vec<Rectangle> = Vec::new();
     // For all the files passed in the command line
     for index in 1..args.len() {
@@ -448,6 +450,7 @@ fn main() {
             &json_into_vec(&args[index]).unwrap(),
             current_height,
             &mut vec_rectangle,
+            &mut max_width,
         );
         height_for_text.push(current_height);
     }
@@ -469,7 +472,10 @@ fn main() {
 
     let mut paused = false;
     let mut time_ratio = 100; // 1 iteration = time_ratio * 1 nanosecond
+
     while let Some(event) = window.next() {
+        let window_width = window.size().width;
+        let window_height = window.size().height;
         // Actions by key: Apply modification to time or position depending on key pressed
         actions_keys(
             &event,
@@ -487,14 +493,15 @@ fn main() {
         );
         // Clear the screen in white
         clear_screen(&mut window, &event, [1.0; 4]);
+        // Display all the files names (the paths actually)
         for index in 1..args.len() {
             draw_text(
                 &mut window,
                 &event,
                 [0.0, 0.0, 0.0, 1.0], // Black
                 0.0,
-                height_for_text[index - 1] * 20.0,
-                10,
+                height_for_text[index - 1] * window_height as f64 / height_for_text[args.len() - 2],
+                20,
                 (*args[index]).to_string(),
                 &mut glyphs,
                 &zoom,
@@ -504,7 +511,7 @@ fn main() {
         }
 
         // We draw all the rectangles
-        for rectangle in vec_rectangle.iter_mut() {
+        for rectangle in vec_rectangle.iter() {
             rectangle.draw(
                 &mut window,
                 &event,
@@ -512,8 +519,27 @@ fn main() {
                 &zoom,
                 &trans_x,
                 &trans_y,
+                &max_width,
+                &height_for_text[args.len() - 2],
+                &window_width,
+                &window_height,
             );
         }
+        // We display the time
+        draw_text(
+            &mut window,
+            &event,
+            [0.0, 0.0, 0.0, 1.0], // Black
+            0.0,
+            20.0,
+            20,
+            format!("Time: {} ns", time * time_ratio).to_string(),
+            &mut glyphs,
+            &zoom,
+            &trans_x,
+            &trans_y,
+        );
+
         if !paused {
             time += 1;
         }
