@@ -74,7 +74,11 @@ impl Rectangle {
                 rectangle(
                     self.color,
                     [self.x, self.y, width, self.height],
-                    context.transform.zoom(*zoom).trans(*trans_x, *trans_y),
+                    // context.transform.zoom(*zoom).trans(*trans_x, *trans_y),
+                    context
+                        .transform
+                        .trans(*trans_x, *trans_y)
+                        .scale(*zoom / 3000.0, *zoom * 20.0),
                     graphics,
                 );
             });
@@ -102,10 +106,10 @@ pub fn draw_text(
         let transfo = context
             .transform
             .trans(
-                x + *trans_x * (*zoom) - (x * (1.0 - *zoom)), // Little transformation so the text doesn't
-                y + *trans_y * (*zoom) - (y * (1.0 - *zoom)), // get lost when zooming and moving around
+                x + *trans_x + x * (*zoom - 1.0),
+                y + *trans_y + y * (*zoom - 1.0),
             )
-            .zoom(*zoom);
+            .scale(*zoom, *zoom);
         ();
         let _ = text::Text::new_color(color, font_size).draw(
             &text,
@@ -184,10 +188,7 @@ pub struct TaskVisu {
     /// (duration ending the task, color of the thread)]
     //activity_periods: [u64; 2],
     /// Data needed for the drawing part
-    pos_x: f64,
-    pos_y: f64,
     width: f64,
-    gap: f64,
 }
 
 impl TaskVisu {
@@ -209,16 +210,13 @@ impl TaskVisu {
             //               cmp::max(tasks[l].end_time, tasks[r].end_time),
             //           ],
             //       },
-            pos_x: 0.0,
-            pos_y: 0.0,
             width: (task.end_time - task.start_time) as f64,
-            gap: 0.0,
         }
     }
 
     /// Returns a rectangle with the data from the task
     /// The color is chosent with the thread_id
-    pub fn to_rectangle(&self) -> Rectangle {
+    pub fn to_rectangle(&self, x: f64, y: f64) -> Rectangle {
         let color = match self.thread_id % 8 {
             0 => [1.0, 0.0, 0.0, 1.0],
             1 => [0.0, 1.0, 0.0, 1.0],
@@ -229,76 +227,64 @@ impl TaskVisu {
             6 => [0.5, 0.5, 0.5, 1.0],
             _ => [1.0, 0.5, 0.5, 1.0],
         };
-        Rectangle::new(
-            color,
-            self.pos_x / 2000.0,
-            self.pos_y * 2.0,
-            self.width / 2000.0,
-            20.0,
-            self.start_time,
-            self.end_time,
-        )
+        Rectangle::new(color, x, y, self.width, 1.0, self.start_time, self.end_time)
     }
 
     ///  Returns a black rectangle with the data from the task
-    pub fn to_black_rectangle(&self) -> Rectangle {
-        Rectangle::new(
-            [0.0, 0.0, 0.0, 1.0],
-            self.pos_x / 2000.0,
-            self.pos_y * 2.0,
-            self.width / 2000.0,
-            20.0,
-            0,
-            1,
-        )
+    pub fn to_black_rectangle(&self, x: f64, y: f64) -> Rectangle {
+        Rectangle::new([0.0, 0.0, 0.0, 1.0], x, y, self.width, 1.0, 0, 1)
     }
 }
 
-/// Gets the width of the Tree
-/// and compute the size of the gaps between the nodes
-pub fn get_dimensions(
-    index: &usize,
-    mut tasks: &mut [TaskVisu],
-    mut offset: &mut f64,
-    start: &u64,
-) -> (f64, f64) {
-    match tasks[*index].children.len() {
-        0 => {
-            tasks[*index].start_time -= *start;
-            tasks[*index].end_time -= *start;
-            (*offset + tasks[*index].width, 0.0)
-        }
-        n => {
-            tasks[*index].start_time -= *start;
-            tasks[*index].end_time -= *start;
+/// compute widths of all subtrees (and total height)
+pub fn get_dimensions(index: usize, tasks: &[TaskVisu], subtree_widths: &mut [f64]) -> (f64, f64) {
+    match tasks[index].children.len() {
+        0 => (tasks[index].width, 1.0),
+        _ => {
+            // compute sizes of subtrees
+            // we are interested in max of heights and sum of widths
+            let (mut sub_width, mut sub_height) = tasks[index]
+                .children
+                .iter()
+                .map(|&c| get_dimensions(c, tasks, subtree_widths))
+                .fold((0.0, 0.0_f64), |acc, (w, h)| (acc.0 + w, acc.1.max(h)));
 
-            let mut sub_height = 0.0;
-            let mut sub_width = 0.0;
-            let mut max_sub_width = 0.0;
-            let children: Vec<usize> = tasks[*index].children.iter().map(|child| *child).collect();
-            for child in children.iter() {
-                let (child_width, child_height) =
-                    get_dimensions(&child, &mut tasks, &mut offset, &start);
-                *offset += child_width;
-                sub_width += child_width;
-                if child_width > max_sub_width {
-                    max_sub_width = child_width;
-                }
-                if sub_height < child_height {
-                    sub_height = child_height;
-                }
-            }
-            if sub_width <= tasks[*index].width {
-                // It is not possible for a node to have a single child
-                // ie: a Task can not have a single sub-task after a join
-                assert!(n != 1);
-                tasks[*index].gap = (tasks[*index].width - sub_width) / (n as f64 - 1.0);
-                return (tasks[*index].width, sub_height + 1.0);
-            } else {
-                tasks[*index].gap = 75000.0; // just for style purposes
-                return (sub_width, sub_height + 1.0);
+            // now, final subtree width is max of our own and children's sum width
+            subtree_widths[index] = sub_width.max(tasks[index].width);
+            // height increases by one level
+            sub_height += 1.0;
+
+            (subtree_widths[index], sub_height)
+        }
+    }
+}
+
+fn generate_rectangles_per_task(
+    index: usize,
+    tasks: &[TaskVisu],
+    pos_x: f64,
+    pos_y: f64,
+    rectangles: &mut Vec<Rectangle>,
+) {
+    rectangles.push(tasks[index].to_black_rectangle(pos_x, pos_y));
+    let mut rec = tasks[index].to_rectangle(pos_x, pos_y);
+    let mut begin_time = tasks[index].start_time;
+    let mut current_x = rec.x;
+    if tasks[index].children.len() > 0 {
+        for child in tasks[index].children.iter() {
+            if tasks[*child].thread_id == tasks[index].thread_id {
+                rec = tasks[index].to_rectangle(pos_x, pos_y);
+                rec.x = current_x;
+                rec.start_time = begin_time;
+                rec.end_time = tasks[*child].start_time;
+                rec.width = (rec.end_time as f64) - (rec.start_time) as f64;
+                rectangles.push(rec);
+                current_x += (tasks[*child].end_time - begin_time) as f64;
+                begin_time = tasks[*child].end_time;
             }
         }
+    } else {
+        rectangles.push(rec);
     }
 }
 
@@ -317,43 +303,43 @@ pub fn get_dimensions(
 ///        |4 | |5|
 ///        +--+ +-+
 ///
-pub fn set_positions(index: &usize, mut tasks: &mut [TaskVisu], mut offset: &mut f64) -> f64 {
-    match tasks[*index].children.len() {
-        0 => {
-            // If the node is a leaf, then its position (in x) is the offset
-            tasks[*index].pos_x = *offset;
-            // We return the new offset which is increased by the leaf width
-            *offset + tasks[*index].width
-        }
-        n => {
-            let children: Vec<usize> = tasks[*index].children.iter().map(|child| *child).collect();
-            for child in children.iter() {
-                // For each child
-                // We set the y coordinate of the node
-                tasks[*child].pos_y = tasks[*index].pos_y + 20.0;
-                // And we call recursivly the function to set the positions
-                // within the subtree
-                *offset = set_positions(&child, &mut tasks, &mut offset) + tasks[*index].gap;
-            }
-            // We then set the position of the current node by placing it
-            // in the middle of its children
-            tasks[*index].pos_x = (tasks[children[0]].pos_x
-                + tasks[children[n - 1]].pos_x
-                + tasks[children[n - 1]].width) / 2.0
-                - (tasks[*index].width / 2.0);
-            // And we return the new offset
-            *offset //  - tasks[*index].gap
-        }
+pub fn create_rectangles(
+    index: usize,
+    tasks: &[TaskVisu],
+    subtree_widths: &[f64],
+    offset: f64,
+    y: f64,
+    rectangles: &mut Vec<Rectangle>,
+) {
+    let mut x = offset;
+    let gap: f64 = (subtree_widths[index]
+        - tasks[index]
+            .children
+            .iter()
+            .map(|c| subtree_widths[*c])
+            .sum::<f64>()) / (tasks[index].children.len() + 1) as f64;
+
+    for child in &tasks[index].children {
+        x += gap;
+        create_rectangles(*child, tasks, subtree_widths, x, y + 1.2, rectangles);
+
+        let pos_x = x + (subtree_widths[*child] - tasks[*child].width) / 2.0;
+        let pos_y = y + 1.2;
+        generate_rectangles_per_task(*child, &tasks, pos_x, pos_y, rectangles);
+        x += subtree_widths[*child];
     }
 }
 
 /// Takes the vector of all the TaskLog and returns a vector of TaskVisu ready for the animation
-fn create_taskvisu(tasks: &[TaskLog], begin_height: &f64) -> (Vec<TaskVisu>, f64) {
-    let mut tasks_visu: Vec<TaskVisu> = tasks.iter().map(|t| TaskVisu::new(t, tasks)).collect();
-    let (_, height) = get_dimensions(&mut 0, &mut tasks_visu, &mut 0.0, &tasks[0].start_time);
-    tasks_visu[0].pos_y = begin_height * 20.0;
-    let _ = set_positions(&0, &mut tasks_visu, &mut 0.0);
-    (tasks_visu, height)
+fn create_taskvisu(tasks: &[TaskLog], begin_height: f64, rectangles: &mut Vec<Rectangle>) -> f64 {
+    let tasks_visu: Vec<TaskVisu> = tasks.iter().map(|t| TaskVisu::new(t, tasks)).collect();
+    let mut subtree_widths: Vec<f64> = tasks_visu.iter().map(|t| t.width).collect();
+    let (_, height) = get_dimensions(0, &tasks_visu, &mut subtree_widths);
+    let x = (subtree_widths[0] - tasks_visu[0].width) / 2.0;
+    let y = begin_height + 2.0;
+    generate_rectangles_per_task(0, &tasks_visu, x, y, rectangles);
+    create_rectangles(0, &tasks_visu, &subtree_widths, 0.0, y, rectangles);
+    y + height + 2.0
 }
 
 /// Show the commands to control the animation
@@ -452,15 +438,17 @@ fn main() {
     if args.len() < 2 {
         panic!("\nWrong argument(s)\nUsage: ./log_viewer path_to_log1.json path_to_log2.json");
     }
-    let mut tasks_for_visu = Vec::new();
     let mut height_for_text = Vec::new();
     let mut current_height = 0.0;
+
+    let mut vec_rectangle: Vec<Rectangle> = Vec::new();
     // For all the files passed in the command line
     for index in 1..args.len() {
-        let (tasks_file, height) =
-            create_taskvisu(&json_into_vec(&args[index]).unwrap(), &current_height);
-        current_height += height + 2.0;
-        tasks_for_visu.push(tasks_file);
+        current_height = create_taskvisu(
+            &json_into_vec(&args[index]).unwrap(),
+            current_height,
+            &mut vec_rectangle,
+        );
         height_for_text.push(current_height);
     }
     // Create a window
@@ -468,16 +456,7 @@ fn main() {
     let mut glyphs = set_font(&window, "DejaVuSans.ttf".to_string());
 
     show_commands();
-    let mut vec_rectangle: Vec<Rectangle> = Vec::new();
-    for file_tasks in tasks_for_visu.iter() {
-        for task in file_tasks.iter() {
-            let mut rec = task.to_rectangle();
-            let mut rec_b = task.to_black_rectangle();
 
-            vec_rectangle.push(rec_b);
-            vec_rectangle.push(rec);
-        }
-    }
     let mut time = 0;
     let mut zoom = 1.0;
     let mut trans_x = 0.0;
@@ -514,8 +493,8 @@ fn main() {
                 &event,
                 [0.0, 0.0, 0.0, 1.0], // Black
                 0.0,
-                (height_for_text[index - 1] - 1.0) * 40.0,
-                20,
+                height_for_text[index - 1] * 20.0,
+                10,
                 (*args[index]).to_string(),
                 &mut glyphs,
                 &zoom,
