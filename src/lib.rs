@@ -7,6 +7,7 @@ extern crate time;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+extern crate itertools;
 extern crate serde_json;
 
 mod iterator;
@@ -27,16 +28,28 @@ type TimeStamp = u64;
 enum RayonEvent {
     /// A task starts.
     TaskStart(TaskId, TimeStamp),
-    /// A task ends.
-    TaskEnd(TaskId, TimeStamp),
-    /// We create two tasks with join (contains dependencies information).
-    Join(TaskId, TaskId),
+    /// Active task ends.
+    TaskEnd(TimeStamp),
+    /// We create two tasks with join (contains dependencies information) at their end we continue
+    /// with another task (third id).
+    Join(TaskId, TaskId, TaskId),
     /// Log additional informations for iterators tasks.
     IteratorTask(TaskId, IteratorId, Option<(usize, usize)>),
     /// Who starts a new iterator.
     IteratorStart(IteratorId),
     /// Tag current task with a type of work (usize id) and a work amount.
     Work(usize, usize),
+}
+
+impl RayonEvent {
+    /// return event time or 0 if none
+    fn time(&self) -> u64 {
+        match *self {
+            RayonEvent::TaskStart(_, t) => t,
+            RayonEvent::TaskEnd(t) => t,
+            _ => 0,
+        }
+    }
 }
 
 /// The final information produced for log viewers.

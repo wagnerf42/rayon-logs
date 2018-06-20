@@ -1,7 +1,9 @@
 //! `LoggedPool` structure for logging tasks activities.
 
+use itertools::{repeat_call, Itertools};
 use rayon::{join, join_context, FnContext, ThreadPool};
 use serde_json;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::ops::Drop;
@@ -66,23 +68,26 @@ impl LoggedPool {
     {
         let id_a = self.next_task_id();
         let ca = |c| {
-            self.log(RayonEvent::TaskStart(id_a, precise_time_ns() - self.start));
+            self.log(RayonEvent::TaskStart(id_a, precise_time_ns()));
             let result = oper_a(c);
-            self.log(RayonEvent::TaskEnd(id_a, precise_time_ns() - self.start));
+            self.log(RayonEvent::TaskEnd(precise_time_ns()));
             result
         };
 
         let id_b = self.next_task_id();
         let cb = |c| {
-            self.log(RayonEvent::TaskStart(id_b, precise_time_ns() - self.start));
+            self.log(RayonEvent::TaskStart(id_b, precise_time_ns()));
             let result = oper_b(c);
-            self.log(RayonEvent::TaskEnd(id_b, precise_time_ns() - self.start));
+            self.log(RayonEvent::TaskEnd(precise_time_ns()));
             result
         };
 
-        self.log(RayonEvent::Join(id_a, id_b));
-
-        join_context(ca, cb)
+        let id_c = self.next_task_id();
+        self.log(RayonEvent::Join(id_a, id_b, id_c));
+        self.log(RayonEvent::TaskEnd(precise_time_ns()));
+        let r = join_context(ca, cb);
+        self.log(RayonEvent::TaskStart(id_c, precise_time_ns()));
+        r
     }
 
     /// Execute given closure in the thread pool, logging it's task as the initial one.
@@ -93,9 +98,9 @@ impl LoggedPool {
     {
         let id = self.next_task_id();
         let c = || {
-            self.log(RayonEvent::TaskStart(id, precise_time_ns() - self.start));
+            self.log(RayonEvent::TaskStart(id, precise_time_ns()));
             let result = op();
-            self.log(RayonEvent::TaskEnd(id, precise_time_ns() - self.start));
+            self.log(RayonEvent::TaskEnd(precise_time_ns()));
             result
         };
         self.pool.install(c)
@@ -111,23 +116,26 @@ impl LoggedPool {
     {
         let id_a = self.next_task_id();
         let ca = || {
-            self.log(RayonEvent::TaskStart(id_a, precise_time_ns() - self.start));
+            self.log(RayonEvent::TaskStart(id_a, precise_time_ns()));
             let result = oper_a();
-            self.log(RayonEvent::TaskEnd(id_a, precise_time_ns() - self.start));
+            self.log(RayonEvent::TaskEnd(precise_time_ns()));
             result
         };
 
         let id_b = self.next_task_id();
         let cb = || {
-            self.log(RayonEvent::TaskStart(id_b, precise_time_ns() - self.start));
+            self.log(RayonEvent::TaskStart(id_b, precise_time_ns()));
             let result = oper_b();
-            self.log(RayonEvent::TaskEnd(id_b, precise_time_ns() - self.start));
+            self.log(RayonEvent::TaskEnd(precise_time_ns()));
             result
         };
 
-        self.log(RayonEvent::Join(id_a, id_b));
-
-        join(ca, cb)
+        let id_c = self.next_task_id();
+        self.log(RayonEvent::Join(id_a, id_b, id_c));
+        self.log(RayonEvent::TaskEnd(precise_time_ns()));
+        let r = join(ca, cb);
+        self.log(RayonEvent::TaskStart(id_c, precise_time_ns()));
+        r
     }
 
     /// Return id for next task (updates counter).
@@ -165,56 +173,83 @@ impl LoggedPool {
         let iterators_number = self.next_iterator_id.load(Ordering::SeqCst);
         let mut iterators_info: Vec<_> = (0..iterators_number).map(|_| Vec::new()).collect();
         let mut iterators_fathers = Vec::new();
+        // links to tasks created by join are tricky to recompute
+        // when a join happens we immediately stop currently running task
+        // execute the join and then create a new task "resuming" the stopped one
+        // this new task has two ancestors in the dag.
+        // these ancestors might be the two tasks from the join OR some tasks created down the road
+        // by further joins.
+        //                    0
+        //              1            2
+        //          4     5        7   8
+        //             6             9
+        //                    3
+        //  at first when 0 joins 1 and 2 the resume task (3) is set to be the child of 1 and 2
+        //  but when later on 1 and 2 are re-decomposed by a join we need to update this
+        //  information.
+        //  this dynamic information is stored in the following hashmap:
+        let mut dag_children: HashMap<TaskId, TaskId> = HashMap::new();
 
-        for (thread_id, thread_log) in self.tasks_logs.iter().enumerate() {
-            thread_log.logs().fold(
-                Vec::new(),
-                |mut active_tasks: Vec<TaskId>, event: &RayonEvent| -> Vec<TaskId> {
-                    match *event {
-                        RayonEvent::Join(a, b) => {
-                            if let Some(active_task) = active_tasks.last() {
-                                tasks_info[*active_task].children.push(a);
-                                tasks_info[*active_task].children.push(b);
-                            }
-                            active_tasks
-                        }
-                        RayonEvent::TaskEnd(task, time) => {
-                            tasks_info[task].end_time = time;
-                            active_tasks.pop();
-                            active_tasks
-                        }
-                        RayonEvent::TaskStart(task, time) => {
-                            tasks_info[task].thread_id = thread_id;
-                            tasks_info[task].start_time = time;
-                            active_tasks.push(task);
-                            active_tasks
-                        }
-                        RayonEvent::IteratorTask(task, iterator, part) => {
-                            let start = if let Some((start, _)) = part {
-                                start
-                            } else {
-                                0
-                            };
-                            tasks_info[task].work = part.map(|(s, e)| (iterator, e - s));
-                            iterators_info[iterator].push((task, start));
-                            active_tasks
-                        }
-                        RayonEvent::IteratorStart(iterator) => {
-                            if let Some(active_task) = active_tasks.last() {
-                                iterators_fathers.push((iterator, *active_task));
-                            }
-                            active_tasks
-                        }
-                        RayonEvent::Work(work_type, work_amount) => {
-                            if let Some(active_task) = active_tasks.last() {
-                                assert!(tasks_info[*active_task].work.is_none());
-                                tasks_info[*active_task].work = Some((work_type, work_amount));
-                            }
-                            active_tasks
+        let threads_number = self.tasks_logs.len();
+        let mut all_active_tasks: Vec<Vec<TaskId>> =
+            repeat_call(Vec::new).take(threads_number).collect();
+
+        for (thread_id, event) in self.tasks_logs
+            .iter()
+            .enumerate()
+            .map(|(thread_id, thread_log)| thread_log.logs().map(move |log| (thread_id, log)))
+            .kmerge_by(|a, b| a.1.time() < b.1.time())
+        {
+            let active_tasks = &mut all_active_tasks[thread_id];
+            match *event {
+                RayonEvent::Join(a, b, c) => {
+                    if let Some(active_task) = active_tasks.last() {
+                        tasks_info[*active_task].children.push(a); //create direct links with children
+                        tasks_info[*active_task].children.push(b);
+
+                        let possible_child = dag_children.remove(active_task); // we were set as father of someone
+                        if let Some(child) = possible_child {
+                            // it is not the case anymore since we are interrupted
+                            dag_children.insert(c, child);
                         }
                     }
-                },
-            );
+                    dag_children.insert(a, c); // a and b might be fathers of c (they are for now)
+                    dag_children.insert(b, c);
+                }
+                RayonEvent::TaskEnd(time) => {
+                    let task = active_tasks.pop().unwrap();
+                    tasks_info[task].end_time = time - self.start;
+                    let possible_child = dag_children.remove(&task);
+                    if let Some(child) = possible_child {
+                        tasks_info[task].children.push(child);
+                    }
+                }
+                RayonEvent::TaskStart(task, time) => {
+                    tasks_info[task].thread_id = thread_id;
+                    tasks_info[task].start_time = time - self.start;
+                    active_tasks.push(task);
+                }
+                RayonEvent::IteratorTask(task, iterator, part) => {
+                    let start = if let Some((start, _)) = part {
+                        start
+                    } else {
+                        0
+                    };
+                    tasks_info[task].work = part.map(|(s, e)| (iterator, e - s));
+                    iterators_info[iterator].push((task, start));
+                }
+                RayonEvent::IteratorStart(iterator) => {
+                    if let Some(active_task) = active_tasks.last() {
+                        iterators_fathers.push((iterator, *active_task));
+                    }
+                }
+                RayonEvent::Work(work_type, work_amount) => {
+                    if let Some(active_task) = active_tasks.last() {
+                        assert!(tasks_info[*active_task].work.is_none());
+                        tasks_info[*active_task].work = Some((work_type, work_amount));
+                    }
+                }
+            }
         }
 
         // now parse iterator info to link iterator tasks to graph

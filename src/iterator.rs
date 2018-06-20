@@ -190,10 +190,7 @@ where
     fn into_folder(self) -> LoggedFolder<'a, C::Folder> {
         let id = self.pool.next_task_id();
 
-        self.pool.log(RayonEvent::TaskStart(
-            id,
-            precise_time_ns() - self.pool.start,
-        ));
+        self.pool.log(RayonEvent::TaskStart(id, precise_time_ns()));
         self.pool
             .log(RayonEvent::IteratorTask(id, self.iterator_id, self.part));
 
@@ -254,10 +251,7 @@ where
 
     fn complete(self) -> F::Result {
         let result = self.base.complete();
-        self.pool.log(RayonEvent::TaskEnd(
-            self.id,
-            precise_time_ns() - self.pool.start,
-        ));
+        self.pool.log(RayonEvent::TaskEnd(precise_time_ns()));
         result
     }
 
