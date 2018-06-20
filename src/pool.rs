@@ -51,6 +51,11 @@ impl LoggedPool {
             start: precise_time_ns(),
         }
     }
+    /// Tag currently active task with a type and amount of work.
+    pub fn log_work(&self, work_type: usize, work_amount: usize) {
+        self.log(RayonEvent::Work(work_type, work_amount));
+    }
+
     /// Execute a logging join_context.
     pub fn join_context<A, B, RA, RB>(&self, oper_a: A, oper_b: B) -> (RA, RB)
     where
@@ -153,6 +158,7 @@ impl LoggedPool {
                 end_time: 0,
                 thread_id: 0,
                 children: Vec::new(),
+                work: None,
             })
             .collect();
 
@@ -189,12 +195,20 @@ impl LoggedPool {
                             } else {
                                 0
                             };
+                            tasks_info[task].work = part.map(|(s, e)| (iterator, e - s));
                             iterators_info[iterator].push((task, start));
                             active_tasks
                         }
                         RayonEvent::IteratorStart(iterator) => {
                             if let Some(active_task) = active_tasks.last() {
                                 iterators_fathers.push((iterator, *active_task));
+                            }
+                            active_tasks
+                        }
+                        RayonEvent::Work(work_type, work_amount) => {
+                            if let Some(active_task) = active_tasks.last() {
+                                assert!(tasks_info[*active_task].work.is_none());
+                                tasks_info[*active_task].work = Some((work_type, work_amount));
                             }
                             active_tasks
                         }

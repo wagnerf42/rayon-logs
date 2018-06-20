@@ -35,6 +35,8 @@ enum RayonEvent {
     IteratorTask(TaskId, IteratorId, Option<(usize, usize)>),
     /// Who starts a new iterator.
     IteratorStart(IteratorId),
+    /// Tag current task with a type of work (usize id) and a work amount.
+    Work(usize, usize),
 }
 
 /// The final information produced for log viewers.
@@ -44,4 +46,7 @@ pub struct TaskLog {
     end_time: TimeStamp,
     thread_id: usize,
     children: Vec<TaskId>,
+    /// a usize tag identifying what kind of things we actually do (if known)
+    /// and a u64 identifying how much work we do.
+    work: Option<(usize, usize)>,
 }
