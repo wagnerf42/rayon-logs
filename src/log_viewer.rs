@@ -16,6 +16,18 @@ use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::io::BufReader;
+use std::iter::once;
+
+const COLORS: [[f32; 4]; 8] = [
+    [1.0, 0.0, 0.0, 1.0],
+    [0.0, 1.0, 0.0, 1.0],
+    [0.0, 0.0, 1.0, 1.0],
+    [1.0, 1.0, 0.0, 1.0],
+    [1.0, 0.0, 1.0, 1.0],
+    [0.0, 1.0, 1.0, 1.0],
+    [0.5, 0.5, 0.5, 1.0],
+    [1.0, 0.5, 0.5, 1.0],
+];
 
 /// /////////////////////////////////////////////////
 /// PISTON
@@ -77,7 +89,6 @@ impl Rectangle {
                 rectangle(
                     self.color,
                     [self.x, self.y, width, self.height],
-                    // context.transform.zoom(*zoom).trans(*trans_x, *trans_y),
                     context.transform.trans(*trans_x, *trans_y).scale(
                         *zoom * (*window_width as f64) / *max_width,
                         *zoom * (*window_height as f64) / *max_height,
@@ -181,8 +192,7 @@ fn json_into_vec(path: &String) -> Result<Vec<TaskLog>, io::Error> {
 /// but also with the time that the animation of the task should be in a certain color
 pub struct TaskVisu {
     /// Same fields as in the TaskLog structure
-    start_time: TimeStamp,
-    end_time: TimeStamp,
+    event_times: Vec<u64>,
     thread_id: usize,
     children: Vec<TaskId>,
     /// Data needed for the drawing part
@@ -194,8 +204,7 @@ impl TaskVisu {
     /// Does not initialize time_colors (see the get_times method)
     pub fn new(task: &TaskLog, _tasks: &[TaskLog]) -> Self {
         TaskVisu {
-            start_time: task.start_time,
-            end_time: task.end_time,
+            event_times: Vec::with_capacity(2),
             thread_id: task.thread_id,
             children: {
                 let children = task.children.iter().map(|child| *child).collect();
@@ -205,30 +214,51 @@ impl TaskVisu {
         }
     }
 
-    /// Returns a rectangle with the data from the task
-    /// The color is chosent with the thread_id
-    pub fn to_rectangle(&self, x: f64, y: f64) -> Rectangle {
-        let color = match self.thread_id % 8 {
-            0 => [1.0, 0.0, 0.0, 1.0],
-            1 => [0.0, 1.0, 0.0, 1.0],
-            2 => [0.0, 0.0, 1.0, 1.0],
-            3 => [1.0, 1.0, 0.0, 1.0],
-            4 => [1.0, 0.0, 1.0, 1.0],
-            5 => [0.0, 1.0, 1.0, 1.0],
-            6 => [0.5, 0.5, 0.5, 1.0],
-            _ => [1.0, 0.5, 0.5, 1.0],
-        };
-        Rectangle::new(color, x, y, self.width, 1.0, self.start_time, self.end_time)
+    /// Return start time.
+    pub fn start_time(&self) -> u64 {
+        *self.event_times.first().unwrap()
     }
 
-    ///  Returns a black rectangle with the data from the task
-    pub fn to_black_rectangle(&self, x: f64, y: f64) -> Rectangle {
-        Rectangle::new([0.0, 0.0, 0.0, 1.0], x, y, self.width, 1.0, 0, 1)
+    /// Return end time.
+    pub fn end_time(&self) -> u64 {
+        *self.event_times.last().unwrap()
+    }
+
+    /// Generate all the rectangle for a given task
+    /// if the thread is actually in the task, then it will display color
+    /// else, that part of the rectangle will stay black
+    fn generate_rectangles(&self, x: f64, y: f64, rectangles: &mut Vec<Rectangle>) {
+        rectangles.push(Rectangle::new(
+            [0.0, 0.0, 0.0, 1.0],
+            x,
+            y,
+            self.width,
+            1.0,
+            0,
+            1,
+        ));
+        for times in self.event_times.chunks(2) {
+            let start = times[0];
+            let end = times[1];
+            rectangles.push(Rectangle::new(
+                COLORS[self.thread_id % COLORS.len()],
+                x + (start - self.start_time()) as f64,
+                y,
+                (end - start) as f64,
+                1.0,
+                start,
+                end,
+            ));
+        }
     }
 }
 
 /// compute widths of all subtrees (and total height)
-pub fn get_dimensions(index: usize, tasks: &[TaskVisu], subtree_widths: &mut [f64]) -> (f64, f64) {
+pub fn compute_dimensions(
+    index: usize,
+    tasks: &[TaskVisu],
+    subtree_widths: &mut [f64],
+) -> (f64, f64) {
     match tasks[index].children.len() {
         0 => (tasks[index].width, 1.0),
         _ => {
@@ -237,7 +267,7 @@ pub fn get_dimensions(index: usize, tasks: &[TaskVisu], subtree_widths: &mut [f6
             let (mut sub_width, mut sub_height) = tasks[index]
                 .children
                 .iter()
-                .map(|&c| get_dimensions(c, tasks, subtree_widths))
+                .map(|&c| compute_dimensions(c, tasks, subtree_widths))
                 .fold((0.0, 0.0_f64), |acc, (w, h)| (acc.0 + w, acc.1.max(h)));
 
             // now, final subtree width is max of our own and children's sum width
@@ -247,38 +277,6 @@ pub fn get_dimensions(index: usize, tasks: &[TaskVisu], subtree_widths: &mut [f6
 
             (subtree_widths[index], sub_height)
         }
-    }
-}
-
-/// Generate all the rectangle for a given task
-/// if the thread is actually in the task, then it will display color
-/// else, that part of the rectangle will stay black
-fn generate_rectangles_per_task(
-    index: usize,
-    tasks: &[TaskVisu],
-    pos_x: f64,
-    pos_y: f64,
-    rectangles: &mut Vec<Rectangle>,
-) {
-    rectangles.push(tasks[index].to_black_rectangle(pos_x, pos_y));
-    let mut rec = tasks[index].to_rectangle(pos_x, pos_y);
-    let mut begin_time = tasks[index].start_time;
-    let mut current_x = rec.x;
-    if tasks[index].children.len() > 0 {
-        for child in tasks[index].children.iter() {
-            if tasks[*child].thread_id == tasks[index].thread_id {
-                rec = tasks[index].to_rectangle(pos_x, pos_y);
-                rec.x = current_x;
-                rec.start_time = begin_time;
-                rec.end_time = tasks[*child].start_time;
-                rec.width = (rec.end_time as f64) - (rec.start_time) as f64;
-                rectangles.push(rec);
-                current_x += (tasks[*child].end_time - begin_time) as f64;
-                begin_time = tasks[*child].end_time;
-            }
-        }
-    } else {
-        rectangles.push(rec);
     }
 }
 
@@ -319,8 +317,47 @@ pub fn create_rectangles(
 
         let pos_x = x + (subtree_widths[*child] - tasks[*child].width) / 2.0;
         let pos_y = y + 1.2;
-        generate_rectangles_per_task(*child, &tasks, pos_x, pos_y, rectangles);
+        tasks[*child].generate_rectangles(pos_x, pos_y, rectangles);
         x += subtree_widths[*child];
+    }
+}
+
+/// For each task we figure out in which time periods its thread is actively working on it (or idle).
+/// This information is stored in TaskVisu's event_times field as time stamps for each activity
+/// change.
+fn compute_activity_periods(tasks_visu: &mut [TaskVisu], tasks: &[TaskLog]) {
+    for thread in (0..8) {
+        // we look at what each thread is doing
+        let mut events: Vec<(TaskId, u64, bool)> = tasks
+            .iter()
+            .enumerate()
+            .filter(|&(_, t)| t.thread_id == thread)
+            .flat_map(|(id, t)| once((id, t.start_time, true)).chain(once((id, t.end_time, false))))
+            .collect();
+
+        // through time
+        events.sort_unstable_by_key(|e| e.1);
+
+        // now replay thread activity
+        // we will need to remember what tasks are started
+        let mut active_tasks: Vec<TaskId> = Vec::new();
+
+        for event in &events {
+            // add event to currently active task
+            if let Some(task_id) = active_tasks.last() {
+                tasks_visu[*task_id].event_times.push(event.1);
+            }
+            // change active task
+            if event.2 {
+                active_tasks.push(event.0);
+            } else {
+                active_tasks.pop();
+            }
+            // add event to new active task
+            if let Some(task_id) = active_tasks.last() {
+                tasks_visu[*task_id].event_times.push(event.1);
+            }
+        }
     }
 }
 
@@ -331,15 +368,16 @@ fn create_taskvisu(
     rectangles: &mut Vec<Rectangle>,
     max_width: &mut f64,
 ) -> f64 {
-    let tasks_visu: Vec<TaskVisu> = tasks.iter().map(|t| TaskVisu::new(t, tasks)).collect();
+    let mut tasks_visu: Vec<TaskVisu> = tasks.iter().map(|t| TaskVisu::new(t, tasks)).collect();
+    compute_activity_periods(&mut tasks_visu, &tasks);
     let mut subtree_widths: Vec<f64> = tasks_visu.iter().map(|t| t.width).collect();
-    let (width, height) = get_dimensions(0, &tasks_visu, &mut subtree_widths);
+    let (width, height) = compute_dimensions(0, &tasks_visu, &mut subtree_widths);
     if width > *max_width {
         *max_width = width;
     }
     let x = (subtree_widths[0] - tasks_visu[0].width) / 2.0;
     let y = begin_height + 2.0;
-    generate_rectangles_per_task(0, &tasks_visu, x, y, rectangles);
+    tasks_visu[0].generate_rectangles(x, y, rectangles);
     create_rectangles(0, &tasks_visu, &subtree_widths, 0.0, y, rectangles);
     y + height + 2.0
 }
@@ -454,9 +492,39 @@ fn main() {
         );
         height_for_text.push(current_height);
     }
+    let max_height = current_height;
     // Create a window
     let mut window: PistonWindow = create_window("Rayon Log Viewer".to_string(), 800, 800);
     let mut glyphs = set_font(&window, "DejaVuSans.ttf".to_string());
+
+    /*
+    let mut file = File::create("out.svg").unwrap();
+    // Header
+    file.write_all(
+        b"<?xml version=\"1.0\"?>
+        <svg width=\"800\" height=\"800\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\">\n",
+    ).unwrap();
+    for rec in vec_rectangle.iter() {
+        file.write_fmt(format_args!(
+            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"rgb({}, {}, {})\">\n
+    \t<animate attributeType=\"XML\" attributeName=\"width\" from=\"{}\" to=\"{}\"
+        dur=\"{}s\" begin=\"{}s\"/>\n
+  </rect>\n",
+            rec.x * 800.0 / max_width,
+            rec.y * 800.0 / max_height,
+            rec.width * 800.0 / max_width,
+            rec.height * 800.0 / max_height,
+            (rec.color[0] * 255.0) as u32,
+            (rec.color[1] * 255.0) as u32,
+            (rec.color[2] * 255.0) as u32,
+            0,
+            rec.width,
+            (rec.end_time - rec.start_time) / 100,
+            rec.start_time / 100
+        )).unwrap();
+    }
+    file.write_all(b"</svg>").unwrap();
+    */
 
     show_commands();
 
