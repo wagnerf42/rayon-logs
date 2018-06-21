@@ -1,11 +1,12 @@
 //! `LoggedPool` structure for logging tasks activities.
 
-use itertools::{repeat_call, Itertools};
+use itertools::Itertools;
 use rayon::{join, join_context, FnContext, ThreadPool};
 use serde_json;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
+use std::iter::repeat;
 use std::ops::Drop;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
@@ -191,10 +192,8 @@ impl LoggedPool {
         let mut dag_children: HashMap<TaskId, TaskId> = HashMap::new();
 
         let threads_number = self.tasks_logs.len();
-        //TODO: we don't need vectors anymore since there can be no more than 1 active task for
-        //each thread
-        let mut all_active_tasks: Vec<Vec<TaskId>> =
-            repeat_call(Vec::new).take(threads_number).collect();
+        // remember the active task on each thread
+        let mut all_active_tasks: Vec<Option<TaskId>> = repeat(None).take(threads_number).collect();
 
         for (thread_id, event) in self.tasks_logs
             .iter()
@@ -205,7 +204,7 @@ impl LoggedPool {
             let active_tasks = &mut all_active_tasks[thread_id];
             match *event {
                 RayonEvent::Join(a, b, c) => {
-                    if let Some(active_task) = active_tasks.last() {
+                    if let Some(active_task) = active_tasks {
                         tasks_info[*active_task].children.push(a); //create direct links with children
                         tasks_info[*active_task].children.push(b);
 
@@ -219,7 +218,7 @@ impl LoggedPool {
                     dag_children.insert(b, c);
                 }
                 RayonEvent::TaskEnd(time) => {
-                    let task = active_tasks.pop().unwrap();
+                    let task = active_tasks.take().unwrap();
                     tasks_info[task].end_time = time - self.start;
                     let possible_child = dag_children.remove(&task);
                     if let Some(child) = possible_child {
@@ -229,7 +228,7 @@ impl LoggedPool {
                 RayonEvent::TaskStart(task, time) => {
                     tasks_info[task].thread_id = thread_id;
                     tasks_info[task].start_time = time - self.start;
-                    active_tasks.push(task);
+                    *active_tasks = Some(task);
                 }
                 RayonEvent::IteratorTask(task, iterator, part, continuing_task) => {
                     let start = if let Some((start, _)) = part {
@@ -242,12 +241,12 @@ impl LoggedPool {
                     iterators_info[iterator].push((task, start));
                 }
                 RayonEvent::IteratorStart(iterator) => {
-                    if let Some(active_task) = active_tasks.last() {
+                    if let Some(active_task) = active_tasks {
                         iterators_fathers.push((iterator, *active_task));
                     }
                 }
                 RayonEvent::Work(work_type, work_amount) => {
-                    if let Some(active_task) = active_tasks.last() {
+                    if let Some(active_task) = active_tasks {
                         assert!(tasks_info[*active_task].work.is_none());
                         tasks_info[*active_task].work = Some((work_type, work_amount));
                     }
