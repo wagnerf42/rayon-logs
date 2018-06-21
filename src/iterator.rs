@@ -36,15 +36,21 @@ where
     where
         C: UnindexedConsumer<Self::Item>,
     {
+        let continuing_task_id = self.pool.next_task_id();
         let consumer1 = LoggedConsumer {
             base: consumer,
             pool: self.pool,
             part: None,
             iterator_id: self.pool.next_iterator_id(),
+            continuing_task_id,
         };
         self.pool
             .log(RayonEvent::IteratorStart(consumer1.iterator_id));
-        self.base.drive_unindexed(consumer1)
+        self.pool.log(RayonEvent::TaskEnd(precise_time_ns()));
+        let r = self.base.drive_unindexed(consumer1);
+        self.pool
+            .log(RayonEvent::TaskStart(continuing_task_id, precise_time_ns()));
+        r
     }
 
     fn opt_len(&self) -> Option<usize> {
@@ -62,15 +68,21 @@ where
         C: Consumer<Self::Item>,
     {
         let part = Some((0, self.base.len()));
+        let continuing_task_id = self.pool.next_task_id();
         let consumer1 = LoggedConsumer {
             base: consumer,
             pool: self.pool,
             part,
             iterator_id: self.pool.next_iterator_id(),
+            continuing_task_id,
         };
         self.pool
             .log(RayonEvent::IteratorStart(consumer1.iterator_id));
-        self.base.drive(consumer1)
+        self.pool.log(RayonEvent::TaskEnd(precise_time_ns()));
+        let r = self.base.drive(consumer1);
+        self.pool
+            .log(RayonEvent::TaskStart(continuing_task_id, precise_time_ns()));
+        r
     }
 
     fn len(&self) -> usize {
@@ -155,6 +167,8 @@ struct LoggedConsumer<'a, C> {
     pool: &'a LoggedPool,
     part: Option<(usize, usize)>,
     iterator_id: IteratorId,
+    /// which task comes after the iterator finishes (to mark dependencies)
+    continuing_task_id: TaskId,
 }
 
 impl<'a, T, C> Consumer<T> for LoggedConsumer<'a, C>
@@ -176,12 +190,14 @@ where
                 pool: self.pool,
                 part: left_part,
                 iterator_id: self.iterator_id,
+                continuing_task_id: self.continuing_task_id,
             },
             LoggedConsumer {
                 base: right,
                 pool: self.pool,
                 part: right_part,
                 iterator_id: self.iterator_id,
+                continuing_task_id: self.continuing_task_id,
             },
             reducer,
         )
@@ -191,8 +207,12 @@ where
         let id = self.pool.next_task_id();
 
         self.pool.log(RayonEvent::TaskStart(id, precise_time_ns()));
-        self.pool
-            .log(RayonEvent::IteratorTask(id, self.iterator_id, self.part));
+        self.pool.log(RayonEvent::IteratorTask(
+            id,
+            self.iterator_id,
+            self.part,
+            self.continuing_task_id,
+        ));
 
         LoggedFolder {
             base: self.base.into_folder(),
@@ -217,6 +237,7 @@ where
             pool: self.pool,
             part: None,
             iterator_id: self.iterator_id,
+            continuing_task_id: self.continuing_task_id,
         }
     }
 

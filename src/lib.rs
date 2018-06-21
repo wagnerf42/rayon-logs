@@ -34,7 +34,7 @@ enum RayonEvent {
     /// with another task (third id).
     Join(TaskId, TaskId, TaskId),
     /// Log additional informations for iterators tasks.
-    IteratorTask(TaskId, IteratorId, Option<(usize, usize)>),
+    IteratorTask(TaskId, IteratorId, Option<(usize, usize)>, TaskId),
     /// Who starts a new iterator.
     IteratorStart(IteratorId),
     /// Tag current task with a type of work (usize id) and a work amount.

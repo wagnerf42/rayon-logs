@@ -191,6 +191,8 @@ impl LoggedPool {
         let mut dag_children: HashMap<TaskId, TaskId> = HashMap::new();
 
         let threads_number = self.tasks_logs.len();
+        //TODO: we don't need vectors anymore since there can be no more than 1 active task for
+        //each thread
         let mut all_active_tasks: Vec<Vec<TaskId>> =
             repeat_call(Vec::new).take(threads_number).collect();
 
@@ -229,12 +231,13 @@ impl LoggedPool {
                     tasks_info[task].start_time = time - self.start;
                     active_tasks.push(task);
                 }
-                RayonEvent::IteratorTask(task, iterator, part) => {
+                RayonEvent::IteratorTask(task, iterator, part, continuing_task) => {
                     let start = if let Some((start, _)) = part {
                         start
                     } else {
                         0
                     };
+                    tasks_info[task].children.push(continuing_task);
                     tasks_info[task].work = part.map(|(s, e)| (iterator, e - s));
                     iterators_info[iterator].push((task, start));
                 }
