@@ -91,19 +91,23 @@ fn create_graph(tasks: &[TaskLog]) -> Vec<Block> {
     graph
 }
 
-fn computes_sub_width(index: &BlockId, graph: &Vec<Block>, sub_width: &mut Vec<u64>) -> u64 {
+fn compute_sub_width(index: BlockId, graph: &Vec<Block>, sub_width: &mut [u64]) -> u64 {
     let sub = match graph[index] {
         Block::Sequence(ref s) => s
             .iter()
-            .map(|id| computes_sub_width(id, &graph, &mut sub_width))
+            .map(|id| computes_sub_width(*id, &graph, &mut sub_width))
             .max()
             .unwrap(),
         Block::Parallel(ref p) => p
             .iter()
-            .map(|id| computes_sub_width(id, &graph, &mut sub_width))
+            .map(|id| computes_sub_width(*id, &graph, &mut sub_width))
             .sum(),
-        Block::Task(t) => t.end_time - t.start_time,
+        Block::Task(ref t) => t.end_time - t.start_time,
     };
-    sub_width[*index] = sub;
-    sub_width[*index]
+    sub_width[index] = sub;
+    sub_width[index]
+}
+
+fn compute_positions(index: BlockId, graph: &mut [Block], sub_width: &[u64]) {
+    k
 }
