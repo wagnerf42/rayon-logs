@@ -2,6 +2,7 @@
 use TaskLog;
 type BlockId = usize;
 use std::collections::HashMap;
+use itertools::repeat_call;
 
 trait BlockVector {
     fn push_block(&mut self, block: Block) -> BlockId;
@@ -51,14 +52,44 @@ enum Block {
 
 /// Create a fork join graph (stored in a vec). This is used to convert the logs into
 /// a graphical display of animated rectangles.
-/// pre-condition : tasks need to be sorted in topological order (time should be ok).
-fn create_graph(tasks: &[TaskLog]) -> Vec<Block> {
-    let mut graph = vec![Block::Sequence(Vec::new())];
+/// pre-condition : tasks need to be sorted BY TIME.
+fn create_graph(tasks: &[TaskLog], threads_number: usize) -> Vec<Block> {
+    // we are going to cheat by creating false tasks to display idle times on the right side of the
+    // screen.
+    // we have in parallel the graph on the left and the idle times on the right.
+    let mut graph = vec![Block::Parallel(Vec::new())];
+    let mut real_graph = graph.add_sequence(); // left
+    let mut idle_times = graph.add_sequence(); // right
+    graph.parallel(0).push(real_graph);
+    graph.parallel(0).push(idle_times);
+    let idle_blocks:Vec<BlockId> = repeat_call(||
+        let idle_block = graph.add_parallel();
+        graph.sequence(idle_times).push(idle_block) // one thread's idle times below the others
+        idle_block
+        ).take(threads_number).collect();
+    let mut last_activities:Vec<TimeStamp> = repeat(0).take(threads_number).collect();
+
+    // ok let's start now
     let mut fathers: HashMap<BlockId, BlockId> = HashMap::new();
     let mut current_blocks = HashMap::new();
-    current_blocks.insert(0, 0);
+    current_blocks.insert(0, real_graph); // init task and all its descendants go in real graph
 
     for (task_id, task) in tasks.iter().enumerate() {
+        // start by idle times
+        if task.start_time - last_activities[task.thread_id] > 0 {
+            let false_idle_task = TaskLog {
+                start_time: last_activities[task.thread_id],
+                end_time: task.start_time,
+                thread_id: task.thread_id,
+                children: Vec::new(),
+                work: None,
+            };
+            let block = graph.add_task(Block::Task(false_idle_task));
+            graph.parallel(idle_blocks[task.thread_id]).push(block);
+        }
+        last_activities[task.thread_id]= task.end_time;
+
+        // now continue with non-idle part
         let current_block = current_blocks[&task_id];
 
         // add task to its sequence
