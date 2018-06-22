@@ -1,8 +1,10 @@
 //! Store a trace as a fork join graph (in a vector).
-use TaskLog;
+use {svg::COLORS, Rectangle, TaskLog};
 type BlockId = usize;
-use std::collections::HashMap;
 use itertools::repeat_call;
+use std::collections::HashMap;
+use std::iter::repeat;
+use TimeStamp;
 
 trait BlockVector {
     fn push_block(&mut self, block: Block) -> BlockId;
@@ -58,16 +60,17 @@ fn create_graph(tasks: &[TaskLog], threads_number: usize) -> Vec<Block> {
     // screen.
     // we have in parallel the graph on the left and the idle times on the right.
     let mut graph = vec![Block::Parallel(Vec::new())];
-    let mut real_graph = graph.add_sequence(); // left
-    let mut idle_times = graph.add_sequence(); // right
+    let real_graph = graph.add_sequence(); // left
+    let idle_times = graph.add_sequence(); // right
     graph.parallel(0).push(real_graph);
     graph.parallel(0).push(idle_times);
-    let idle_blocks:Vec<BlockId> = repeat_call(||
+    let idle_blocks: Vec<BlockId> = repeat_call(|| {
         let idle_block = graph.add_parallel();
-        graph.sequence(idle_times).push(idle_block) // one thread's idle times below the others
+        graph.sequence(idle_times).push(idle_block); // one thread's idle times below the others
         idle_block
-        ).take(threads_number).collect();
-    let mut last_activities:Vec<TimeStamp> = repeat(0).take(threads_number).collect();
+    }).take(threads_number)
+        .collect();
+    let mut last_activities: Vec<TimeStamp> = repeat(0).take(threads_number).collect();
 
     // ok let's start now
     let mut fathers: HashMap<BlockId, BlockId> = HashMap::new();
@@ -75,6 +78,7 @@ fn create_graph(tasks: &[TaskLog], threads_number: usize) -> Vec<Block> {
     current_blocks.insert(0, real_graph); // init task and all its descendants go in real graph
 
     for (task_id, task) in tasks.iter().enumerate() {
+        eprintln!("id: {}", task_id);
         // start by idle times
         if task.start_time - last_activities[task.thread_id] > 0 {
             let false_idle_task = TaskLog {
@@ -84,10 +88,10 @@ fn create_graph(tasks: &[TaskLog], threads_number: usize) -> Vec<Block> {
                 children: Vec::new(),
                 work: None,
             };
-            let block = graph.add_task(Block::Task(false_idle_task));
+            let block = graph.add_task(false_idle_task);
             graph.parallel(idle_blocks[task.thread_id]).push(block);
         }
-        last_activities[task.thread_id]= task.end_time;
+        last_activities[task.thread_id] = task.end_time;
 
         // now continue with non-idle part
         let current_block = current_blocks[&task_id];
@@ -122,23 +126,86 @@ fn create_graph(tasks: &[TaskLog], threads_number: usize) -> Vec<Block> {
     graph
 }
 
-fn compute_sub_width(index: BlockId, graph: &Vec<Block>, sub_width: &mut [u64]) -> u64 {
+fn compute_blocks_widths(index: BlockId, graph: &[Block], blocks_widths: &mut [u64]) -> u64 {
     let sub = match graph[index] {
         Block::Sequence(ref s) => s
             .iter()
-            .map(|id| computes_sub_width(*id, &graph, &mut sub_width))
+            .map(|id| compute_blocks_widths(*id, &graph, blocks_widths))
             .max()
             .unwrap(),
         Block::Parallel(ref p) => p
             .iter()
-            .map(|id| computes_sub_width(*id, &graph, &mut sub_width))
+            .map(|id| compute_blocks_widths(*id, &graph, blocks_widths))
             .sum(),
         Block::Task(ref t) => t.end_time - t.start_time,
     };
-    sub_width[index] = sub;
-    sub_width[index]
+    blocks_widths[index] = sub;
+    blocks_widths[index]
 }
 
-fn compute_positions(index: BlockId, graph: &mut [Block], sub_width: &[u64]) {
-    k
+fn compute_rectangles(
+    index: BlockId,
+    graph: &[Block],
+    blocks_widths: &[u64],
+    x_offset: f64,
+    y_offset: f64,
+    rectangles: &mut Vec<Rectangle>,
+) -> (f64, f64) {
+    match graph[index] {
+        Block::Sequence(ref s) => {
+            // If it's a sequence, we don't care about the x_offset
+            (
+                x_offset,
+                s.iter().fold(y_offset, |y, id| {
+                    y + compute_rectangles(*id, &graph, &blocks_widths, x_offset, y, rectangles).1
+                }),
+            )
+        }
+        Block::Parallel(ref p) => {
+            // If it's a parallel bloc, we don't care about the y_offset
+            (
+                p.iter().fold(x_offset, |x, block_id| {
+                    x + compute_rectangles(
+                        *block_id,
+                        &graph,
+                        &blocks_widths,
+                        x,
+                        y_offset,
+                        rectangles,
+                    ).0
+                }),
+                y_offset,
+            )
+        }
+        Block::Task(ref t) => {
+            let width = (t.end_time - t.start_time) as f64;
+            let rec = Rectangle::new(
+                COLORS[t.thread_id % 8],
+                (blocks_widths[index] as f64 - width) / 2.0 + x_offset,
+                y_offset,
+                width,
+                1.0,
+                t.start_time,
+                t.end_time,
+            );
+            rectangles.push(rec);
+            (x_offset + width, y_offset + 1.0 + 1.5)
+        }
+    }
+}
+
+/// convert all tasks information into animated rectangles.
+pub fn visualization_rectangles(tasks: &[TaskLog], threads_number: usize) -> Vec<Rectangle> {
+    // turn tasks into blocks (we build the fork join graph)
+    let g = create_graph(tasks, threads_number);
+    let mut blocks_widths = Vec::with_capacity(g.len());
+    unsafe { blocks_widths.set_len(g.len()) }
+
+    // compute recursively the width of each block
+    compute_blocks_widths(0, &g, &mut blocks_widths);
+
+    // position x and y coordinates of each block and generate all animated rectangles
+    let mut rectangles = Vec::with_capacity(tasks.len() * 2);
+    compute_rectangles(0, &g, &blocks_widths, 0.0, 0.0, &mut rectangles);
+    rectangles
 }

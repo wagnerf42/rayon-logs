@@ -18,6 +18,10 @@ pub use pool::LoggedPool;
 mod builder;
 pub mod prelude;
 pub use builder::LoggedPoolBuilder;
+mod fork_join_graph;
+pub use fork_join_graph::visualization_rectangles;
+pub(crate) mod svg;
+pub use svg::Rectangle;
 
 type TaskId = usize;
 type IteratorId = usize;
@@ -53,7 +57,7 @@ impl RayonEvent {
 }
 
 /// The final information produced for log viewers.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TaskLog {
     start_time: TimeStamp,
     end_time: TimeStamp,

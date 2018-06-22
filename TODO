@@ -1,4 +1,14 @@
-est-ce que cela ne vaudrait pas le coup de dissocier 
-- la maniere de recuperer l'id du thread
-(on pourrait faire du thread_local avec un compteur + init chaque thread avec le start_handler du builder par exemple)
-- l'endroit ou on stocke les logs (par exemple pour faire des groupes ?)
+
+- en cours : debug de la creation du graph : les taches en entrees ne sont pas triees dans le temps
+- en cours : enlever le nombre de threads des arguments de la creation de graph
+- creer une transformation globale a appliquer sur tous les trucs affiches
+- repasser les rectangles de f64 a u64
+- sortie en svg # Almost Done (add viewport)
+
+
+------------------------------------------------------------------------------------
+- couleurs (opacite) -> donnes iterateur et/ou nouveau join avec arg en plus
+    -> largeur = travail ?
+
+- label texte sur des taches -> nouveau join ?
+- logger plus d'infos (cache) -> logs generiques + bonne interface utilisateur
