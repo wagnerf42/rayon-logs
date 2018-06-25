@@ -9,6 +9,9 @@ extern crate serde;
 extern crate serde_derive;
 extern crate itertools;
 extern crate serde_json;
+use std::fs::File;
+use std::io;
+use std::io::ErrorKind;
 
 mod iterator;
 mod storage;
@@ -21,7 +24,7 @@ pub use builder::LoggedPoolBuilder;
 mod fork_join_graph;
 pub use fork_join_graph::visualization_rectangles;
 pub(crate) mod svg;
-pub use svg::Rectangle;
+pub use {svg::Rectangle, svg::write_svg_file};
 
 type TaskId = usize;
 type IteratorId = usize;
@@ -66,4 +69,11 @@ pub struct TaskLog {
     /// a usize tag identifying what kind of things we actually do (if known)
     /// and a u64 identifying how much work we do.
     work: Option<(usize, usize)>,
+}
+
+/// Load a rayon_logs log file and deserializes it into a vector of logged
+/// tasks information.
+pub fn load_log_file(path: &str) -> Result<Vec<TaskLog>, io::Error> {
+    let file = File::open(path).unwrap();
+    serde_json::from_reader(file).map_err(|_| ErrorKind::InvalidData.into())
 }

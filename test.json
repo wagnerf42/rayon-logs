@@ -1,0 +1,7 @@
+[
+    {"start_time":10,"end_time":20,"thread_id":0,"children":[1,2],"work":null},
+    {"start_time":20,"end_time":40,"thread_id":0,"children":[4],"work":null},
+    {"start_time":20,"end_time":30,"thread_id":1,"children":[3],"work":null},
+    {"start_time":30,"end_time":40,"thread_id":1,"children":[4],"work":null},
+    {"start_time":40,"end_time":50,"thread_id":0,"children":[],"work":null}
+]
