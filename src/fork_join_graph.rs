@@ -1,8 +1,10 @@
 //! Store a trace as a fork join graph (in a vector).
 use {svg::COLORS, Rectangle, TaskId, TaskLog};
 type BlockId = usize;
-use std::cmp::max;
+use itertools::Itertools;
 use std::collections::HashMap;
+
+const VERTICAL_GAP: f64 = 0.2;
 
 trait BlockVector {
     fn push_block(&mut self, block: Block) -> BlockId;
@@ -105,7 +107,7 @@ fn compute_blocks_dimensions(
     blocks_dimensions: &mut [(f64, f64)],
 ) -> (f64, f64) {
     let dimensions = match graph[index] {
-        Block::Sequence(ref s) => s.iter().fold((0.0, 0.0), |dimensions, id| {
+        Block::Sequence(ref s) => s.iter().fold((0.0, -VERTICAL_GAP), |dimensions, id| {
             let (width, height) = compute_blocks_dimensions(*id, &graph, blocks_dimensions);
             (
                 if width > dimensions.0 {
@@ -113,7 +115,7 @@ fn compute_blocks_dimensions(
                 } else {
                     dimensions.0
                 },
-                height + dimensions.1,
+                height + dimensions.1 + VERTICAL_GAP,
             )
         }),
         Block::Parallel(ref p) => p.iter().fold((0.0, 0.0), |dimensions, id| {
@@ -133,58 +135,100 @@ fn compute_blocks_dimensions(
     dimensions
 }
 
-/// Fill rectangles vector by propagating x and y positions.
-fn compute_rectangles(
+/// Find x and y coordinates for each block.
+fn compute_positions(
     index: BlockId,
     graph: &[Block],
     blocks_dimensions: &[(f64, f64)],
-    x_offset: f64,
-    y_offset: f64,
-    rectangles: &mut Vec<Rectangle>,
+    positions: &mut [(f64, f64)],
 ) {
     match graph[index] {
         Block::Sequence(ref s) => {
-            // If it's a sequence, we don't care about the x_offset
-            s.iter().fold(y_offset, |y, id| {
-                compute_rectangles(*id, &graph, &blocks_dimensions, x_offset, y, rectangles);
-                y + blocks_dimensions[*id].1
+            // If it's a sequence, we move along y
+            s.iter().fold(positions[index].1, |y, id| {
+                // center on x
+                let x_gap = (blocks_dimensions[index].0 - blocks_dimensions[*id].0) / 2.0;
+                positions[*id] = (positions[index].0 + x_gap, y);
+                compute_positions(*id, &graph, &blocks_dimensions, positions);
+                y + blocks_dimensions[*id].1 + VERTICAL_GAP
             });
         }
         Block::Parallel(ref p) => {
-            // If it's a parallel bloc, we don't care about the y_offset
-            p.iter().fold(x_offset, |x, id| {
-                compute_rectangles(*id, &graph, &blocks_dimensions, x, y_offset, rectangles);
+            // If it's a parallel bloc, we move along x
+            p.iter().fold(positions[index].0, |x, id| {
+                // center on y
+                let y_gap = (blocks_dimensions[index].1 - blocks_dimensions[*id].1) / 2.0;
+                positions[*id] = (x, positions[index].1 + y_gap);
+                compute_positions(*id, &graph, &blocks_dimensions, positions);
                 x + blocks_dimensions[*id].0
             });
         }
+        _ => (),
+    }
+}
+
+/// Take a block ; fill its rectangles and edges and return a set of entry points for incoming edges
+/// and a set of exit points for outgoing edges.
+fn generate_visualisation(
+    index: BlockId,
+    graph: &[Block],
+    positions: &[(f64, f64)],
+    rectangles: &mut Vec<Rectangle>,
+    edges: &mut Vec<((f64, f64), (f64, f64))>,
+) -> (Vec<(f64, f64)>, Vec<(f64, f64)>) {
+    match graph[index] {
+        Block::Sequence(ref s) => {
+            let points: Vec<(Vec<(f64, f64)>, Vec<(f64, f64)>)> = s.iter()
+                .map(|b| generate_visualisation(*b, graph, positions, rectangles, edges))
+                .collect();
+            unimplemented!();
+        }
+        Block::Parallel(ref p) => unimplemented!(),
         Block::Task(ref t) => {
-            let width = t.end_time - t.start_time;
-            let rec = Rectangle::new(
-                COLORS[t.thread_id % 8],
-                x_offset,
-                y_offset,
-                width as f64,
-                2.0,
-                t.start_time,
-                t.end_time,
-            );
-            rectangles.push(rec);
+            let duration = (t.end_time - t.start_time) as f64;
+            rectangles.push(Rectangle::new(
+                [0.0, 0.0, 0.0, 1.0],
+                positions[index],
+                (duration, 1.0),
+                None,
+            ));
+            rectangles.push(Rectangle::new(
+                COLORS[t.thread_id % COLORS.len()],
+                positions[index],
+                (duration, 1.0),
+                Some((t.start_time, t.end_time)),
+            ));
+
+            (
+                vec![(positions[index].0 + duration / 2.0, positions[index].1)],
+                vec![(
+                    positions[index].0 + duration / 2.0,
+                    positions[index].1 + 1.0,
+                )],
+            )
         }
     }
 }
 
-/// convert all tasks information into animated rectangles.
-pub fn visualization_rectangles(tasks: &[TaskLog]) -> Vec<Rectangle> {
+/// convert all tasks information into animated rectangles and edges.
+pub fn visualization(tasks: &[TaskLog]) -> (Vec<Rectangle>, Vec<((f64, f64), (f64, f64))>) {
     // turn tasks into blocks (we build the fork join graph)
     let g = create_graph(tasks);
+
+    // compute recursively the width and height of each block
     let mut blocks_dimensions = Vec::with_capacity(g.len());
     unsafe { blocks_dimensions.set_len(g.len()) }
-
-    // compute recursively the width of each block
     compute_blocks_dimensions(0, &g, &mut blocks_dimensions);
 
-    // position x and y coordinates of each block and generate all animated rectangles
-    let mut rectangles = Vec::with_capacity(tasks.len() * 2);
-    compute_rectangles(0, &g, &blocks_dimensions, 0.0, 0.0, &mut rectangles);
-    rectangles
+    // compute recursively the position of each block
+    let mut positions = Vec::with_capacity(g.len());
+    unsafe { positions.set_len(g.len()) }
+    positions[0] = (0.0, 0.0);
+    compute_positions(0, &g, &blocks_dimensions, &mut positions);
+
+    // generate all rectangles and all edges
+    let mut rectangles = Vec::with_capacity(2 * tasks.len());
+    let mut edges = Vec::with_capacity(3 * tasks.len());
+    generate_visualisation(0, &g, &positions, &mut rectangles, &mut edges);
+    (rectangles, edges)
 }

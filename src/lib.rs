@@ -22,9 +22,9 @@ mod builder;
 pub mod prelude;
 pub use builder::LoggedPoolBuilder;
 mod fork_join_graph;
-pub use fork_join_graph::visualization_rectangles;
+pub use fork_join_graph::visualization;
 pub(crate) mod svg;
-pub use {svg::Rectangle, svg::write_svg_file};
+pub use {svg::write_svg_file, svg::Rectangle};
 
 type TaskId = usize;
 type IteratorId = usize;

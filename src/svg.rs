@@ -28,48 +28,44 @@ pub struct Rectangle {
     pub width: f64,
     /// height
     pub height: f64,
-    /// when animation starts (width gradually increases from 0 to real width)
-    pub start_time: u64,
-    /// when animation ends
-    pub end_time: u64,
+    /// when animation starts and ends (if any)
+    pub animation: Option<(u64, u64)>,
 }
 
 impl Rectangle {
     /// Creates a new rectangle
     pub fn new(
         color: [f32; 4],
-        x: f64,
-        y: f64,
-        width: f64,
-        height: f64,
-        start_time: u64,
-        end_time: u64,
+        position: (f64, f64),
+        sizes: (f64, f64),
+        animation: Option<(u64, u64)>,
     ) -> Rectangle {
         Rectangle {
             color,
-            x,
-            y,
-            width,
-            height,
-            start_time,
-            end_time,
+            x: position.0,
+            y: position.1,
+            width: sizes.0,
+            height: sizes.1,
+            animation,
         }
     }
 }
 
-/// saves a set of rectangles as an animated svg file.
+/// saves a set of rectangles and edges as an animated svg file.
 /// duration is the total duration of the animation in seconds.
 pub fn write_svg_file(
     rectangles: &[Rectangle],
+    edges: &[((f64, f64), (f64, f64))],
     svg_width: u64,
     svg_height: u64,
     duration: u64,
     path: String,
 ) -> Result<(), Error> {
     let mut file = File::create(path)?;
+
     let last_time = rectangles
         .iter()
-        .map(|r| r.end_time)
+        .filter_map(|r| r.animation.map(|(_, end_time)| end_time))
         .max_by(|a, b| a.partial_cmp(b).unwrap())
         .unwrap();
 
@@ -107,24 +103,46 @@ version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\">\n",
         ymax - ymin,
     ))?;
 
-    for rec in rectangles {
-        file.write_fmt(
+    // we start by edges so they will end up below tasks
+    for (start, end) in edges {
+        file.write_fmt(format_args!(
+            "line<x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"black\"/>",
+            start.0, start.1, end.0, end.1
+        ))?;
+    }
+
+    for rectangle in rectangles {
+        if let Some((start_time, end_time)) = rectangle.animation {
+            file.write_fmt(
 format_args!(
             "<rect x=\"{}\" y=\"{}\" width=\"0\" height=\"{}\" fill=\"rgba({},{},{},{})\">
 <animate attributeType=\"XML\" attributeName=\"width\" from=\"0\" to=\"{}\" begin=\"{}s\" dur=\"{}s\" fill=\"freeze\"/>
 </rect>\n",
-        rec.x,
-        rec.y,
-        rec.height,                                  // height
-        (rec.color[0] * 255.0) as u32,               // R
-        (rec.color[1] * 255.0) as u32,               // G
-        (rec.color[2] * 255.0) as u32,               // B
-        rec.color[3],                                // alpha
-        rec.width,
-        rec.start_time *duration / last_time,
-        (rec.end_time - rec.start_time) *duration / last_time,  // dur
+        rectangle.x,
+        rectangle.y,
+        rectangle.height,
+        (rectangle.color[0] * 255.0) as u32,
+        (rectangle.color[1] * 255.0) as u32,
+        (rectangle.color[2] * 255.0) as u32,
+        rectangle.color[3],
+        rectangle.width,
+        start_time *duration / last_time,
+        (end_time - start_time) *duration / last_time,
         )
         )?;
+        } else {
+            file.write_fmt(format_args!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"rgba({},{},{},{})\"/>\n",
+                rectangle.x,
+                rectangle.y,
+                rectangle.width,
+                rectangle.height,
+                (rectangle.color[0] * 255.0) as u32,
+                (rectangle.color[1] * 255.0) as u32,
+                (rectangle.color[2] * 255.0) as u32,
+                rectangle.color[3],
+            ))?;
+        }
     }
     file.write_all(b"</svg>")?;
     Ok(())
