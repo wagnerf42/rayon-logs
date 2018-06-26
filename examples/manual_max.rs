@@ -2,7 +2,7 @@ extern crate rayon_logs;
 use rayon_logs::{LoggedPool, LoggedPoolBuilder};
 
 fn manual_max(pool: &LoggedPool, slice: &[u32]) -> u32 {
-    if slice.len() < 1000 {
+    if slice.len() < 10_000 {
         pool.log_work(0, slice.len());
         slice.iter().max().cloned().unwrap()
     } else {

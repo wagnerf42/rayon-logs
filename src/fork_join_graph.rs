@@ -2,10 +2,12 @@
 use {svg::COLORS, Rectangle, TaskId, TaskLog};
 type BlockId = usize;
 use std::collections::HashMap;
+use std::iter::repeat;
 
 const VERTICAL_GAP: f64 = 0.2;
 
 use svg::Point;
+use TimeStamp;
 
 trait BlockVector {
     fn push_block(&mut self, block: Block) -> BlockId;
@@ -232,6 +234,56 @@ fn generate_visualisation(
     }
 }
 
+/// Take all taskslogs and compute idle periods animations for each thread.
+/// add all rectangles to given vector.
+/// given height (height of animated running tasks) enables us to center the display vertically.
+fn compute_idle_times(tasks: &[TaskLog], height: f64, rectangles: &mut Vec<Rectangle>) {
+    // do one pass to scan the number of threads
+    let threads_number = tasks.iter().map(|t| t.thread_id).max().unwrap() + 1;
+
+    // do one pass to figure out the last recorded time.
+    // we need it to figure out who is idle at the end.
+    let last_time = tasks.iter().map(|t| t.end_time).max().unwrap();
+
+    let starting_position = (
+        last_time as f64 * 1.02,
+        (height - threads_number as f64) / 2.0,
+    );
+
+    // sort everyone by time (yes i know, again).
+    // we add fake tasks at the end for last idle periods.
+    let mut sorted_tasks: Vec<(usize, TimeStamp, TimeStamp)> = tasks
+        .iter()
+        .map(|t| (t.thread_id, t.start_time, t.end_time))
+        .chain((0..threads_number).map(|i| (i, last_time, last_time + 1)))
+        .collect();
+
+    sorted_tasks.sort_by(|t1, t2| t1.1.partial_cmp(&t2.1).unwrap());
+
+    let mut previous_activities: Vec<TimeStamp> = repeat(0).take(threads_number).collect();
+    let mut current_x_positions: Vec<f64> =
+        repeat(starting_position.0).take(threads_number).collect();
+
+    // replay execution, figuring out idle times
+    for (thread_id, start, end) in sorted_tasks {
+        let previous_end = previous_activities[thread_id];
+        if start > previous_end {
+            let inactivity = (start - previous_end) as f64;
+            rectangles.push(Rectangle::new(
+                COLORS[thread_id % COLORS.len()],
+                (
+                    current_x_positions[thread_id],
+                    starting_position.1 + thread_id as f64 * (1.0 + VERTICAL_GAP),
+                ),
+                (inactivity, 1.0),
+                Some((previous_end, start)),
+            ));
+            current_x_positions[thread_id] += inactivity;
+        }
+        previous_activities[thread_id] = end;
+    }
+}
+
 /// convert all tasks information into animated rectangles and edges.
 pub fn visualization(tasks: &[TaskLog]) -> (Vec<Rectangle>, Vec<(Point, Point)>) {
     // turn tasks into blocks (we build the fork join graph)
@@ -252,5 +304,11 @@ pub fn visualization(tasks: &[TaskLog]) -> (Vec<Rectangle>, Vec<(Point, Point)>)
     let mut rectangles = Vec::with_capacity(2 * tasks.len());
     let mut edges = Vec::with_capacity(3 * tasks.len());
     generate_visualisation(0, &g, &positions, &mut rectangles, &mut edges);
+    let height = positions
+        .iter()
+        .map(|(_, y)| y)
+        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap() + 1.0;
+    compute_idle_times(tasks, height, &mut rectangles);
     (rectangles, edges)
 }

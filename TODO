@@ -1,7 +1,6 @@
 - we can maybe rewrite TaskLog creator to avoid completing an array since we are in order now
 - svg: due to the viewport the stroke width is currently scaled differently in each dimension :-(
 - impl tree scan to avoid passing mutable slices everywhere and all extra vector copies in fork_join
-- put back idle times
 - display several "widgets" (comparing several traces, idle_times, ...)
 
 ------------------------------------------------------------------------------------
