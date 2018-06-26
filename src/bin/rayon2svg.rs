@@ -4,12 +4,10 @@ use std::env::args;
 
 fn main() {
     let file = args()
-        .skip(1)
-        .next()
+        .nth(1)
         .expect("please, give a log file as first argument");
     let output_file = args()
-        .skip(2)
-        .next()
+        .nth(2)
         .expect("please, give a svg file name as second argument");
     let logs = load_log_file(&file).expect("failed reading log file");
     let (rectangles, edges) = visualization(logs.as_slice());

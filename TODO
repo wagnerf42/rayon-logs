@@ -1,10 +1,8 @@
-
-- en cours : debug de la creation du graph : les taches en entrees ne sont pas triees dans le temps
-- en cours : enlever le nombre de threads des arguments de la creation de graph
-- creer une transformation globale a appliquer sur tous les trucs affiches
-- repasser les rectangles de f64 a u64
-- sortie en svg # Almost Done (add viewport)
-
+- we can maybe rewrite TaskLog creator to avoid completing an array since we are in order now
+- svg: due to the viewport the stroke width is currently scaled differently in each dimension :-(
+- impl tree scan to avoid passing mutable slices everywhere and all extra vector copies in fork_join
+- put back idle times
+- display several "widgets" (comparing several traces, idle_times, ...)
 
 ------------------------------------------------------------------------------------
 - couleurs (opacite) -> donnes iterateur et/ou nouveau join avec arg en plus

@@ -7,6 +7,7 @@ extern crate time;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+#[macro_use]
 extern crate itertools;
 extern crate serde_json;
 use std::fs::File;

@@ -4,6 +4,8 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::io::Error;
 
+pub(crate) type Point = (f64, f64);
+
 /// colors used for each thread
 pub(crate) const COLORS: [[f32; 4]; 8] = [
     [1.0, 0.0, 0.0, 1.0],
@@ -55,7 +57,7 @@ impl Rectangle {
 /// duration is the total duration of the animation in seconds.
 pub fn write_svg_file(
     rectangles: &[Rectangle],
-    edges: &[((f64, f64), (f64, f64))],
+    edges: &[(Point, Point)],
     svg_width: u64,
     svg_height: u64,
     duration: u64,
@@ -106,7 +108,7 @@ version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\">\n",
     // we start by edges so they will end up below tasks
     for (start, end) in edges {
         file.write_fmt(format_args!(
-            "line<x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"black\"/>",
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"black\" stroke-width=\"0.01\"/>",
             start.0, start.1, end.0, end.1
         ))?;
     }
@@ -126,8 +128,8 @@ format_args!(
         (rectangle.color[2] * 255.0) as u32,
         rectangle.color[3],
         rectangle.width,
-        start_time *duration / last_time,
-        (end_time - start_time) *duration / last_time,
+        (start_time *duration) as f64 / last_time as f64,
+        ((end_time - start_time) *duration) as f64 / last_time as f64,
         )
         )?;
         } else {

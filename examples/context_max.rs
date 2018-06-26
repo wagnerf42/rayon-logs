@@ -8,7 +8,16 @@ fn manual_max(pool: &LoggedPool, slice: &[u32]) -> u32 {
     } else {
         let middle = slice.len() / 2;
         let (left, right) = slice.split_at(middle);
-        let (mleft, mright) = pool.join(|| manual_max(pool, left), || manual_max(pool, right));
+        let (mleft, mright) = pool.join_context(
+            |_| manual_max(pool, left),
+            |c| {
+                if c.migrated() {
+                    manual_max(pool, right)
+                } else {
+                    *right.iter().max().unwrap()
+                }
+            },
+        );
         std::cmp::max(mleft, mright)
     }
 }
@@ -17,7 +26,7 @@ fn main() {
     let v: Vec<u32> = (0..1_000_000).collect();
     let pool = LoggedPoolBuilder::new()
         .num_threads(2)
-        .log_file("manual_max.json")
+        .log_file("context_max.json")
         .build()
         .expect("building pool failed");
     let max = pool.install(|| manual_max(&pool, &v));

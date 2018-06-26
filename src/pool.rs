@@ -195,7 +195,8 @@ impl LoggedPool {
         // remember the active task on each thread
         let mut all_active_tasks: Vec<Option<TaskId>> = repeat(None).take(threads_number).collect();
 
-        for (thread_id, event) in self.tasks_logs
+        for (thread_id, event) in self
+            .tasks_logs
             .iter()
             .enumerate()
             .map(|(thread_id, thread_log)| thread_log.logs().map(move |log| (thread_id, log)))

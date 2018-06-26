@@ -1,10 +1,11 @@
 //! Store a trace as a fork join graph (in a vector).
 use {svg::COLORS, Rectangle, TaskId, TaskLog};
 type BlockId = usize;
-use itertools::Itertools;
 use std::collections::HashMap;
 
 const VERTICAL_GAP: f64 = 0.2;
+
+use svg::Point;
 
 trait BlockVector {
     fn push_block(&mut self, block: Block) -> BlockId;
@@ -55,7 +56,6 @@ enum Block {
 
 /// Create a fork join graph (stored in a vec). This is used to convert the logs into
 /// a graphical display of animated rectangles.
-/// pre-condition: tasks form a topological order.
 fn create_graph(tasks: &[TaskLog]) -> Vec<Block> {
     let mut graph = vec![Block::Sequence(Vec::new())];
 
@@ -64,12 +64,22 @@ fn create_graph(tasks: &[TaskLog]) -> Vec<Block> {
     let mut current_blocks: HashMap<TaskId, BlockId> = HashMap::new();
     current_blocks.insert(0, 0); // init task and all its descendants go in initial sequence
 
-    for (task_id, task) in tasks.iter().enumerate() {
-        let current_block = current_blocks[&task_id];
+    // we sort by starting time to be sure fathers are processed before children
+    let mut sorted_tasks: Vec<TaskId> = (0..tasks.len()).collect();
+    sorted_tasks.sort_unstable_by(|t1, t2| {
+        tasks[*t1]
+            .start_time
+            .partial_cmp(&tasks[*t2].start_time)
+            .unwrap()
+    });
+
+    for task_id in &sorted_tasks {
+        let task = &tasks[*task_id];
+        let current_block = current_blocks[task_id];
 
         // add task to its sequence
         let new_block = graph.add_task((*task).clone());
-        graph.sequence(current_blocks[&task_id]).push(new_block);
+        graph.sequence(current_blocks[task_id]).push(new_block);
 
         // now look at the children
         if task.children.len() == 1 {
@@ -85,9 +95,7 @@ fn create_graph(tasks: &[TaskLog]) -> Vec<Block> {
             }
         } else if !task.children.is_empty() {
             let parallel_block = graph.add_parallel();
-            graph
-                .sequence(current_blocks[&task_id])
-                .push(parallel_block);
+            graph.sequence(current_blocks[task_id]).push(parallel_block);
             for child in &task.children {
                 let sequential_block = graph.add_sequence();
                 graph.parallel(parallel_block).push(sequential_block);
@@ -174,16 +182,30 @@ fn generate_visualisation(
     graph: &[Block],
     positions: &[(f64, f64)],
     rectangles: &mut Vec<Rectangle>,
-    edges: &mut Vec<((f64, f64), (f64, f64))>,
-) -> (Vec<(f64, f64)>, Vec<(f64, f64)>) {
+    edges: &mut Vec<(Point, Point)>,
+) -> (Vec<Point>, Vec<Point>) {
     match graph[index] {
         Block::Sequence(ref s) => {
-            let points: Vec<(Vec<(f64, f64)>, Vec<(f64, f64)>)> = s.iter()
+            let points: Vec<(Vec<Point>, Vec<Point>)> = s
+                .iter()
                 .map(|b| generate_visualisation(*b, graph, positions, rectangles, edges))
                 .collect();
-            unimplemented!();
+            edges.extend(
+                points
+                    .windows(2)
+                    .flat_map(|w| iproduct!(w[0].1.iter(), w[1].0.iter()).map(|(a, b)| (*a, *b))),
+            );
+            (
+                points.first().map(|p| &p.0).unwrap().clone(),
+                points.last().map(|p| &p.1).unwrap().clone(),
+            )
         }
-        Block::Parallel(ref p) => unimplemented!(),
+        Block::Parallel(ref p) => p.iter().fold((Vec::new(), Vec::new()), |mut acc, b| {
+            let (entry, exit) = generate_visualisation(*b, graph, positions, rectangles, edges);
+            acc.0.extend(entry);
+            acc.1.extend(exit);
+            acc
+        }),
         Block::Task(ref t) => {
             let duration = (t.end_time - t.start_time) as f64;
             rectangles.push(Rectangle::new(
@@ -211,7 +233,7 @@ fn generate_visualisation(
 }
 
 /// convert all tasks information into animated rectangles and edges.
-pub fn visualization(tasks: &[TaskLog]) -> (Vec<Rectangle>, Vec<((f64, f64), (f64, f64))>) {
+pub fn visualization(tasks: &[TaskLog]) -> (Vec<Rectangle>, Vec<(Point, Point)>) {
     // turn tasks into blocks (we build the fork join graph)
     let g = create_graph(tasks);
 
