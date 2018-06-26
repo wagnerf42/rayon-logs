@@ -237,7 +237,8 @@ fn generate_visualisation(
 /// Take all taskslogs and compute idle periods animations for each thread.
 /// add all rectangles to given vector.
 /// given height (height of animated running tasks) enables us to center the display vertically.
-fn compute_idle_times(tasks: &[TaskLog], height: f64, rectangles: &mut Vec<Rectangle>) {
+/// y is vertical start for this log.
+fn compute_idle_times(tasks: &[TaskLog], y: f64, height: f64, rectangles: &mut Vec<Rectangle>) {
     // do one pass to scan the number of threads
     let threads_number = tasks.iter().map(|t| t.thread_id).max().unwrap() + 1;
 
@@ -247,7 +248,7 @@ fn compute_idle_times(tasks: &[TaskLog], height: f64, rectangles: &mut Vec<Recta
 
     let starting_position = (
         last_time as f64 * 1.02,
-        (height - threads_number as f64) / 2.0,
+        y + (height - threads_number as f64) / 2.0,
     );
 
     // sort everyone by time (yes i know, again).
@@ -285,30 +286,34 @@ fn compute_idle_times(tasks: &[TaskLog], height: f64, rectangles: &mut Vec<Recta
 }
 
 /// convert all tasks information into animated rectangles and edges.
-pub fn visualization(tasks: &[TaskLog]) -> (Vec<Rectangle>, Vec<(Point, Point)>) {
+pub fn visualization(traces: &[Vec<TaskLog>]) -> (Vec<Rectangle>, Vec<(Point, Point)>) {
+    let mut rectangles = Vec::new();
+    let mut edges = Vec::new();
+
+    traces.iter().fold(0.0, |y, tasks| {
+        let g = create_graph(tasks);
+
+        // compute recursively the width and height of each block
+        let mut blocks_dimensions = Vec::with_capacity(g.len());
+        unsafe { blocks_dimensions.set_len(g.len()) }
+        compute_blocks_dimensions(0, &g, &mut blocks_dimensions);
+
+        // compute recursively the position of each block
+        let mut positions = Vec::with_capacity(g.len());
+        unsafe { positions.set_len(g.len()) }
+        positions[0] = (0.0, y);
+        compute_positions(0, &g, &blocks_dimensions, &mut positions);
+
+        // generate all rectangles and all edges
+        generate_visualisation(0, &g, &positions, &mut rectangles, &mut edges);
+        let height = positions
+            .iter()
+            .map(|(_, y)| y)
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap() + 1.0 - y;
+        compute_idle_times(tasks, y, height, &mut rectangles);
+        y + height
+    });
     // turn tasks into blocks (we build the fork join graph)
-    let g = create_graph(tasks);
-
-    // compute recursively the width and height of each block
-    let mut blocks_dimensions = Vec::with_capacity(g.len());
-    unsafe { blocks_dimensions.set_len(g.len()) }
-    compute_blocks_dimensions(0, &g, &mut blocks_dimensions);
-
-    // compute recursively the position of each block
-    let mut positions = Vec::with_capacity(g.len());
-    unsafe { positions.set_len(g.len()) }
-    positions[0] = (0.0, 0.0);
-    compute_positions(0, &g, &blocks_dimensions, &mut positions);
-
-    // generate all rectangles and all edges
-    let mut rectangles = Vec::with_capacity(2 * tasks.len());
-    let mut edges = Vec::with_capacity(3 * tasks.len());
-    generate_visualisation(0, &g, &positions, &mut rectangles, &mut edges);
-    let height = positions
-        .iter()
-        .map(|(_, y)| y)
-        .max_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap() + 1.0;
-    compute_idle_times(tasks, height, &mut rectangles);
     (rectangles, edges)
 }
