@@ -238,18 +238,11 @@ fn generate_visualisation(
 /// add all rectangles to given vector.
 /// given height (height of animated running tasks) enables us to center the display vertically.
 /// y is vertical start for this log.
-fn compute_idle_times(tasks: &[TaskLog], y: f64, height: f64, rectangles: &mut Vec<Rectangle>) {
-    // do one pass to scan the number of threads
-    let threads_number = tasks.iter().map(|t| t.thread_id).max().unwrap() + 1;
+fn compute_idle_times(tasks: &[TaskLog], starting_position: &(f64, f64), threads_number: usize, rectangles: &mut Vec<Rectangle>) {
 
     // do one pass to figure out the last recorded time.
     // we need it to figure out who is idle at the end.
     let last_time = tasks.iter().map(|t| t.end_time).max().unwrap();
-
-    let starting_position = (
-        last_time as f64 * 1.02,
-        y + (height - threads_number as f64) / 2.0,
-    );
 
     // sort everyone by time (yes i know, again).
     // we add fake tasks at the end for last idle periods.
@@ -306,12 +299,26 @@ pub fn visualization(traces: &[Vec<TaskLog>]) -> (Vec<Rectangle>, Vec<(Point, Po
 
         // generate all rectangles and all edges
         generate_visualisation(0, &g, &positions, &mut rectangles, &mut edges);
+
+        // compute position for idle times widget
         let height = positions
             .iter()
             .map(|(_, y)| y)
             .max_by(|a, b| a.partial_cmp(b).unwrap())
             .unwrap() + 1.0 - y;
-        compute_idle_times(tasks, y, height, &mut rectangles);
+        let width = positions
+            .iter()
+            .map(|(x, _)| x)
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap();
+        let threads_number = tasks.iter().map(|t| t.thread_id).max().unwrap() + 1;
+
+        let starting_position = (
+            *width as f64 * 1.02,
+            y + (height - threads_number as f64) / 2.0,
+            );
+
+        compute_idle_times(tasks, &starting_position, threads_number, &mut rectangles);
         y + height
     });
     // turn tasks into blocks (we build the fork join graph)
