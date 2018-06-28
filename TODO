@@ -1,5 +1,8 @@
 
-- colors: use work to compute rectangles opacity (could we also use surface area ?)
+- add a 'warm up' function to do some work in the pool before starting
+- colors: we need to sum times in all 'related' tasks but is this information still available
+- leaves have high speed variations: maybe taking the best speed for color is not the best idea
+- check why iterators advance contiguously
 - text labels on tasks : we need to provide a labeled join and a labeled iterator
 - add some genericity in logger to provides logging hooks
 

@@ -181,20 +181,37 @@ fn compute_positions(
     }
 }
 
+/// For some tasks we know the type and work.
+/// We can therefore compute a speed of computation.
+/// We figure out what is the max speed for each task type.
+fn compute_speeds(tasks: &[TaskLog]) -> HashMap<usize, f64> {
+    let mut speeds: HashMap<usize, f64> = HashMap::new();
+    for task in tasks {
+        if let Some((ref work_type, work_amount)) = task.work {
+            let speed = work_amount as f64 / (task.end_time as f64 - task.start_time as f64);
+            let existing_speed: f64 = speeds.get(work_type).cloned().unwrap_or(0.0);
+            if speed > existing_speed {
+                speeds.insert(*work_type, speed);
+            }
+        }
+    }
+    speeds
+}
+
 /// Take a block ; fill its rectangles and edges and return a set of entry points for incoming edges
 /// and a set of exit points for outgoing edges.
 fn generate_visualisation(
     index: BlockId,
     graph: &[Block],
     positions: &[(f64, f64)],
+    speeds: &HashMap<usize, f64>,
     rectangles: &mut Vec<Rectangle>,
     edges: &mut Vec<(Point, Point)>,
 ) -> (Vec<Point>, Vec<Point>) {
     match graph[index] {
         Block::Sequence(ref s) => {
-            let points: Vec<(Vec<Point>, Vec<Point>)> = s
-                .iter()
-                .map(|b| generate_visualisation(*b, graph, positions, rectangles, edges))
+            let points: Vec<(Vec<Point>, Vec<Point>)> = s.iter()
+                .map(|b| generate_visualisation(*b, graph, positions, speeds, rectangles, edges))
                 .collect();
             edges.extend(
                 points
@@ -207,7 +224,8 @@ fn generate_visualisation(
             )
         }
         Block::Parallel(ref p) => p.iter().fold((Vec::new(), Vec::new()), |mut acc, b| {
-            let (entry, exit) = generate_visualisation(*b, graph, positions, rectangles, edges);
+            let (entry, exit) =
+                generate_visualisation(*b, graph, positions, speeds, rectangles, edges);
             acc.0.extend(entry);
             acc.1.extend(exit);
             acc
@@ -215,13 +233,22 @@ fn generate_visualisation(
         Block::Task(ref t) => {
             let duration = (t.end_time - t.start_time) as f64;
             rectangles.push(Rectangle::new(
-                [0.0, 0.0, 0.0, 1.0],
+                [0.0, 0.0, 0.0],
+                1.0,
                 positions[index],
                 (duration, 1.0),
                 None,
             ));
+            let opacity = if let Some((work_type, work_amount)) = t.work {
+                let speed = work_amount as f64 / duration;
+                let best_speed = speeds[&work_type];
+                0.4 + 0.6 * speed / best_speed
+            } else {
+                1.0
+            };
             rectangles.push(Rectangle::new(
                 COLORS[t.thread_id % COLORS.len()],
+                opacity as f32,
                 positions[index],
                 (duration, 1.0),
                 Some((t.start_time, t.end_time)),
@@ -274,6 +301,7 @@ fn compute_idle_times(
             let inactivity = (start - previous_end) as f64;
             rectangles.push(Rectangle::new(
                 COLORS[thread_id % COLORS.len()],
+                1.0,
                 (
                     current_x_positions[thread_id],
                     starting_position.1 + thread_id as f64 * (1.0 + VERTICAL_GAP),
@@ -306,8 +334,11 @@ pub fn visualisation(traces: &[Vec<TaskLog>]) -> (Vec<Rectangle>, Vec<(Point, Po
         positions[0] = (0.0, y);
         compute_positions(0, &g, &blocks_dimensions, &mut positions);
 
+        // adjust colors based on work
+        let speeds = compute_speeds(tasks);
+
         // generate all rectangles and all edges
-        generate_visualisation(0, &g, &positions, &mut rectangles, &mut edges);
+        generate_visualisation(0, &g, &positions, &speeds, &mut rectangles, &mut edges);
 
         // compute position for idle times widget
         let height = positions

@@ -7,21 +7,23 @@ use std::io::Error;
 pub(crate) type Point = (f64, f64);
 
 /// colors used for each thread
-pub(crate) const COLORS: [[f32; 4]; 8] = [
-    [1.0, 0.0, 0.0, 1.0],
-    [0.0, 1.0, 0.0, 1.0],
-    [0.0, 0.0, 1.0, 1.0],
-    [1.0, 1.0, 0.0, 1.0],
-    [1.0, 0.0, 1.0, 1.0],
-    [0.0, 1.0, 1.0, 1.0],
-    [0.5, 0.5, 0.5, 1.0],
-    [1.0, 0.5, 0.5, 1.0],
+pub(crate) const COLORS: [[f32; 3]; 8] = [
+    [1.0, 0.0, 0.0],
+    [0.0, 1.0, 0.0],
+    [0.0, 0.0, 1.0],
+    [1.0, 1.0, 0.0],
+    [1.0, 0.0, 1.0],
+    [0.0, 1.0, 1.0],
+    [0.5, 0.5, 0.5],
+    [1.0, 0.5, 0.5],
 ];
 
 /// Tasks are animated as a set of rectangles.
 pub struct Rectangle {
     /// color (rgb+alpha)
-    pub color: [f32; 4],
+    pub color: [f32; 3],
+    /// opacity
+    pub opacity: f32,
     /// x coordinate
     pub x: f64,
     /// y coordinate
@@ -37,13 +39,15 @@ pub struct Rectangle {
 impl Rectangle {
     /// Creates a new rectangle
     pub fn new(
-        color: [f32; 4],
+        color: [f32; 3],
+        opacity: f32,
         position: (f64, f64),
         sizes: (f64, f64),
         animation: Option<(u64, u64)>,
     ) -> Rectangle {
         Rectangle {
             color,
+            opacity,
             x: position.0,
             y: position.1,
             width: sizes.0,
@@ -126,7 +130,7 @@ format_args!(
         (rectangle.color[0] * 255.0) as u32,
         (rectangle.color[1] * 255.0) as u32,
         (rectangle.color[2] * 255.0) as u32,
-        rectangle.color[3],
+        rectangle.opacity,
         rectangle.width*xscale,
         (start_time * u64::from(duration)) as f64 / last_time as f64,
         ((end_time - start_time) * u64::from(duration)) as f64 / last_time as f64,
@@ -142,7 +146,7 @@ format_args!(
                 (rectangle.color[0] * 255.0) as u32,
                 (rectangle.color[1] * 255.0) as u32,
                 (rectangle.color[2] * 255.0) as u32,
-                rectangle.color[3],
+                rectangle.opacity,
             ))?;
         }
     }
