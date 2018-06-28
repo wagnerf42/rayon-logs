@@ -13,6 +13,8 @@ use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 use storage::Storage;
 use time::precise_time_ns;
 
+use fork_join_graph::visualisation;
+use svg::write_svg_file;
 use {RayonEvent, TaskId, TaskLog};
 
 /// ThreadPool for fast and thread safe logging of execution times of tasks.
@@ -27,6 +29,8 @@ pub struct LoggedPool {
     pool: ThreadPool,
     /// If we have a filename here, we automatically save logs on drop.
     logs_filename: Option<String>,
+    /// If we have some svg parameters, we automatically save an svg image on drop.
+    svg_parameters: Option<(u32, u32, u32, String)>,
     /// When are we created (to shift all recorded times)
     pub(crate) start: u64,
 }
@@ -36,6 +40,12 @@ impl Drop for LoggedPool {
         if let Some(ref filename) = self.logs_filename {
             self.save_logs(filename).expect("saving logs failed");
         }
+        if let Some((width, height, duration, ref filename)) = self.svg_parameters {
+            let tasks = vec![self.create_tasks_logs()];
+            let (rectangles, edges) = visualisation(&tasks);
+            write_svg_file(&rectangles, &edges, width, height, duration, filename)
+                .expect("failed saving svg");
+        }
     }
 }
 
@@ -43,7 +53,11 @@ unsafe impl Sync for LoggedPool {}
 
 impl LoggedPool {
     /// Create a new events logging structure.
-    pub(crate) fn new(pool: ThreadPool, logs_filename: Option<String>) -> Self {
+    pub(crate) fn new(
+        pool: ThreadPool,
+        logs_filename: Option<String>,
+        svg_parameters: Option<(u32, u32, u32, String)>,
+    ) -> Self {
         let n_threads = pool.current_num_threads();
         LoggedPool {
             tasks_logs: (0..n_threads).map(|_| Storage::new()).collect(),
@@ -51,6 +65,7 @@ impl LoggedPool {
             next_iterator_id: ATOMIC_USIZE_INIT,
             pool,
             logs_filename,
+            svg_parameters,
             start: precise_time_ns(),
         }
     }
@@ -156,10 +171,8 @@ impl LoggedPool {
         }
     }
 
-    /// Save log file of currently recorded tasks logs.
-    pub fn save_logs<P: AsRef<Path>>(&self, path: P) -> Result<(), io::Error> {
-        let file = File::create(path)?;
-
+    /// Do all nasty postprocessing to rebuild dependencies.
+    fn create_tasks_logs(&self) -> Vec<TaskLog> {
         let tasks_number = self.next_task_id.load(Ordering::SeqCst);
         let mut tasks_info: Vec<_> = (0..tasks_number)
             .map(|_| TaskLog {
@@ -195,8 +208,7 @@ impl LoggedPool {
         // remember the active task on each thread
         let mut all_active_tasks: Vec<Option<TaskId>> = repeat(None).take(threads_number).collect();
 
-        for (thread_id, event) in self
-            .tasks_logs
+        for (thread_id, event) in self.tasks_logs
             .iter()
             .enumerate()
             .map(|(thread_id, thread_log)| thread_log.logs().map(move |log| (thread_id, log)))
@@ -263,7 +275,13 @@ impl LoggedPool {
                 .children
                 .extend(children.iter().map(|(task, _)| task));
         }
+        tasks_info
+    }
 
+    /// Save log file of currently recorded tasks logs.
+    pub fn save_logs<P: AsRef<Path>>(&self, path: P) -> Result<(), io::Error> {
+        let file = File::create(path)?;
+        let tasks_info = self.create_tasks_logs();
         serde_json::to_writer(file, &tasks_info).expect("failed serializing");
         Ok(())
     }

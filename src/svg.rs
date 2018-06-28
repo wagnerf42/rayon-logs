@@ -58,10 +58,10 @@ impl Rectangle {
 pub fn write_svg_file(
     rectangles: &[Rectangle],
     edges: &[(Point, Point)],
-    svg_width: u64,
-    svg_height: u64,
-    duration: u64,
-    path: String,
+    svg_width: u32,
+    svg_height: u32,
+    duration: u32,
+    path: &str,
 ) -> Result<(), Error> {
     let mut file = File::create(path)?;
 
@@ -128,8 +128,8 @@ format_args!(
         (rectangle.color[2] * 255.0) as u32,
         rectangle.color[3],
         rectangle.width,
-        (start_time *duration) as f64 / last_time as f64,
-        ((end_time - start_time) *duration) as f64 / last_time as f64,
+        (start_time *duration as u64) as f64 / last_time as f64,
+        ((end_time - start_time) *duration as u64) as f64 / last_time as f64,
         )
         )?;
         } else {

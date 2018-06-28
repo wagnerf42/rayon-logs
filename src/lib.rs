@@ -23,7 +23,7 @@ mod builder;
 pub mod prelude;
 pub use builder::LoggedPoolBuilder;
 mod fork_join_graph;
-pub use fork_join_graph::visualization;
+pub use fork_join_graph::visualisation;
 pub(crate) mod svg;
 pub use {svg::write_svg_file, svg::Rectangle};
 

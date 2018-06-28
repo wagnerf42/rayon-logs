@@ -77,33 +77,37 @@ fn create_graph(tasks: &[TaskLog]) -> Vec<Block> {
 
     for task_id in &sorted_tasks {
         let task = &tasks[*task_id];
-        let current_block = current_blocks[task_id];
-
+        let current_block = *current_blocks
+            .get(task_id)
+            .expect(&format!("task {} is not created by anyone", task_id));
         // add task to its sequence
         let new_block = graph.add_task((*task).clone());
-        graph.sequence(current_blocks[task_id]).push(new_block);
+        graph.sequence(current_block).push(new_block);
 
         // now look at the children
         if task.children.len() == 1 {
             let child = task.children[0];
             let possible_existing_block = current_blocks.remove(&child);
-            if let Some(existing_block) = possible_existing_block {
+            if possible_existing_block.is_some() {
                 // hard case, this child has several fathers.
                 current_blocks.insert(child, fathers[&current_block]);
-                assert_eq!(fathers[&current_block], fathers[&existing_block]);
             } else {
                 //easy case, first time child is seen by a father. maybe he has only one.
                 current_blocks.insert(child, current_block);
             }
         } else if !task.children.is_empty() {
+            // several children, we create a parallel block
             let parallel_block = graph.add_parallel();
-            graph.sequence(current_blocks[task_id]).push(parallel_block);
+            // add it to our block
+            graph.sequence(current_block).push(parallel_block);
+            // now each child will execute in a different sequence we create now
             for child in &task.children {
                 let sequential_block = graph.add_sequence();
                 graph.parallel(parallel_block).push(sequential_block);
-                fathers.insert(sequential_block, current_block);
                 let should_be_none = current_blocks.insert(*child, sequential_block);
                 assert!(should_be_none.is_none());
+
+                fathers.insert(sequential_block, current_block); // store where to go back at end of sequence
             }
         }
     }
@@ -188,8 +192,7 @@ fn generate_visualisation(
 ) -> (Vec<Point>, Vec<Point>) {
     match graph[index] {
         Block::Sequence(ref s) => {
-            let points: Vec<(Vec<Point>, Vec<Point>)> = s
-                .iter()
+            let points: Vec<(Vec<Point>, Vec<Point>)> = s.iter()
                 .map(|b| generate_visualisation(*b, graph, positions, rectangles, edges))
                 .collect();
             edges.extend(
@@ -238,11 +241,16 @@ fn generate_visualisation(
 /// add all rectangles to given vector.
 /// given height (height of animated running tasks) enables us to center the display vertically.
 /// y is vertical start for this log.
-fn compute_idle_times(tasks: &[TaskLog], starting_position: &(f64, f64), threads_number: usize, rectangles: &mut Vec<Rectangle>) {
-
+fn compute_idle_times(
+    tasks: &[TaskLog],
+    starting_position: &(f64, f64),
+    threads_number: usize,
+    rectangles: &mut Vec<Rectangle>,
+) {
     // do one pass to figure out the last recorded time.
     // we need it to figure out who is idle at the end.
     let last_time = tasks.iter().map(|t| t.end_time).max().unwrap();
+    let first_time = tasks.iter().map(|t| t.start_time).min().unwrap();
 
     // sort everyone by time (yes i know, again).
     // we add fake tasks at the end for last idle periods.
@@ -254,7 +262,7 @@ fn compute_idle_times(tasks: &[TaskLog], starting_position: &(f64, f64), threads
 
     sorted_tasks.sort_by(|t1, t2| t1.1.partial_cmp(&t2.1).unwrap());
 
-    let mut previous_activities: Vec<TimeStamp> = repeat(0).take(threads_number).collect();
+    let mut previous_activities: Vec<TimeStamp> = repeat(first_time).take(threads_number).collect();
     let mut current_x_positions: Vec<f64> =
         repeat(starting_position.0).take(threads_number).collect();
 
@@ -279,7 +287,7 @@ fn compute_idle_times(tasks: &[TaskLog], starting_position: &(f64, f64), threads
 }
 
 /// convert all tasks information into animated rectangles and edges.
-pub fn visualization(traces: &[Vec<TaskLog>]) -> (Vec<Rectangle>, Vec<(Point, Point)>) {
+pub fn visualisation(traces: &[Vec<TaskLog>]) -> (Vec<Rectangle>, Vec<(Point, Point)>) {
     let mut rectangles = Vec::new();
     let mut edges = Vec::new();
 
@@ -316,7 +324,7 @@ pub fn visualization(traces: &[Vec<TaskLog>]) -> (Vec<Rectangle>, Vec<(Point, Po
         let starting_position = (
             *width as f64 * 1.02,
             y + (height - threads_number as f64) / 2.0,
-            );
+        );
 
         compute_idle_times(tasks, &starting_position, threads_number, &mut rectangles);
         y + height

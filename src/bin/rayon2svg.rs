@@ -1,5 +1,5 @@
 extern crate rayon_logs;
-use rayon_logs::{load_log_file, visualization, write_svg_file};
+use rayon_logs::{load_log_file, visualisation, write_svg_file};
 use std::env::args;
 
 fn main() {
@@ -32,6 +32,6 @@ fn main() {
         .collect();
 
     // display all logs together
-    let (rectangles, edges) = visualization(&logs);
-    write_svg_file(&rectangles, &edges, 3840, 1024, 10, output_file).expect("failed saving svg");
+    let (rectangles, edges) = visualisation(&logs);
+    write_svg_file(&rectangles, &edges, 1280, 1024, 10, &output_file).expect("failed saving svg");
 }

@@ -18,6 +18,7 @@ fn main() {
     let pool = LoggedPoolBuilder::new()
         .num_threads(2)
         .log_file("manual_max.json")
+        .svg(1280, 1024, 10, "manual_max.svg") // 1280x1024 ; 10 seconds animation
         .build()
         .expect("building pool failed");
     let max = pool.install(|| manual_max(&pool, &v));
