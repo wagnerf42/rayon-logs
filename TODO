@@ -1,5 +1,5 @@
 
-- add a 'warm up' function to do some work in the pool before starting
+- merge sort does not work because of lazy_static
 - colors: we need to sum times in all 'related' tasks but is this information still available
 - leaves have high speed variations: maybe taking the best speed for color is not the best idea
 - check why iterators advance contiguously
