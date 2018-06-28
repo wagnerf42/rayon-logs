@@ -192,7 +192,8 @@ fn generate_visualisation(
 ) -> (Vec<Point>, Vec<Point>) {
     match graph[index] {
         Block::Sequence(ref s) => {
-            let points: Vec<(Vec<Point>, Vec<Point>)> = s.iter()
+            let points: Vec<(Vec<Point>, Vec<Point>)> = s
+                .iter()
                 .map(|b| generate_visualisation(*b, graph, positions, rectangles, edges))
                 .collect();
             edges.extend(
@@ -314,15 +315,18 @@ pub fn visualisation(traces: &[Vec<TaskLog>]) -> (Vec<Rectangle>, Vec<(Point, Po
             .map(|(_, y)| y)
             .max_by(|a, b| a.partial_cmp(b).unwrap())
             .unwrap() + 1.0 - y;
+
         let width = positions
             .iter()
-            .map(|(x, _)| x)
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .zip(blocks_dimensions.iter())
+            .map(|((x, _), (w, _))| *x + *w)
+            .max_by(|a, b| a.partial_cmp(&b).unwrap())
             .unwrap();
+
         let threads_number = tasks.iter().map(|t| t.thread_id).max().unwrap() + 1;
 
         let starting_position = (
-            *width as f64 * 1.02,
+            width as f64 * 1.02,
             y + (height - threads_number as f64) / 2.0,
         );
 

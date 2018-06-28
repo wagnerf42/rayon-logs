@@ -92,24 +92,24 @@ pub fn write_svg_file(
         .min_by(|a, b| a.partial_cmp(b).unwrap())
         .unwrap();
 
+    let xscale = f64::from(svg_width) / (xmax - xmin);
+    let yscale = f64::from(svg_height) / (ymax - ymin);
+
     // Header
     file.write_fmt(format_args!(
         "<?xml version=\"1.0\"?>
-<svg width=\"{}\" height=\"{}\" viewBox=\"{} {} {} {}\" preserveAspectRatio=\"none\"
-version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\">\n",
-        svg_width,
-        svg_height,
-        xmin,
-        ymin,
-        xmax - xmin,
-        ymax - ymin,
+<svg width=\"{}\" height=\"{}\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\">\n",
+        svg_width, svg_height,
     ))?;
 
     // we start by edges so they will end up below tasks
     for (start, end) in edges {
         file.write_fmt(format_args!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"black\" stroke-width=\"0.01\"/>",
-            start.0, start.1, end.0, end.1
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"black\" stroke-width=\"2.0\"/>",
+            (start.0 - xmin) * xscale,
+            (start.1 - ymin) * yscale,
+            (end.0 - xmin) * xscale,
+            (end.1 - xmin) * yscale
         ))?;
     }
 
@@ -120,25 +120,25 @@ format_args!(
             "<rect x=\"{}\" y=\"{}\" width=\"0\" height=\"{}\" fill=\"rgba({},{},{},{})\">
 <animate attributeType=\"XML\" attributeName=\"width\" from=\"0\" to=\"{}\" begin=\"{}s\" dur=\"{}s\" fill=\"freeze\"/>
 </rect>\n",
-        rectangle.x,
-        rectangle.y,
-        rectangle.height,
+        (rectangle.x-xmin)*xscale,
+        (rectangle.y-ymin)*yscale,
+        rectangle.height*yscale,
         (rectangle.color[0] * 255.0) as u32,
         (rectangle.color[1] * 255.0) as u32,
         (rectangle.color[2] * 255.0) as u32,
         rectangle.color[3],
-        rectangle.width,
-        (start_time *duration as u64) as f64 / last_time as f64,
-        ((end_time - start_time) *duration as u64) as f64 / last_time as f64,
+        rectangle.width*xscale,
+        (start_time * u64::from(duration)) as f64 / last_time as f64,
+        ((end_time - start_time) * u64::from(duration)) as f64 / last_time as f64,
         )
         )?;
         } else {
             file.write_fmt(format_args!(
                 "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"rgba({},{},{},{})\"/>\n",
-                rectangle.x,
-                rectangle.y,
-                rectangle.width,
-                rectangle.height,
+                (rectangle.x - xmin) * xscale,
+                (rectangle.y - ymin) * yscale,
+                rectangle.width * xscale,
+                rectangle.height * yscale,
                 (rectangle.color[0] * 255.0) as u32,
                 (rectangle.color[1] * 255.0) as u32,
                 (rectangle.color[2] * 255.0) as u32,

@@ -37,11 +37,12 @@ pub struct LoggedPool {
 
 impl Drop for LoggedPool {
     fn drop(&mut self) {
+        let tasks = vec![self.create_tasks_logs()];
         if let Some(ref filename) = self.logs_filename {
-            self.save_logs(filename).expect("saving logs failed");
+            self.save_logs(filename, &tasks[0])
+                .expect("saving logs failed");
         }
         if let Some((width, height, duration, ref filename)) = self.svg_parameters {
-            let tasks = vec![self.create_tasks_logs()];
             let (rectangles, edges) = visualisation(&tasks);
             write_svg_file(&rectangles, &edges, width, height, duration, filename)
                 .expect("failed saving svg");
@@ -208,7 +209,8 @@ impl LoggedPool {
         // remember the active task on each thread
         let mut all_active_tasks: Vec<Option<TaskId>> = repeat(None).take(threads_number).collect();
 
-        for (thread_id, event) in self.tasks_logs
+        for (thread_id, event) in self
+            .tasks_logs
             .iter()
             .enumerate()
             .map(|(thread_id, thread_log)| thread_log.logs().map(move |log| (thread_id, log)))
@@ -279,9 +281,12 @@ impl LoggedPool {
     }
 
     /// Save log file of currently recorded tasks logs.
-    pub fn save_logs<P: AsRef<Path>>(&self, path: P) -> Result<(), io::Error> {
+    pub fn save_logs<P: AsRef<Path>>(
+        &self,
+        path: P,
+        tasks_info: &[TaskLog],
+    ) -> Result<(), io::Error> {
         let file = File::create(path)?;
-        let tasks_info = self.create_tasks_logs();
         serde_json::to_writer(file, &tasks_info).expect("failed serializing");
         Ok(())
     }

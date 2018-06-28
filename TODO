@@ -1,10 +1,8 @@
+
+- colors: use work to compute rectangles opacity (could we also use surface area ?)
+- text labels on tasks : we need to provide a labeled join and a labeled iterator
+- add some genericity in logger to provides logging hooks
+
+--- minor:
 - we can maybe rewrite TaskLog creator to avoid completing an array since we are in order now
-- svg: due to the viewport the stroke width is currently scaled differently in each dimension :-(
 - impl tree scan to avoid passing mutable slices everywhere and all extra vector copies in fork_join
-
-------------------------------------------------------------------------------------
-- couleurs (opacite) -> donnes iterateur et/ou nouveau join avec arg en plus
-    -> largeur = travail ?
-
-- label texte sur des taches -> nouveau join ?
-- logger plus d'infos (cache) -> logs generiques + bonne interface utilisateur

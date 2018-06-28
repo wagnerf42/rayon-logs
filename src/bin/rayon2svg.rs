@@ -15,13 +15,11 @@ fn main() {
         }
         if arg == "-o" || arg == "--output" {
             parsing_o = true;
+        } else if parsing_o {
+            output_file = arg.to_owned();
+            parsing_o = false;
         } else {
-            if parsing_o {
-                output_file = arg.to_owned();
-                parsing_o = false;
-            } else {
-                input_files.push(arg.to_owned());
-            }
+            input_files.push(arg.to_owned());
         }
     }
 
