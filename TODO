@@ -1,6 +1,6 @@
 
-- merge sort does not work because of lazy_static
-- colors: we need to sum times in all 'related' tasks but is this information still available
+- provide a rayon-logs::join with a lazy-static pool
+- colors: we need to sum times in all sequential blocks
 - leaves have high speed variations: maybe taking the best speed for color is not the best idea
 - check why iterators advance contiguously
 - text labels on tasks : we need to provide a labeled join and a labeled iterator

@@ -12,13 +12,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
 
 lazy_static! {
-    static ref POOL: Box<LoggedPool> = {
-        Box::new(
+    static ref POOL: LoggedPool = {
             LoggedPoolBuilder::new()
                 .num_threads(2)
                 .build()
-                .expect("building pool failed"),
-        )
+                .expect("building pool failed")
     };
 }
 
@@ -405,7 +403,7 @@ fn main() {
     let mut v: Vec<u32> = (0..100_000).collect();
     let answer = v.clone();
     ra.shuffle(&mut v);
-    parallel_merge_sort::<u32, SequentialMerge>(&mut v);
+    POOL.install(|| parallel_merge_sort::<u32, SequentialMerge>(&mut v));
 
     if v != answer {
         panic!("invalid result");
