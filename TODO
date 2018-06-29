@@ -1,4 +1,6 @@
 
+- iterator interface for global pool
+- bug for work in merge sort
 - colors: we could have two systems : work is on block or work is on task (our tasks, not rayon's ones)
   i think both make sense
 - check why iterators advance contiguously

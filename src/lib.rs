@@ -12,9 +12,6 @@ extern crate serde_derive;
 #[macro_use]
 extern crate itertools;
 extern crate serde_json;
-use std::fs::File;
-use std::io;
-use std::io::ErrorKind;
 
 mod iterator;
 mod storage;
@@ -29,7 +26,9 @@ pub use fork_join_graph::visualisation;
 pub(crate) mod svg;
 pub use {svg::write_svg_file, svg::Rectangle};
 mod global;
-pub use global::{install, join, join_context, save_logs, save_svg};
+pub use global::{install, join, join_context, log_work};
+mod log;
+pub use log::{RunLog, TaskLog};
 
 type TaskId = usize;
 type IteratorId = usize;
@@ -62,23 +61,4 @@ impl RayonEvent {
             _ => 0,
         }
     }
-}
-
-/// The final information produced for log viewers.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct TaskLog {
-    start_time: TimeStamp,
-    end_time: TimeStamp,
-    thread_id: usize,
-    children: Vec<TaskId>,
-    /// a usize tag identifying what kind of things we actually do (if known)
-    /// and a u64 identifying how much work we do.
-    work: Option<(usize, usize)>,
-}
-
-/// Load a rayon_logs log file and deserializes it into a vector of logged
-/// tasks information.
-pub fn load_log_file(path: &str) -> Result<Vec<TaskLog>, io::Error> {
-    let file = File::open(path).unwrap();
-    serde_json::from_reader(file).map_err(|_| ErrorKind::InvalidData.into())
 }

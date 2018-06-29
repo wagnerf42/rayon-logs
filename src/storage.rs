@@ -56,6 +56,14 @@ impl Storage {
         }
     }
 
+    /// Destroy all logs.
+    pub fn clear(&self) {
+        let first_block = Block::new();
+        let list = unsafe { self.data.get().as_mut() }.unwrap();
+        list.clear();
+        list.push_front(first_block);
+    }
+
     /// Add given event to storage space.
     pub fn push(&self, event: RayonEvent) {
         let list = unsafe { self.data.get().as_mut() }.unwrap();

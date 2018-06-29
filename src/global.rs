@@ -1,8 +1,6 @@
 //! provide a global pool to avoid passing pool around.
 use rayon::FnContext;
-use std::io;
-use std::path::Path;
-use {LoggedPool, LoggedPoolBuilder};
+use {LoggedPool, LoggedPoolBuilder, RunLog};
 
 lazy_static! {
     static ref POOL: LoggedPool = {
@@ -35,7 +33,7 @@ where
 }
 
 /// Execute given closure in the global thread pool, logging it's task as the initial one.
-pub fn install<OP, R>(op: OP) -> R
+pub fn install<OP, R>(op: OP) -> (R, RunLog)
 where
     OP: FnOnce() -> R + Send,
     R: Send,
@@ -43,19 +41,7 @@ where
     POOL.install(op)
 }
 
-/// save tasks logs in json file.
-/// DO NOT USE WHEN COMPUTATIONS ARE RUNNING.
-pub fn save_logs<P: AsRef<Path>>(path: P) -> Result<(), io::Error> {
-    POOL.save_logs(path)
-}
-
-/// Save an svg file of all logged information.
-/// DO NOT USE WHEN COMPUTATIONS ARE RUNNING
-pub fn save_svg<P: AsRef<Path>>(
-    width: u32,
-    height: u32,
-    duration: u32,
-    path: P,
-) -> Result<(), io::Error> {
-    POOL.save_svg(width, height, duration, path)
+/// Tag currently active task with a type and amount of work.
+pub fn log_work(work_type: usize, work_amount: usize) {
+    POOL.log_work(work_type, work_amount)
 }

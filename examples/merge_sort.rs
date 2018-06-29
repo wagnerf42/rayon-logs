@@ -1,7 +1,7 @@
 extern crate itertools;
 extern crate rand;
 extern crate rayon_logs;
-use rayon_logs::{install, join, join_context, save_logs, save_svg};
+use rayon_logs::{install, join, join_context, log_work};
 
 use rand::{ChaChaRng, Rng};
 use std::fmt::Debug;
@@ -242,9 +242,9 @@ fn recursive_parallel_merge_sort<T: Ord + Copy + Send + Sync + Debug, M: Merging
     sequential: bool,
 ) {
     if recursions == 0 {
-        //let mut size = input.len() as f64;
-        //size *= size.log2();
-        //POOL.log_work(1, size as usize);
+        let mut size = input.len() as f64;
+        size *= size.log2();
+        //log_work(1, size as usize);
         input.sort();
     } else {
         let midpoint = input.len() / 2;
@@ -396,11 +396,11 @@ fn main() {
     let mut v: Vec<u32> = (0..100_000).collect();
     let answer = v.clone();
     ra.shuffle(&mut v);
-    install(|| parallel_merge_sort::<u32, SequentialMerge>(&mut v));
+    let (_, log) = install(|| parallel_merge_sort::<u32, SequentialMerge>(&mut v));
 
     if v != answer {
         panic!("invalid result");
     }
-    save_logs("merge_sort.json").expect("saving logs failed");
-    save_svg(3840, 2000, 20, "merge_sort.svg").expect("failed saving svg file");
+    log.save_svg(1920, 1080, 20, "merge_sort.svg")
+        .expect("failed saving svg file");
 }

@@ -3,6 +3,7 @@ use {svg::COLORS, Rectangle, TaskId, TaskLog};
 type BlockId = usize;
 use std::collections::HashMap;
 use std::iter::repeat;
+use RunLog;
 
 const VERTICAL_GAP: f64 = 0.2;
 
@@ -316,11 +317,14 @@ fn compute_idle_times(
 }
 
 /// convert all tasks information into animated rectangles and edges.
-pub fn visualisation(traces: &[Vec<TaskLog>]) -> (Vec<Rectangle>, Vec<(Point, Point)>) {
+pub fn visualisation<'a>(
+    traces: impl Iterator<Item = &'a RunLog>,
+) -> (Vec<Rectangle>, Vec<(Point, Point)>) {
     let mut rectangles = Vec::new();
     let mut edges = Vec::new();
 
-    traces.iter().fold(0.0, |y, tasks| {
+    traces.fold(0.0, |y, log| {
+        let tasks = &log.tasks_logs;
         let g = create_graph(tasks);
 
         // compute recursively the width and height of each block
@@ -354,14 +358,17 @@ pub fn visualisation(traces: &[Vec<TaskLog>]) -> (Vec<Rectangle>, Vec<(Point, Po
             .max_by(|a, b| a.partial_cmp(&b).unwrap())
             .unwrap();
 
-        let threads_number = tasks.iter().map(|t| t.thread_id).max().unwrap() + 1;
-
         let starting_position = (
             width as f64 * 1.02,
-            y + (height - threads_number as f64) / 2.0,
+            y + (height - log.threads_number as f64) / 2.0,
         );
 
-        compute_idle_times(tasks, &starting_position, threads_number, &mut rectangles);
+        compute_idle_times(
+            tasks,
+            &starting_position,
+            log.threads_number,
+            &mut rectangles,
+        );
         y + height
     });
     // turn tasks into blocks (we build the fork join graph)

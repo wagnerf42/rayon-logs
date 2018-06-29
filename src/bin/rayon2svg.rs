@@ -1,5 +1,5 @@
 extern crate rayon_logs;
-use rayon_logs::{load_log_file, visualisation, write_svg_file};
+use rayon_logs::{visualisation, write_svg_file, RunLog};
 use std::env::args;
 
 fn main() {
@@ -24,12 +24,12 @@ fn main() {
     }
 
     // load all files
-    let logs: Vec<_> = input_files
+    let logs: Vec<RunLog> = input_files
         .iter()
-        .map(|filename| load_log_file(filename).expect(&format!("failed loading {}", filename)))
+        .map(|filename| RunLog::load(filename).expect(&format!("failed loading {}", filename)))
         .collect();
 
     // display all logs together
-    let (rectangles, edges) = visualisation(&logs);
+    let (rectangles, edges) = visualisation(logs.iter());
     write_svg_file(&rectangles, &edges, 1280, 1024, 10, &output_file).expect("failed saving svg");
 }

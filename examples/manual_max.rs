@@ -1,26 +1,22 @@
 extern crate rayon_logs;
-use rayon_logs::{LoggedPool, LoggedPoolBuilder};
+use rayon_logs::{install, join, log_work};
 
-fn manual_max(pool: &LoggedPool, slice: &[u32]) -> u32 {
+fn manual_max(slice: &[u32]) -> u32 {
     if slice.len() < 200_000 {
-        pool.log_work(0, slice.len());
+        log_work(0, slice.len());
         slice.iter().max().cloned().unwrap()
     } else {
         let middle = slice.len() / 2;
         let (left, right) = slice.split_at(middle);
-        let (mleft, mright) = pool.join(|| manual_max(pool, left), || manual_max(pool, right));
+        let (mleft, mright) = join(|| manual_max(left), || manual_max(right));
         std::cmp::max(mleft, mright)
     }
 }
 
 fn main() {
     let v: Vec<u32> = (0..2_000_000).collect();
-    let pool = LoggedPoolBuilder::new()
-        .num_threads(2)
-        .log_file("manual_max.json")
-        .svg(1920, 1080, 10, "manual_max.svg") // 1280x1024 ; 10 seconds animation
-        .build()
-        .expect("building pool failed");
-    let max = pool.install(|| manual_max(&pool, &v));
+    let (max, log) = install(|| manual_max(&v));
+    log.save_svg(1920, 1080, 10, "manual_max.svg")
+        .expect("saving svg file failed");
     assert_eq!(max, v.last().cloned().unwrap());
 }
