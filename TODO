@@ -1,11 +1,11 @@
 
-- provide a rayon-logs::join with a lazy-static pool
-- colors: we need to sum times in all sequential blocks
-- leaves have high speed variations: maybe taking the best speed for color is not the best idea
+- colors: we could have two systems : work is on block or work is on task (our tasks, not rayon's ones)
+  i think both make sense
 - check why iterators advance contiguously
 - text labels on tasks : we need to provide a labeled join and a labeled iterator
 - add some genericity in logger to provides logging hooks
 
 --- minor:
+- leaves have high speed variations: maybe taking the best speed for color is not the best idea
 - we can maybe rewrite TaskLog creator to avoid completing an array since we are in order now
 - impl tree scan to avoid passing mutable slices everywhere and all extra vector copies in fork_join

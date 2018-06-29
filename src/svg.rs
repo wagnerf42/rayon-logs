@@ -3,6 +3,7 @@
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Error;
+use std::path::Path;
 
 pub(crate) type Point = (f64, f64);
 
@@ -59,13 +60,13 @@ impl Rectangle {
 
 /// saves a set of rectangles and edges as an animated svg file.
 /// duration is the total duration of the animation in seconds.
-pub fn write_svg_file(
+pub fn write_svg_file<P: AsRef<Path>>(
     rectangles: &[Rectangle],
     edges: &[(Point, Point)],
     svg_width: u32,
     svg_height: u32,
     duration: u32,
-    path: &str,
+    path: P,
 ) -> Result<(), Error> {
     let mut file = File::create(path)?;
 

@@ -82,16 +82,16 @@ impl LoggedPool {
 
     /// Save an svg file of all logged information.
     /// DO NOT USE WHEN COMPUTATIONS ARE RUNNING
-    pub fn save_svg(
+    pub fn save_svg<P: AsRef<Path>>(
         &self,
         width: u32,
         height: u32,
         duration: u32,
-        filename: &str,
+        path: P,
     ) -> Result<(), Error> {
         let tasks = vec![self.create_tasks_logs()];
         let (rectangles, edges) = visualisation(&tasks);
-        write_svg_file(&rectangles, &edges, width, height, duration, filename)
+        write_svg_file(&rectangles, &edges, width, height, duration, path)
     }
 
     /// Execute a logging join_context.

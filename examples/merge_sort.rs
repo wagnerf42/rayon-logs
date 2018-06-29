@@ -1,24 +1,13 @@
 extern crate itertools;
 extern crate rand;
 extern crate rayon_logs;
-use rayon_logs::{LoggedPool, LoggedPoolBuilder};
-#[macro_use]
-extern crate lazy_static;
-use std::iter::repeat;
+use rayon_logs::{install, join, join_context, save_logs, save_svg};
 
 use rand::{ChaChaRng, Rng};
 use std::fmt::Debug;
+use std::iter::repeat;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
-
-lazy_static! {
-    static ref POOL: LoggedPool = {
-            LoggedPoolBuilder::new()
-                .num_threads(2)
-                .build()
-                .expect("building pool failed")
-    };
-}
 
 const SORT_SEQUENTIAL_LIMIT: usize = 1000;
 const MERGE_SEQUENTIAL_LIMIT: usize = 1000;
@@ -102,6 +91,7 @@ pub trait MergingStrategy {
 struct SequentialMerge;
 impl MergingStrategy for SequentialMerge {
     fn merge<T: Ord + Copy + Send + Sync + Debug>(left: &[T], right: &[T], output: &mut [T]) {
+        //POOL.log_work(0, output.len());
         partial_manual_merge::<True, True, False, _>(left, right, output, 0);
     }
 }
@@ -121,15 +111,15 @@ impl MergingStrategy for ParallelMerge {
             let (output1, output_end) = output.split_at_mut(left1.len() + right1.len());
             let (output2, output3) = output_end.split_at_mut(left2.len() + right2.len());
             let (output2a, output2b) = output2.split_at_mut(left2.len());
-            POOL.join(
+            join(
                 || {
-                    POOL.join(
+                    join(
                         || output2a.copy_from_slice(left2),
                         || output2b.copy_from_slice(right2),
                     )
                 },
                 || {
-                    POOL.join(
+                    join(
                         || ParallelMerge::merge(left1, right1, output1),
                         || ParallelMerge::merge(left3, right3, output3),
                     )
@@ -144,7 +134,7 @@ impl MergingStrategy for AdaptiveMerge {
     fn merge<T: Ord + Copy + Send + Sync + Debug>(left: &[T], right: &[T], output: &mut [T]) {
         let stolen = &AtomicBool::new(false);
         let (tx, rx) = channel();
-        POOL.join_context(
+        join_context(
             move |_| {
                 let mut left_done = 0;
                 let mut right_done = 0;
@@ -216,9 +206,9 @@ impl MergingStrategy for AdaptiveMerge {
                             .expect("sending work failed");
                         let (output1, output2) = output_start.split_at_mut(size1);
                         let (output2a, output2b) = output2.split_at_mut(left2.len());
-                        POOL.join(
+                        join(
                             || {
-                                POOL.join(
+                                join(
                                     || output2a.copy_from_slice(left2),
                                     || output2b.copy_from_slice(right2),
                                 )
@@ -252,6 +242,9 @@ fn recursive_parallel_merge_sort<T: Ord + Copy + Send + Sync + Debug, M: Merging
     sequential: bool,
 ) {
     if recursions == 0 {
+        //let mut size = input.len() as f64;
+        //size *= size.log2();
+        //POOL.log_work(1, size as usize);
         input.sort();
     } else {
         let midpoint = input.len() / 2;
@@ -272,7 +265,7 @@ fn recursive_parallel_merge_sort<T: Ord + Copy + Send + Sync + Debug, M: Merging
                     true,
                 );
             } else {
-                POOL.join_context(
+                join_context(
                     |_| recursive_parallel_merge_sort::<T, M>(out1, in1, recursions - 1, false),
                     |c| {
                         recursive_parallel_merge_sort::<T, M>(
@@ -403,13 +396,11 @@ fn main() {
     let mut v: Vec<u32> = (0..100_000).collect();
     let answer = v.clone();
     ra.shuffle(&mut v);
-    POOL.install(|| parallel_merge_sort::<u32, SequentialMerge>(&mut v));
+    install(|| parallel_merge_sort::<u32, SequentialMerge>(&mut v));
 
     if v != answer {
         panic!("invalid result");
     }
-    POOL.save_logs("merge_sort.json")
-        .expect("saving logs failed");
-    POOL.save_svg(1920, 1080, 20, "merge_sort.svg")
-        .expect("failed saving svg file");
+    save_logs("merge_sort.json").expect("saving logs failed");
+    save_svg(3840, 2000, 20, "merge_sort.svg").expect("failed saving svg file");
 }

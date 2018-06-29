@@ -3,6 +3,8 @@
 #![deny(missing_docs)]
 extern crate rayon;
 extern crate time;
+#[macro_use]
+extern crate lazy_static;
 
 extern crate serde;
 #[macro_use]
@@ -26,6 +28,8 @@ mod fork_join_graph;
 pub use fork_join_graph::visualisation;
 pub(crate) mod svg;
 pub use {svg::write_svg_file, svg::Rectangle};
+mod global;
+pub use global::{install, join, join_context, save_logs, save_svg};
 
 type TaskId = usize;
 type IteratorId = usize;
