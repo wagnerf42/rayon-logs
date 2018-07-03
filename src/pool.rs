@@ -1,157 +1,196 @@
 //! `LoggedPool` structure for logging raw tasks events.
 
-use rayon::{join, join_context, prelude::*, FnContext, ThreadPool};
+use rayon;
+use rayon::FnContext;
+use std::fs::File;
+use std::io::prelude::*;
+use std::io::Error;
 use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 use storage::Storage;
 use time::precise_time_ns;
+use {fill_svg_file, visualisation};
 
-use {RayonEvent, RunLog};
+use std::cell::RefCell;
+use std::sync::{Arc, Mutex};
+use TaskId;
+use {svg::histogram, RayonEvent, RunLog};
 
-/// ThreadPool for fast and thread safe logging of execution times of tasks.
-pub struct LoggedPool {
-    /// One vector of events for each thread.
-    pub(crate) tasks_logs: Vec<Storage>,
-    /// We use an atomic usize to generate unique ids for tasks.
-    next_task_id: AtomicUsize,
-    /// We use an atomic usize to generate unique ids for iterators.
-    next_iterator_id: AtomicUsize,
-    /// We need to know the thread pool to figure out thread indices.
-    pool: ThreadPool,
-    /// When are we created (to shift all recorded times)
-    pub(crate) start: u64,
+/// We use an atomic usize to generate unique ids for tasks.
+pub(crate) static NEXT_TASK_ID: AtomicUsize = ATOMIC_USIZE_INIT;
+/// We use an atomic usize to generate unique ids for iterators.
+pub(crate) static NEXT_ITERATOR_ID: AtomicUsize = ATOMIC_USIZE_INIT;
+
+/// get an id for a new task and increment global tasks counter.
+pub fn next_task_id() -> TaskId {
+    NEXT_TASK_ID.fetch_add(1, Ordering::SeqCst)
 }
 
-unsafe impl Sync for LoggedPool {}
+/// get an id for a new iterator and increment global iterators counter.
+pub fn next_iterator_id() -> usize {
+    NEXT_ITERATOR_ID.fetch_add(1, Ordering::SeqCst)
+}
 
-impl LoggedPool {
-    /// Create a new events logging structure.
-    pub(crate) fn new(pool: ThreadPool) -> Self {
-        let n_threads = pool.current_num_threads();
-        // warm up the pool immediately
-        let m: i32 = pool.install(|| (0..5_000_000).into_par_iter().max().unwrap());
-        if m != 4_999_999 {
-            panic!("warm up failed")
-        }
-        LoggedPool {
-            tasks_logs: (0..n_threads).map(|_| Storage::new()).collect(),
-            next_task_id: ATOMIC_USIZE_INIT,
-            next_iterator_id: ATOMIC_USIZE_INIT,
-            pool,
-            start: precise_time_ns(),
-        }
-    }
-    /// Tag currently active task with a type and amount of work.
-    pub fn log_work(&self, work_type: usize, work_amount: usize) {
-        self.log(RayonEvent::Work(work_type, work_amount));
-    }
+thread_local!(pub(crate) static LOGS: RefCell<Arc<Storage>> = RefCell::new(Arc::new(Storage::new())));
 
-    /// Execute a logging join_context.
-    pub fn join_context<A, B, RA, RB>(&self, oper_a: A, oper_b: B) -> (RA, RB)
-    where
-        A: FnOnce(FnContext) -> RA + Send,
-        B: FnOnce(FnContext) -> RB + Send,
-        RA: Send,
-        RB: Send,
-    {
-        let id_a = self.next_task_id();
-        let ca = |c| {
-            self.log(RayonEvent::TaskStart(id_a, precise_time_ns()));
-            let result = oper_a(c);
-            self.log(RayonEvent::TaskEnd(precise_time_ns()));
-            result
-        };
+/// Add given event to logs of current thread.
+pub(crate) fn log(event: RayonEvent) {
+    LOGS.with(|l| l.borrow().push(event))
+}
 
-        let id_b = self.next_task_id();
-        let cb = |c| {
-            self.log(RayonEvent::TaskStart(id_b, precise_time_ns()));
-            let result = oper_b(c);
-            self.log(RayonEvent::TaskEnd(precise_time_ns()));
-            result
-        };
+/// Tag currently active task with a type and amount of work.
+pub fn log_work(work_type: usize, work_amount: usize) {
+    log(RayonEvent::Work(work_type, work_amount));
+}
 
-        let id_c = self.next_task_id();
-        self.log(RayonEvent::Join(id_a, id_b, id_c));
-        self.log(RayonEvent::TaskEnd(precise_time_ns()));
-        let r = join_context(ca, cb);
-        self.log(RayonEvent::TaskStart(id_c, precise_time_ns()));
-        r
-    }
+/// Execute a logging join_context.
+pub fn join_context<A, B, RA, RB>(oper_a: A, oper_b: B) -> (RA, RB)
+where
+    A: FnOnce(FnContext) -> RA + Send,
+    B: FnOnce(FnContext) -> RB + Send,
+    RA: Send,
+    RB: Send,
+{
+    let id_a = next_task_id();
+    let ca = |c| {
+        log(RayonEvent::TaskStart(id_a, precise_time_ns()));
+        let result = oper_a(c);
+        log(RayonEvent::TaskEnd(precise_time_ns()));
+        result
+    };
 
-    /// Erase all logs and resets all counters to 0.
+    let id_b = next_task_id();
+    let cb = |c| {
+        log(RayonEvent::TaskStart(id_b, precise_time_ns()));
+        let result = oper_b(c);
+        log(RayonEvent::TaskEnd(precise_time_ns()));
+        result
+    };
+
+    let id_c = next_task_id();
+    log(RayonEvent::Join(id_a, id_b, id_c));
+    log(RayonEvent::TaskEnd(precise_time_ns()));
+    let r = rayon::join_context(ca, cb);
+    log(RayonEvent::TaskStart(id_c, precise_time_ns()));
+    r
+}
+
+/// Execute a logging join.
+pub fn join<A, B, RA, RB>(oper_a: A, oper_b: B) -> (RA, RB)
+where
+    A: FnOnce() -> RA + Send,
+    B: FnOnce() -> RB + Send,
+    RA: Send,
+    RB: Send,
+{
+    let id_a = next_task_id();
+    let ca = || {
+        log(RayonEvent::TaskStart(id_a, precise_time_ns()));
+        let result = oper_a();
+        log(RayonEvent::TaskEnd(precise_time_ns()));
+        result
+    };
+
+    let id_b = next_task_id();
+    let cb = || {
+        log(RayonEvent::TaskStart(id_b, precise_time_ns()));
+        let result = oper_b();
+        log(RayonEvent::TaskEnd(precise_time_ns()));
+        result
+    };
+
+    let id_c = next_task_id();
+    log(RayonEvent::Join(id_a, id_b, id_c));
+    log(RayonEvent::TaskEnd(precise_time_ns()));
+    let r = rayon::join(ca, cb);
+    log(RayonEvent::TaskStart(id_c, precise_time_ns()));
+    r
+}
+
+/// We wrap rayon's pool into our own struct to overload the install method.
+pub struct ThreadPool {
+    pub(crate) logs: Arc<Mutex<Vec<Arc<Storage>>>>,
+    pub(crate) pool: rayon::ThreadPool,
+}
+
+impl ThreadPool {
+    /// Reset all logs and counters to initial condition.
     fn reset(&self) {
-        for log in &self.tasks_logs {
+        NEXT_TASK_ID.store(0, Ordering::SeqCst);
+        NEXT_ITERATOR_ID.store(0, Ordering::SeqCst);
+        let logs = &*self.logs.lock().unwrap(); // oh yeah baby
+        for log in logs {
             log.clear();
         }
-        self.next_task_id.store(0, Ordering::SeqCst);
-        self.next_iterator_id.store(0, Ordering::SeqCst);
     }
 
     /// Execute given closure in the thread pool, logging it's task as the initial one.
-    /// After running, we post-process the logs and return a `RunLog` together with the processed data.
+    /// After running, we post-process the logs and return a `RunLog` together with the closure's
+    /// result.
     pub fn install<OP, R>(&self, op: OP) -> (R, RunLog)
     where
         OP: FnOnce() -> R + Send,
         R: Send,
     {
-        let id = self.next_task_id();
+        self.reset();
+        let id = next_task_id();
         let c = || {
-            self.log(RayonEvent::TaskStart(id, precise_time_ns()));
+            log(RayonEvent::TaskStart(id, precise_time_ns()));
             let result = op();
-            self.log(RayonEvent::TaskEnd(precise_time_ns()));
+            log(RayonEvent::TaskEnd(precise_time_ns()));
             result
         };
+        let start = precise_time_ns();
         let r = self.pool.install(c);
-        let log = RunLog::new(&self);
-        self.reset();
+        let log = RunLog::new(
+            NEXT_TASK_ID.load(Ordering::Relaxed),
+            NEXT_ITERATOR_ID.load(Ordering::Relaxed),
+            &*self.logs.lock().unwrap(),
+            start,
+        );
         (r, log)
     }
 
-    /// Execute a logging join.
-    pub fn join<A, B, RA, RB>(&self, oper_a: A, oper_b: B) -> (RA, RB)
+    /// We automatically benchmark and compare two algorithms.
+    /// We run 300 tests for each algorithm.
+    /// Each time we prepare the experiment and launch both algorithms.
+    /// We display some statistics on running times and compare both average and best
+    /// runs.
+    pub fn compare<A, B>(&self, label1: &str, label2: &str, algo1: A, algo2: B) -> Result<(), Error>
     where
-        A: FnOnce() -> RA + Send,
-        B: FnOnce() -> RB + Send,
-        RA: Send,
-        RB: Send,
+        A: Fn() + Send + Sync,
+        B: Fn() + Send + Sync,
     {
-        let id_a = self.next_task_id();
-        let ca = || {
-            self.log(RayonEvent::TaskStart(id_a, precise_time_ns()));
-            let result = oper_a();
-            self.log(RayonEvent::TaskEnd(precise_time_ns()));
-            result
-        };
-
-        let id_b = self.next_task_id();
-        let cb = || {
-            self.log(RayonEvent::TaskStart(id_b, precise_time_ns()));
-            let result = oper_b();
-            self.log(RayonEvent::TaskEnd(precise_time_ns()));
-            result
-        };
-
-        let id_c = self.next_task_id();
-        self.log(RayonEvent::Join(id_a, id_b, id_c));
-        self.log(RayonEvent::TaskEnd(precise_time_ns()));
-        let r = join(ca, cb);
-        self.log(RayonEvent::TaskStart(id_c, precise_time_ns()));
-        r
-    }
-
-    /// Return id for next task (updates counter).
-    pub(crate) fn next_task_id(&self) -> usize {
-        self.next_task_id.fetch_add(1, Ordering::SeqCst)
-    }
-
-    /// Return id for next iterator (updates counter).
-    pub(crate) fn next_iterator_id(&self) -> usize {
-        self.next_iterator_id.fetch_add(1, Ordering::SeqCst)
-    }
-
-    /// Add given event to logs of given thread.
-    pub(crate) fn log(&self, event: RayonEvent) {
-        if let Some(thread_id) = self.pool.current_thread_index() {
-            self.tasks_logs[thread_id].push(event)
+        let tests_number = 100;
+        let mut logs = vec![Vec::new(), Vec::new()];
+        for _ in 0..tests_number {
+            logs[0].push(self.install(|| algo1()).1);
+            logs[1].push(self.install(|| algo2()).1);
         }
+        logs[0].sort_unstable_by_key(|l| l.duration);
+        logs[1].sort_unstable_by_key(|l| l.duration);
+
+        let mut html_file = File::create("foo.html")?;
+
+        write!(html_file, "<!DOCTYPE html>")?;
+        write!(html_file, "<html><body>")?;
+        write!(html_file, "<H1>Comparing {} and {}</H1>", label1, label2)?;
+
+        write!(
+            html_file,
+            "<center><H2>Distribution of execution times over {} runs</H2></center>",
+            tests_number
+        )?;
+        write!(html_file, "<center>")?;
+        histogram(&mut html_file, &logs, 30)?;
+        write!(html_file, "</center>")?;
+
+        write!(html_file, "<center><H2>Comparing median runs</H2></center>")?;
+        let median_index = tests_number / 2;
+        let (rectangles, edges) = visualisation(logs.iter().map(|l| &l[median_index]));
+        write!(html_file, "<center>")?;
+        fill_svg_file(&rectangles, &edges, 1920, 1080, 20, &mut html_file)?;
+        write!(html_file, "</center>")?;
+        write!(html_file, "</body></html>")?;
+        Ok(())
     }
 }

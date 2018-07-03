@@ -10,13 +10,13 @@ pub use rayon::prelude::ParallelSlice;
 pub use rayon::prelude::ParallelSliceMut;
 pub use rayon::prelude::ParallelString;
 
-use {Logged, LoggedPool};
+use Logged;
 
 /// This trait extends `ParallelItertor`s by providing logging facilities.
 pub trait LoggedParallelIterator: ParallelIterator {
     /// Log all thread activities in the provided LoggedPool.
-    fn log(self, pool: &LoggedPool) -> Logged<Self> {
-        Logged::new(self, pool)
+    fn log(self) -> Logged<Self> {
+        Logged::new(self)
     }
 }
 

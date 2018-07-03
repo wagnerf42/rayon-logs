@@ -1,18 +1,18 @@
 extern crate rayon_logs;
-use rayon_logs::{LoggedPool, LoggedPoolBuilder};
+use rayon_logs::{join_context, log_work, ThreadPoolBuilder};
 
-fn manual_max(pool: &LoggedPool, slice: &[u32]) -> u32 {
+fn manual_max(slice: &[u32]) -> u32 {
     if slice.len() < 1000 {
-        pool.log_work(0, slice.len());
+        log_work(0, slice.len());
         slice.iter().max().cloned().unwrap()
     } else {
         let middle = slice.len() / 2;
         let (left, right) = slice.split_at(middle);
-        let (mleft, mright) = pool.join_context(
-            |_| manual_max(pool, left),
+        let (mleft, mright) = join_context(
+            |_| manual_max(left),
             |c| {
                 if c.migrated() {
-                    manual_max(pool, right)
+                    manual_max(right)
                 } else {
                     *right.iter().max().unwrap()
                 }
@@ -24,12 +24,13 @@ fn manual_max(pool: &LoggedPool, slice: &[u32]) -> u32 {
 
 fn main() {
     let v: Vec<u32> = (0..1_000_000).collect();
-    let pool = LoggedPoolBuilder::new()
+    let pool = ThreadPoolBuilder::new()
         .num_threads(2)
-        .log_file("context_max.json")
-        .svg(1280, 1024, 10, "context_max.svg") // 1280x1024 ; 10 seconds animation
         .build()
         .expect("building pool failed");
-    let max = pool.install(|| manual_max(&pool, &v));
+    let (max, log) = pool.install(|| manual_max(&v));
     assert_eq!(max, v.last().cloned().unwrap());
+
+    log.save_svg(1920, 1080, 10, "context_max.svg")
+        .expect("saving svg file failed");
 }

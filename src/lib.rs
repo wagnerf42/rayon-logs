@@ -3,8 +3,6 @@
 #![deny(missing_docs)]
 extern crate rayon;
 extern crate time;
-#[macro_use]
-extern crate lazy_static;
 
 extern crate serde;
 #[macro_use]
@@ -17,16 +15,15 @@ mod iterator;
 mod storage;
 pub use iterator::Logged;
 mod pool;
-pub use pool::LoggedPool;
+pub use pool::{join, join_context, log_work, ThreadPool};
 mod builder;
 pub mod prelude;
-pub use builder::LoggedPoolBuilder;
+pub use builder::ThreadPoolBuilder;
+
 mod fork_join_graph;
 pub use fork_join_graph::visualisation;
 pub(crate) mod svg;
-pub use {svg::write_svg_file, svg::Rectangle};
-mod global;
-pub use global::{install, join, join_context, log_work};
+pub use {svg::fill_svg_file, svg::write_svg_file, svg::Rectangle};
 mod log;
 pub use log::{RunLog, TaskLog};
 

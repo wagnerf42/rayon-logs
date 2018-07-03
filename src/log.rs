@@ -8,9 +8,11 @@ use std::io;
 use std::io::ErrorKind;
 use std::iter::once;
 use std::iter::repeat;
+use std::mem;
 use std::path::Path;
+use std::sync::Arc;
 use svg::write_svg_file;
-use {LoggedPool, RayonEvent, TaskId, TimeStamp};
+use {storage::Storage, RayonEvent, TaskId, TimeStamp};
 
 /// The final information produced for log viewers.
 /// A 'task' here is not a rayon task but a subpart of one.
@@ -44,12 +46,18 @@ pub struct RunLog {
     pub threads_number: usize,
     /// fork-join tasks.
     pub tasks_logs: Vec<TaskLog>,
+    /// total run time in nanoseconds.
+    pub duration: u64,
 }
 
 impl RunLog {
     /// Create a real log from logged events and reset the pool.
-    pub(crate) fn new(pool: &LoggedPool) -> Self {
-        let tasks_number = pool.next_task_id();
+    pub(crate) fn new(
+        tasks_number: usize,
+        iterators_number: usize,
+        tasks_logs: &[Arc<Storage>],
+        start: TimeStamp,
+    ) -> Self {
         let mut tasks_info: Vec<_> = (0..tasks_number)
             .map(|_| TaskLog {
                 start_time: 0, // will be filled later
@@ -60,7 +68,6 @@ impl RunLog {
             })
             .collect();
 
-        let iterators_number = pool.next_iterator_id();
         let mut iterators_info: Vec<_> = (0..iterators_number).map(|_| Vec::new()).collect();
         let mut iterators_fathers = Vec::new();
         // links to tasks created by join are tricky to recompute
@@ -80,11 +87,11 @@ impl RunLog {
         //  this dynamic information is stored in the following hashmap:
         let mut dag_children: HashMap<TaskId, TaskId> = HashMap::new();
 
-        let threads_number = pool.tasks_logs.len();
+        let threads_number = tasks_logs.len();
         // remember the active task on each thread
         let mut all_active_tasks: Vec<Option<TaskId>> = repeat(None).take(threads_number).collect();
 
-        for (thread_id, event) in pool.tasks_logs
+        for (thread_id, event) in tasks_logs
             .iter()
             .enumerate()
             .map(|(thread_id, thread_log)| thread_log.logs().map(move |log| (thread_id, log)))
@@ -108,7 +115,7 @@ impl RunLog {
                 }
                 RayonEvent::TaskEnd(time) => {
                     let task = active_tasks.take().unwrap();
-                    tasks_info[task].end_time = time - pool.start;
+                    tasks_info[task].end_time = time - start;
                     let possible_child = dag_children.remove(&task);
                     if let Some(child) = possible_child {
                         tasks_info[task].children.push(child);
@@ -116,7 +123,7 @@ impl RunLog {
                 }
                 RayonEvent::TaskStart(task, time) => {
                     tasks_info[task].thread_id = thread_id;
-                    tasks_info[task].start_time = time - pool.start;
+                    tasks_info[task].start_time = time - start;
                     *active_tasks = Some(task);
                 }
                 RayonEvent::IteratorTask(task, iterator, part, continuing_task) => {
@@ -136,8 +143,15 @@ impl RunLog {
                 }
                 RayonEvent::Work(work_type, work_amount) => {
                     if let Some(active_task) = active_tasks {
-                        assert!(tasks_info[*active_task].work.is_none());
-                        tasks_info[*active_task].work = Some((work_type, work_amount));
+                        let previous_entry = &mut tasks_info[*active_task].work;
+                        let update_needed = previous_entry.is_some();
+                        if update_needed {
+                            let (existing_type, existing_work) = previous_entry.as_mut().unwrap();
+                            assert_eq!(*existing_type, work_type);
+                            *existing_work += work_amount;
+                        } else {
+                            mem::replace(previous_entry, Some((work_type, work_amount)));
+                        }
                     }
                 }
             }
@@ -152,9 +166,13 @@ impl RunLog {
                 .extend(children.iter().map(|(task, _)| task));
         }
 
+        let duration = tasks_info.iter().map(|t| t.end_time).max().unwrap()
+            - tasks_info.iter().map(|t| t.start_time).min().unwrap();
+
         RunLog {
             threads_number,
             tasks_logs: tasks_info,
+            duration,
         }
     }
 

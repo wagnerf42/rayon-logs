@@ -45,6 +45,8 @@ pub(crate) struct Storage {
     data: UnsafeCell<LinkedList<Block>>,
 }
 
+unsafe impl Sync for Storage {}
+
 impl Storage {
     /// Create a new storage space for logs.
     pub fn new() -> Self {

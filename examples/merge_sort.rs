@@ -1,7 +1,7 @@
 extern crate itertools;
 extern crate rand;
 extern crate rayon_logs;
-use rayon_logs::{install, join, join_context, log_work};
+use rayon_logs::{join, join_context, log_work, ThreadPoolBuilder};
 
 use rand::{ChaChaRng, Rng};
 use std::fmt::Debug;
@@ -91,7 +91,7 @@ pub trait MergingStrategy {
 struct SequentialMerge;
 impl MergingStrategy for SequentialMerge {
     fn merge<T: Ord + Copy + Send + Sync + Debug>(left: &[T], right: &[T], output: &mut [T]) {
-        //POOL.log_work(0, output.len());
+        log_work(0, output.len());
         partial_manual_merge::<True, True, False, _>(left, right, output, 0);
     }
 }
@@ -393,14 +393,24 @@ fn merge_split<'a, T: Ord>(
 fn main() {
     let mut ra = ChaChaRng::new_unseeded();
 
-    let mut v: Vec<u32> = (0..100_000).collect();
+    let mut v: Vec<u32> = (0..1_000_000).collect();
     let answer = v.clone();
     ra.shuffle(&mut v);
-    let (_, log) = install(|| parallel_merge_sort::<u32, SequentialMerge>(&mut v));
 
-    if v != answer {
-        panic!("invalid result");
-    }
-    log.save_svg(1920, 1080, 20, "merge_sort.svg")
-        .expect("failed saving svg file");
+    let p = ThreadPoolBuilder::new().build().expect("builder failed");
+
+    p.compare(
+        "merge sort with sequential merge",
+        "merge sort with parallel merge",
+        || {
+            let mut w = v.clone();
+            parallel_merge_sort::<u32, SequentialMerge>(&mut w);
+            assert_eq!(answer, w);
+        },
+        || {
+            let mut w = v.clone();
+            parallel_merge_sort::<u32, ParallelMerge>(&mut w);
+            assert_eq!(answer, w);
+        },
+    ).expect("failed saving comparison results");
 }

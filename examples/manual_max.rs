@@ -1,5 +1,5 @@
 extern crate rayon_logs;
-use rayon_logs::{install, join, log_work};
+use rayon_logs::{join, log_work, ThreadPoolBuilder};
 
 fn manual_max(slice: &[u32]) -> u32 {
     if slice.len() < 200_000 {
@@ -15,8 +15,14 @@ fn manual_max(slice: &[u32]) -> u32 {
 
 fn main() {
     let v: Vec<u32> = (0..2_000_000).collect();
-    let (max, log) = install(|| manual_max(&v));
+
+    let pool = ThreadPoolBuilder::new()
+        .num_threads(2)
+        .build()
+        .expect("building pool failed");
+    let (max, log) = pool.install(|| manual_max(&v));
+    assert_eq!(max, v.last().cloned().unwrap());
+
     log.save_svg(1920, 1080, 10, "manual_max.svg")
         .expect("saving svg file failed");
-    assert_eq!(max, v.last().cloned().unwrap());
 }

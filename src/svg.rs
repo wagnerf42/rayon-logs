@@ -1,9 +1,12 @@
 //! Small module with display related functions.
 
+use itertools::repeat_call;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Error;
+use std::iter::repeat;
 use std::path::Path;
+use RunLog;
 
 pub(crate) type Point = (f64, f64);
 
@@ -69,7 +72,21 @@ pub fn write_svg_file<P: AsRef<Path>>(
     path: P,
 ) -> Result<(), Error> {
     let mut file = File::create(path)?;
+    fill_svg_file(
+        rectangles, edges, svg_width, svg_height, duration, &mut file,
+    )
+}
 
+/// fill given file with a set of rectangles and edges as an animated svg.
+/// duration is the total duration of the animation in seconds.
+pub fn fill_svg_file(
+    rectangles: &[Rectangle],
+    edges: &[(Point, Point)],
+    svg_width: u32,
+    svg_height: u32,
+    duration: u32,
+    file: &mut File,
+) -> Result<(), Error> {
     let last_time = rectangles
         .iter()
         .filter_map(|r| r.animation.map(|(_, end_time)| end_time))
@@ -101,27 +118,28 @@ pub fn write_svg_file<P: AsRef<Path>>(
     let yscale = f64::from(svg_height) / (ymax - ymin);
 
     // Header
-    file.write_fmt(format_args!(
+    write!(
+        file,
         "<?xml version=\"1.0\"?>
 <svg width=\"{}\" height=\"{}\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\">\n",
         svg_width, svg_height,
-    ))?;
+    )?;
 
     // we start by edges so they will end up below tasks
     for (start, end) in edges {
-        file.write_fmt(format_args!(
+        write!(
+            file,
             "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"black\" stroke-width=\"2.0\"/>",
             (start.0 - xmin) * xscale,
             (start.1 - ymin) * yscale,
             (end.0 - xmin) * xscale,
             (end.1 - xmin) * yscale
-        ))?;
+        )?;
     }
 
     for rectangle in rectangles {
         if let Some((start_time, end_time)) = rectangle.animation {
-            file.write_fmt(
-format_args!(
+            write!(file,
             "<rect x=\"{}\" y=\"{}\" width=\"0\" height=\"{}\" fill=\"rgba({},{},{},{})\">
 <animate attributeType=\"XML\" attributeName=\"width\" from=\"0\" to=\"{}\" begin=\"{}s\" dur=\"{}s\" fill=\"freeze\"/>
 </rect>\n",
@@ -135,10 +153,10 @@ format_args!(
         rectangle.width*xscale,
         (start_time * u64::from(duration)) as f64 / last_time as f64,
         ((end_time - start_time) * u64::from(duration)) as f64 / last_time as f64,
-        )
         )?;
         } else {
-            file.write_fmt(format_args!(
+            write!(
+                file,
                 "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"rgba({},{},{},{})\"/>\n",
                 (rectangle.x - xmin) * xscale,
                 (rectangle.y - ymin) * yscale,
@@ -148,9 +166,92 @@ format_args!(
                 (rectangle.color[1] * 255.0) as u32,
                 (rectangle.color[2] * 255.0) as u32,
                 rectangle.opacity,
-            ))?;
+            )?;
         }
     }
-    file.write_all(b"</svg>")?;
+    write!(file, "</svg>")?;
+    Ok(())
+}
+
+/// Display histogram for given logs set inside html file.
+pub(crate) fn histogram(
+    file: &mut File,
+    logs: &[Vec<RunLog>],
+    bars_number: usize,
+) -> Result<(), Error> {
+    let min_duration = logs.iter()
+        .map(|l| l.first().map(|fl| fl.duration).unwrap())
+        .min()
+        .unwrap();
+    let max_duration = logs.iter()
+        .map(|l| l.last().map(|ll| ll.duration).unwrap())
+        .max()
+        .unwrap();
+
+    // lets compute how many durations go in each bar
+    let mut bars: Vec<Vec<usize>> = repeat_call(|| repeat(0).take(bars_number).collect())
+        .take(logs.len())
+        .collect();
+    let slot = (max_duration - min_duration) / bars_number as u64;
+    for (algorithm, algorithm_logs) in logs.iter().enumerate() {
+        for duration in algorithm_logs.iter().map(|l| l.duration) {
+            let mut index = ((duration - min_duration) / slot) as usize;
+            if index == bars_number {
+                index -= 1;
+            }
+            bars[algorithm][index] += 1;
+        }
+    }
+
+    // now, just draw one rectangle for each bar
+    let width = 1920;
+    let height = 1080;
+    write!(file, "<svg width=\"{}\" height=\"{}\">", width, height)?;
+    write!(
+        file,
+        "<rect width=\"{}\" height=\"{}\" fill=\"white\"/>",
+        width, height
+    )?;
+    let max_count = bars.iter().flat_map(|b| b.iter()).max().unwrap();
+    let unit_height = (height - 100) as f32 / *max_count as f32;
+    let unit_width = width as f32 / (bars_number as f32 * 1.5);
+    let colors = ["red", "blue"];
+    for (algorithm_index, (counts, color)) in bars.iter().zip(colors.iter().cycle()).enumerate() {
+        for (index, &count) in counts.iter().enumerate() {
+            if count != 0 {
+                write!(
+                    file,
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\"/>",
+                    algorithm_index as f32 * unit_width / 2.0 + unit_width * 1.5 * index as f32,
+                    (height - 100) as f32 - (count as f32 * unit_height),
+                    unit_width / 2.0,
+                    count as f32 * unit_height,
+                    color
+                )?;
+            }
+        }
+    }
+    write!(
+        file,
+        "<text x=\"{}\" y=\"{}\">{}</text>",
+        width / 2,
+        height - 50,
+        (min_duration + max_duration) / 2
+    )?;
+    write!(
+        file,
+        "<text x=\"{}\" y=\"{}\">{}</text>",
+        100,
+        height - 50,
+        min_duration
+    )?;
+    write!(
+        file,
+        "<text x=\"{}\" y=\"{}\">{}</text>",
+        width - 100,
+        height - 50,
+        max_duration
+    )?;
+    write!(file, "</svg>")?;
     Ok(())
 }

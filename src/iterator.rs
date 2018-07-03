@@ -1,8 +1,9 @@
 //! Provides logging for parallel iterators.
+use pool::{log, next_iterator_id, next_task_id};
 use rayon::iter::plumbing::*;
 use rayon::iter::*;
 use time::precise_time_ns;
-use {IteratorId, LoggedPool, RayonEvent, TaskId};
+use {IteratorId, RayonEvent, TaskId};
 
 /// `Logged` is an iterator that logs all tasks created in a `LoggedPool`.
 ///
@@ -10,22 +11,21 @@ use {IteratorId, LoggedPool, RayonEvent, TaskId};
 ///
 /// [`ParallelIterator`]: trait.ParallelIterator.html
 #[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
-pub struct Logged<'a, I: ParallelIterator> {
+pub struct Logged<I: ParallelIterator> {
     base: I,
-    pool: &'a LoggedPool,
 }
 
-impl<'a, I: ParallelIterator> Logged<'a, I> {
+impl<I: ParallelIterator> Logged<I> {
     /// Create a new `Logged` iterator.
-    pub(crate) fn new(base: I, pool: &'a LoggedPool) -> Logged<'a, I>
+    pub(crate) fn new(base: I) -> Logged<I>
     where
         I: ParallelIterator,
     {
-        Logged { base, pool }
+        Logged { base }
     }
 }
 
-impl<'a, T, I> ParallelIterator for Logged<'a, I>
+impl<T, I> ParallelIterator for Logged<I>
 where
     I: ParallelIterator<Item = T>,
     T: Send,
@@ -36,20 +36,18 @@ where
     where
         C: UnindexedConsumer<Self::Item>,
     {
-        let continuing_task_id = self.pool.next_task_id();
+        let continuing_task_id = next_task_id();
+        let iterator_id = next_iterator_id();
         let consumer1 = LoggedConsumer {
             base: consumer,
-            pool: self.pool,
             part: None,
-            iterator_id: self.pool.next_iterator_id(),
+            iterator_id,
             continuing_task_id,
         };
-        self.pool
-            .log(RayonEvent::IteratorStart(consumer1.iterator_id));
-        self.pool.log(RayonEvent::TaskEnd(precise_time_ns()));
+        log(RayonEvent::IteratorStart(consumer1.iterator_id));
+        log(RayonEvent::TaskEnd(precise_time_ns()));
         let r = self.base.drive_unindexed(consumer1);
-        self.pool
-            .log(RayonEvent::TaskStart(continuing_task_id, precise_time_ns()));
+        log(RayonEvent::TaskStart(continuing_task_id, precise_time_ns()));
         r
     }
 
@@ -58,7 +56,7 @@ where
     }
 }
 
-impl<'a, T, I> IndexedParallelIterator for Logged<'a, I>
+impl<T, I> IndexedParallelIterator for Logged<I>
 where
     I: IndexedParallelIterator<Item = T>,
     T: Send,
@@ -68,20 +66,18 @@ where
         C: Consumer<Self::Item>,
     {
         let part = Some((0, self.base.len()));
-        let continuing_task_id = self.pool.next_task_id();
+        let continuing_task_id = next_task_id();
+        let iterator_id = next_iterator_id();
         let consumer1 = LoggedConsumer {
             base: consumer,
-            pool: self.pool,
             part,
-            iterator_id: self.pool.next_iterator_id(),
+            iterator_id,
             continuing_task_id,
         };
-        self.pool
-            .log(RayonEvent::IteratorStart(consumer1.iterator_id));
-        self.pool.log(RayonEvent::TaskEnd(precise_time_ns()));
+        log(RayonEvent::IteratorStart(consumer1.iterator_id));
+        log(RayonEvent::TaskEnd(precise_time_ns()));
         let r = self.base.drive(consumer1);
-        self.pool
-            .log(RayonEvent::TaskStart(continuing_task_id, precise_time_ns()));
+        log(RayonEvent::TaskStart(continuing_task_id, precise_time_ns()));
         r
     }
 
@@ -162,21 +158,20 @@ where
 /// ////////////////////////////////////////////////////////////////////////
 /// Consumer implementation
 
-struct LoggedConsumer<'a, C> {
+struct LoggedConsumer<C> {
     base: C,
-    pool: &'a LoggedPool,
     part: Option<(usize, usize)>,
     iterator_id: IteratorId,
     /// which task comes after the iterator finishes (to mark dependencies)
     continuing_task_id: TaskId,
 }
 
-impl<'a, T, C> Consumer<T> for LoggedConsumer<'a, C>
+impl<T, C> Consumer<T> for LoggedConsumer<C>
 where
     C: Consumer<T>,
     T: Send,
 {
-    type Folder = LoggedFolder<'a, C::Folder>;
+    type Folder = LoggedFolder<C::Folder>;
     type Reducer = C::Reducer;
     type Result = C::Result;
 
@@ -187,14 +182,12 @@ where
         (
             LoggedConsumer {
                 base: left,
-                pool: self.pool,
                 part: left_part,
                 iterator_id: self.iterator_id,
                 continuing_task_id: self.continuing_task_id,
             },
             LoggedConsumer {
                 base: right,
-                pool: self.pool,
                 part: right_part,
                 iterator_id: self.iterator_id,
                 continuing_task_id: self.continuing_task_id,
@@ -203,11 +196,11 @@ where
         )
     }
 
-    fn into_folder(self) -> LoggedFolder<'a, C::Folder> {
-        let id = self.pool.next_task_id();
+    fn into_folder(self) -> LoggedFolder<C::Folder> {
+        let id = next_task_id();
 
-        self.pool.log(RayonEvent::TaskStart(id, precise_time_ns()));
-        self.pool.log(RayonEvent::IteratorTask(
+        log(RayonEvent::TaskStart(id, precise_time_ns()));
+        log(RayonEvent::IteratorTask(
             id,
             self.iterator_id,
             self.part,
@@ -216,7 +209,6 @@ where
 
         LoggedFolder {
             base: self.base.into_folder(),
-            pool: self.pool,
             id,
         }
     }
@@ -226,7 +218,7 @@ where
     }
 }
 
-impl<'a, T, C> UnindexedConsumer<T> for LoggedConsumer<'a, C>
+impl<T, C> UnindexedConsumer<T> for LoggedConsumer<C>
 where
     C: UnindexedConsumer<T>,
     T: Send,
@@ -234,7 +226,6 @@ where
     fn split_off_left(&self) -> Self {
         LoggedConsumer {
             base: self.base.split_off_left(),
-            pool: self.pool,
             part: None,
             iterator_id: self.iterator_id,
             continuing_task_id: self.continuing_task_id,
@@ -249,13 +240,12 @@ where
 /// ////////////////////////////////////////////////////////////////////////
 /// Folder implementation
 
-struct LoggedFolder<'a, F> {
+struct LoggedFolder<F> {
     base: F,
-    pool: &'a LoggedPool,
     id: TaskId,
 }
 
-impl<'a, T, F> Folder<T> for LoggedFolder<'a, F>
+impl<T, F> Folder<T> for LoggedFolder<F>
 where
     F: Folder<T>,
     T: Send,
@@ -265,14 +255,13 @@ where
     fn consume(self, item: T) -> Self {
         LoggedFolder {
             base: self.base.consume(item),
-            pool: self.pool,
             id: self.id,
         }
     }
 
     fn complete(self) -> F::Result {
         let result = self.base.complete();
-        self.pool.log(RayonEvent::TaskEnd(precise_time_ns()));
+        log(RayonEvent::TaskEnd(precise_time_ns()));
         result
     }
 
