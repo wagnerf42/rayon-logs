@@ -121,7 +121,7 @@ pub fn fill_svg_file(
     write!(
         file,
         "<?xml version=\"1.0\"?>
-<svg width=\"{}\" height=\"{}\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\">\n",
+<svg viewBox=\"0 0 {} {}\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\">\n",
         svg_width, svg_height,
     )?;
 
@@ -206,7 +206,7 @@ pub(crate) fn histogram(
     // now, just draw one rectangle for each bar
     let width = 1920;
     let height = 1080;
-    write!(file, "<svg width=\"{}\" height=\"{}\">", width, height)?;
+    write!(file, "<svg viewBox=\"0 0 {} {}\">", width, height)?;
     write!(
         file,
         "<rect width=\"{}\" height=\"{}\" fill=\"white\"/>",

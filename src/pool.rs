@@ -172,24 +172,25 @@ impl ThreadPool {
         let mut html_file = File::create("foo.html")?;
 
         write!(html_file, "<!DOCTYPE html>")?;
-        write!(html_file, "<html><body>")?;
+        write!(html_file, "<html><body><center>")?;
         write!(html_file, "<H1>Comparing {} and {}</H1>", label1, label2)?;
 
         write!(
             html_file,
-            "<center><H2>Distribution of execution times over {} runs</H2></center>",
+            "<H2>Distribution of execution times over {} runs</H2>",
             tests_number
         )?;
-        write!(html_file, "<center>")?;
         histogram(&mut html_file, &logs, 30)?;
-        write!(html_file, "</center>")?;
 
-        write!(html_file, "<center><H2>Comparing median runs</H2></center>")?;
+        write!(html_file, "<H2>Comparing median runs</H2>")?;
         let median_index = tests_number / 2;
         let (rectangles, edges) = visualisation(logs.iter().map(|l| &l[median_index]));
-        write!(html_file, "<center>")?;
         fill_svg_file(&rectangles, &edges, 1920, 1080, 20, &mut html_file)?;
-        write!(html_file, "</center>")?;
+
+        write!(html_file, "<H2>Comparing best runs</H2>")?;
+        let (rectangles, edges) = visualisation(logs.iter().map(|l| &l[0]));
+        fill_svg_file(&rectangles, &edges, 1920, 1080, 20, &mut html_file)?;
+
         write!(html_file, "</body></html>")?;
         Ok(())
     }

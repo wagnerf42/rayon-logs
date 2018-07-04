@@ -1,23 +1,15 @@
 //! We define here all traits enhancing parallel iterators.
-pub use rayon::prelude::FromParallelIterator;
-pub use rayon::prelude::IndexedParallelIterator;
-pub use rayon::prelude::IntoParallelIterator;
-pub use rayon::prelude::IntoParallelRefIterator;
-pub use rayon::prelude::IntoParallelRefMutIterator;
-pub use rayon::prelude::ParallelExtend;
+use rayon::prelude::IntoParallelRefIterator;
 pub use rayon::prelude::ParallelIterator;
-pub use rayon::prelude::ParallelSlice;
-pub use rayon::prelude::ParallelSliceMut;
-pub use rayon::prelude::ParallelString;
 
 use Logged;
 
-/// This trait extends `ParallelItertor`s by providing logging facilities.
-pub trait LoggedParallelIterator: ParallelIterator {
-    /// Log all thread activities in the provided LoggedPool.
-    fn log(self) -> Logged<Self> {
-        Logged::new(self)
+/// This trait extends `IntoParallelRefIterator`s by providing logging facilities.
+pub trait IntoLoggedParallelRefIterator<'data>: IntoParallelRefIterator<'data> {
+    /// Get a parallel logging iterator.
+    fn par_iter(&'data self) -> Logged<Self::Iter> {
+        Logged::new(IntoParallelRefIterator::par_iter(self))
     }
 }
 
-impl<I: ParallelIterator> LoggedParallelIterator for I {}
+impl<'data, I: IntoParallelRefIterator<'data>> IntoLoggedParallelRefIterator<'data> for I {}

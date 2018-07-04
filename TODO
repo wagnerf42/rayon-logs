@@ -1,17 +1,7 @@
-- histograms are highly unstable for merge sort with sequential merge ??????
-
-- iterator interface for global pool ---> almost done
 
 - bug for work in merge sort ---> it's not a bug. it is because one task can get several tags
     ----> we need to split task in sequential tasks when logging work
-
-- check why iterators advance contiguously
-
-- comparator
-   ---> getting there
-
-- html: hover
-- simplify svg generation now that we have html
+- remove sizes in svg files (viewBox will autoscale in html)
 
 --- minor:
 - leaves have high speed variations: maybe taking the best speed for color is not the best idea
@@ -19,3 +9,6 @@
 - impl tree scan to avoid passing mutable slices everywhere and all extra vector copies in fork_join
 - text labels on tasks : we need to provide a labeled join and a labeled iterator
 - add some genericity in logger to provides logging hooks
+- histograms are highly unstable for merge sort with sequential merge ??????
+- check why iterators advance contiguously
+- html: hover
