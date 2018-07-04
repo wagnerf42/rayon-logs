@@ -1,5 +1,3 @@
-- new bug in merge sort
-
 - histograms are highly unstable for merge sort with sequential merge ??????
 
 - iterator interface for global pool ---> almost done

@@ -393,7 +393,7 @@ fn merge_split<'a, T: Ord>(
 fn main() {
     let mut ra = ChaChaRng::new_unseeded();
 
-    let mut v: Vec<u32> = (0..1_000_000).collect();
+    let mut v: Vec<u32> = (0..100_000).collect();
     let answer = v.clone();
     ra.shuffle(&mut v);
 

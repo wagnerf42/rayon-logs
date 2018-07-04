@@ -81,6 +81,7 @@ impl Storage {
         unsafe { self.data.get().as_ref() }
             .unwrap()
             .iter()
+            .rev() // blocks are stored from newest to oldest
             .flat_map(|b| b.logs())
     }
 }
