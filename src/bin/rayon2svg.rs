@@ -31,5 +31,5 @@ fn main() {
 
     // display all logs together
     let (rectangles, edges) = visualisation(logs.iter());
-    write_svg_file(&rectangles, &edges, 1280, 1024, 10, &output_file).expect("failed saving svg");
+    write_svg_file(&rectangles, &edges, &output_file).expect("failed saving svg");
 }

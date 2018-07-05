@@ -1,8 +1,4 @@
 
-- bug for work in merge sort ---> it's not a bug. it is because one task can get several tags
-    ----> we need to split task in sequential tasks when logging work
-- remove sizes in svg files (viewBox will autoscale in html)
-
 --- minor:
 - leaves have high speed variations: maybe taking the best speed for color is not the best idea
 - we can maybe rewrite TaskLog creator to avoid completing an array since we are in order now

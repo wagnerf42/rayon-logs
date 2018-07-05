@@ -22,6 +22,6 @@ fn main() {
     let (max, log) = pool.install(|| manual_max(&v));
     assert_eq!(max, v.last().cloned().unwrap());
 
-    log.save_svg(1920, 1080, 10, "manual_max.svg")
+    log.save_svg("manual_max.svg")
         .expect("saving svg file failed");
 }

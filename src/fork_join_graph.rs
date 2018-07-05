@@ -243,7 +243,7 @@ fn generate_visualisation(
             let opacity = if let Some((work_type, work_amount)) = t.work {
                 let speed = work_amount as f64 / duration;
                 let best_speed = speeds[&work_type];
-                0.4 + 0.6 * speed / best_speed
+                speed / best_speed
             } else {
                 1.0
             };

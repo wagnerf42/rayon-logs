@@ -22,7 +22,7 @@ fn manual_max(slice: &[u32]) -> u32 {
 }
 
 fn main() {
-    let v: Vec<u32> = (0..1_000_000).collect();
+    let v: Vec<u32> = (0..10_000_000).collect();
     let pool = ThreadPoolBuilder::new()
         .num_threads(2)
         .build()
@@ -30,6 +30,6 @@ fn main() {
     let (max, log) = pool.install(|| manual_max(&v));
     assert_eq!(max, v.last().cloned().unwrap());
 
-    log.save_svg(1920, 1080, 10, "context_max.svg")
+    log.save_svg("context_max.svg")
         .expect("saving svg file failed");
 }

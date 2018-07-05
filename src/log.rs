@@ -187,15 +187,9 @@ impl RunLog {
     }
 
     /// Save an svg file of all logged information.
-    pub fn save_svg<P: AsRef<Path>>(
-        &self,
-        width: u32,
-        height: u32,
-        duration: u32,
-        path: P,
-    ) -> Result<(), io::Error> {
+    pub fn save_svg<P: AsRef<Path>>(&self, path: P) -> Result<(), io::Error> {
         let (rectangles, edges) = visualisation(once(self));
-        write_svg_file(&rectangles, &edges, width, height, duration, path)
+        write_svg_file(&rectangles, &edges, path)
     }
 
     /// Save log file of currently recorded tasks logs.

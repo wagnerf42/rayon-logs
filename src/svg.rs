@@ -62,36 +62,24 @@ impl Rectangle {
 }
 
 /// saves a set of rectangles and edges as an animated svg file.
-/// duration is the total duration of the animation in seconds.
+/// 1 animated second is 1 milli second of run.
 pub fn write_svg_file<P: AsRef<Path>>(
     rectangles: &[Rectangle],
     edges: &[(Point, Point)],
-    svg_width: u32,
-    svg_height: u32,
-    duration: u32,
     path: P,
 ) -> Result<(), Error> {
     let mut file = File::create(path)?;
-    fill_svg_file(
-        rectangles, edges, svg_width, svg_height, duration, &mut file,
-    )
+    fill_svg_file(rectangles, edges, &mut file)
 }
 
 /// fill given file with a set of rectangles and edges as an animated svg.
-/// duration is the total duration of the animation in seconds.
 pub fn fill_svg_file(
     rectangles: &[Rectangle],
     edges: &[(Point, Point)],
-    svg_width: u32,
-    svg_height: u32,
-    duration: u32,
     file: &mut File,
 ) -> Result<(), Error> {
-    let last_time = rectangles
-        .iter()
-        .filter_map(|r| r.animation.map(|(_, end_time)| end_time))
-        .max_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap();
+    let svg_width = 1920; // this is just an aspect ratio
+    let svg_height = 1080;
 
     let xmax = rectangles
         .iter()
@@ -151,8 +139,8 @@ pub fn fill_svg_file(
         (rectangle.color[2] * 255.0) as u32,
         rectangle.opacity,
         rectangle.width*xscale,
-        (start_time * u64::from(duration)) as f64 / last_time as f64,
-        ((end_time - start_time) * u64::from(duration)) as f64 / last_time as f64,
+        start_time as f64 / 1_000_000.0,
+        (end_time - start_time) as f64 / 1_000_000.0,
         )?;
         } else {
             write!(
