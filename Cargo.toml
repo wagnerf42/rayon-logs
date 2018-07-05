@@ -13,11 +13,10 @@ exclude = [
 ]
 
 [dependencies]
-rayon="*"
-time="*"
-serde="*"
+rayon="1.*.*"
+time="0.1.*"
+serde="1.*.*"
 serde_json="*"
 serde_derive="*"
-itertools="*"
-lazy_static="*"
-rand="*"
+itertools="0.*.*"
+rand="0.4.*"
