@@ -8,6 +8,9 @@ repository = "https://github.com/wagnerf42/rayon-logs"
 readme = "README.md"
 keywords = ["parallel", "thread", "concurrency", "join", "performance"]
 categories = ["concurrency"]
+exclude = [
+    "TODO"
+]
 
 [dependencies]
 rayon="*"
