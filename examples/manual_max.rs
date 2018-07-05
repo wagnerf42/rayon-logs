@@ -1,10 +1,9 @@
 extern crate rayon_logs;
-use rayon_logs::{join, log_work, ThreadPoolBuilder};
+use rayon_logs::{join, sequential_task, ThreadPoolBuilder};
 
 fn manual_max(slice: &[u32]) -> u32 {
     if slice.len() < 200_000 {
-        log_work(0, slice.len());
-        slice.iter().max().cloned().unwrap()
+        sequential_task(0, slice.len(), || slice.iter().max().cloned().unwrap())
     } else {
         let middle = slice.len() / 2;
         let (left, right) = slice.split_at(middle);

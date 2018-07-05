@@ -37,9 +37,34 @@ pub(crate) fn log(event: RayonEvent) {
     LOGS.with(|l| l.borrow().push(event))
 }
 
-/// Tag currently active task with a type and amount of work.
-pub fn log_work(work_type: usize, work_amount: usize) {
-    log(RayonEvent::Work(work_type, work_amount));
+/// Launch a sequential task with tagged work.
+/// We expect `op` to be sequential.
+pub fn sequential_task<OP, R>(work_type: usize, work_amount: usize, op: OP) -> R
+where
+    OP: FnOnce() -> R,
+{
+    let sequential_task_id = next_task_id();
+    let continuation_task_id = next_task_id();
+    // log child's work and dependencies.
+    log(RayonEvent::SequentialTask(
+        sequential_task_id,
+        continuation_task_id,
+        work_type,
+        work_amount,
+    ));
+    // end current task
+    log(RayonEvent::TaskEnd(precise_time_ns()));
+    // execute full sequential task
+    log(RayonEvent::TaskStart(sequential_task_id, precise_time_ns()));
+    let r = op();
+    log(RayonEvent::TaskEnd(precise_time_ns()));
+
+    // start continuation task
+    log(RayonEvent::TaskStart(
+        continuation_task_id,
+        precise_time_ns(),
+    ));
+    r
 }
 
 /// Execute a logging join_context.

@@ -8,7 +8,6 @@ use std::io;
 use std::io::ErrorKind;
 use std::iter::once;
 use std::iter::repeat;
-use std::mem;
 use std::path::Path;
 use std::sync::Arc;
 use svg::write_svg_file;
@@ -141,16 +140,21 @@ impl RunLog {
                         iterators_fathers.push((iterator, *active_task));
                     }
                 }
-                RayonEvent::Work(work_type, work_amount) => {
+                RayonEvent::SequentialTask(
+                    sequential_task,
+                    continuation_task,
+                    work_type,
+                    work_amount,
+                ) => {
+                    tasks_info[sequential_task].children.push(continuation_task);
                     if let Some(active_task) = active_tasks {
-                        let previous_entry = &mut tasks_info[*active_task].work;
-                        let update_needed = previous_entry.is_some();
-                        if update_needed {
-                            let (existing_type, existing_work) = previous_entry.as_mut().unwrap();
-                            assert_eq!(*existing_type, work_type);
-                            *existing_work += work_amount;
-                        } else {
-                            mem::replace(previous_entry, Some((work_type, work_amount)));
+                        tasks_info[*active_task].work = Some((work_type, work_amount));
+                        tasks_info[*active_task].children.push(sequential_task); //create direct links with children
+
+                        let possible_child = dag_children.remove(active_task); // we were set as father of someone
+                        if let Some(child) = possible_child {
+                            // it is not the case anymore since we are interrupted
+                            dag_children.insert(continuation_task, child);
                         }
                     }
                 }

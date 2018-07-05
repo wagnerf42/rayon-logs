@@ -15,7 +15,7 @@ mod iterator;
 mod storage;
 pub use iterator::Logged;
 mod pool;
-pub use pool::{join, join_context, log_work, ThreadPool};
+pub use pool::{join, join_context, sequential_task, ThreadPool};
 mod builder;
 pub mod prelude;
 pub use builder::ThreadPoolBuilder;
@@ -45,8 +45,9 @@ enum RayonEvent {
     IteratorTask(TaskId, IteratorId, Option<(usize, usize)>, TaskId),
     /// Who starts a new iterator.
     IteratorStart(IteratorId),
-    /// Tag current task with a type of work (usize id) and a work amount.
-    Work(usize, usize),
+    /// We have a sequential task (child).
+    /// id is of child and grand child. We have a work type and work amount.
+    SequentialTask(TaskId, TaskId, usize, usize),
 }
 
 impl RayonEvent {

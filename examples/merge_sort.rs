@@ -1,7 +1,7 @@
 extern crate itertools;
 extern crate rand;
 extern crate rayon_logs;
-use rayon_logs::{join, join_context, log_work, ThreadPoolBuilder};
+use rayon_logs::{join, join_context, sequential_task, ThreadPoolBuilder};
 
 use rand::{ChaChaRng, Rng};
 use std::fmt::Debug;
@@ -91,8 +91,9 @@ pub trait MergingStrategy {
 struct SequentialMerge;
 impl MergingStrategy for SequentialMerge {
     fn merge<T: Ord + Copy + Send + Sync + Debug>(left: &[T], right: &[T], output: &mut [T]) {
-        log_work(0, output.len());
-        partial_manual_merge::<True, True, False, _>(left, right, output, 0);
+        sequential_task(0, output.len(), || {
+            partial_manual_merge::<True, True, False, _>(left, right, output, 0)
+        });
     }
 }
 
@@ -244,8 +245,7 @@ fn recursive_parallel_merge_sort<T: Ord + Copy + Send + Sync + Debug, M: Merging
     if recursions == 0 {
         let mut size = input.len() as f64;
         size *= size.log2();
-        //log_work(1, size as usize);
-        input.sort();
+        sequential_task(1, size as usize, || input.sort());
     } else {
         let midpoint = input.len() / 2;
         let (out1, out2) = output.split_at_mut(midpoint);
