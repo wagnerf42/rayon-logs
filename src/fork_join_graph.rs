@@ -79,8 +79,7 @@ fn create_graph(tasks: &[TaskLog]) -> Vec<Block> {
     for task_id in &sorted_tasks {
         let task = &tasks[*task_id];
         let current_block = *current_blocks
-            .get(task_id)
-            .expect(&format!("task {} is not created by anyone", task_id));
+            .get(task_id).unwrap_or_else(|| panic!("task {} is not created by anyone", task_id));
         // add task to its sequence
         let new_block = graph.add_task((*task).clone());
         graph.sequence(current_block).push(new_block);

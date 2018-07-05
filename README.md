@@ -10,7 +10,7 @@ here is an example of an svg animation of a merge sort's logs :
 ![merge sort animation](merge_sort_sequential_merge.svg)
 
 you can see all 4 threads executing the fork-join graph of the application with the idle times displayed on the right
-(refresh the page to restart the animation).
+(click to animate).
 
 analyzing this figure you can see:
 

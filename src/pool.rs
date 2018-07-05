@@ -5,6 +5,7 @@ use rayon::FnContext;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Error;
+use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 use storage::Storage;
 use time::precise_time_ns;
@@ -180,7 +181,15 @@ impl ThreadPool {
     /// Each time we prepare the experiment and launch both algorithms.
     /// We display some statistics on running times and compare both average and best
     /// runs.
-    pub fn compare<A, B>(&self, label1: &str, label2: &str, algo1: A, algo2: B) -> Result<(), Error>
+    /// Output is saved on given html file.
+    pub fn compare<A, B, P: AsRef<Path>>(
+        &self,
+        label1: &str,
+        label2: &str,
+        algo1: A,
+        algo2: B,
+        filename: P,
+    ) -> Result<(), Error>
     where
         A: Fn() + Send + Sync,
         B: Fn() + Send + Sync,
@@ -188,13 +197,13 @@ impl ThreadPool {
         let tests_number = 100;
         let mut logs = vec![Vec::new(), Vec::new()];
         for _ in 0..tests_number {
-            logs[0].push(self.install(|| algo1()).1);
-            logs[1].push(self.install(|| algo2()).1);
+            logs[0].push(self.install(&algo1).1);
+            logs[1].push(self.install(&algo2).1);
         }
         logs[0].sort_unstable_by_key(|l| l.duration);
         logs[1].sort_unstable_by_key(|l| l.duration);
 
-        let mut html_file = File::create("foo.html")?;
+        let mut html_file = File::create(filename)?;
 
         write!(html_file, "<!DOCTYPE html>")?;
         write!(html_file, "<html><body><center>")?;

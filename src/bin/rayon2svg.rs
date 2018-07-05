@@ -26,7 +26,7 @@ fn main() {
     // load all files
     let logs: Vec<RunLog> = input_files
         .iter()
-        .map(|filename| RunLog::load(filename).expect(&format!("failed loading {}", filename)))
+        .map(|filename| RunLog::load(filename).unwrap_or_else(|_| panic!("failed loading {}", filename)))
         .collect();
 
     // display all logs together

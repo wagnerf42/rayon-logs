@@ -1,3 +1,6 @@
+//! you should read only the main function.
+//! the merge sort algorithms here are quite complex
+
 extern crate itertools;
 extern crate rand;
 extern crate rayon_logs;
@@ -20,12 +23,12 @@ struct True;
 struct False;
 impl Boolean for True {
     fn value() -> bool {
-        return true;
+        true
     }
 }
 impl Boolean for False {
     fn value() -> bool {
-        return false;
+        false
     }
 }
 
@@ -41,9 +44,12 @@ fn subslice_without_last_value<T: Eq>(slice: &[T]) -> &[T] {
         .unwrap_or(0);
 
             let index = slice[searching_range_start..]
-                .binary_search_by(|x| match x.eq(target) {
-                    false => std::cmp::Ordering::Less,
-                    _ => std::cmp::Ordering::Greater,
+                .binary_search_by(|x| {
+                    if x.eq(target) {
+                        std::cmp::Ordering::Greater
+                    } else {
+                        std::cmp::Ordering::Less
+                    }
                 })
                 .unwrap_err();
             &slice[0..(searching_range_start + index)]
@@ -60,12 +66,15 @@ fn subslice_without_first_value<T: Eq>(slice: &[T]) -> &[T] {
         .scan(1, |acc, _| {*acc *= 2; Some(*acc)}) // iterate on all powers of 2
         .take_while(|&i| i < slice.len())
         .find(|&i| unsafe {slice.get_unchecked(i) != target})
-        .unwrap_or(slice.len());
+        .unwrap_or_else(||slice.len());
 
             let index = slice[..searching_range_end]
-                .binary_search_by(|x| match x.eq(target) {
-                    false => std::cmp::Ordering::Greater,
-                    _ => std::cmp::Ordering::Less,
+                .binary_search_by(|x| {
+                    if x.eq(target) {
+                        std::cmp::Ordering::Less
+                    } else {
+                        std::cmp::Ordering::Greater
+                    }
                 })
                 .unwrap_err();
             &slice[index..]
@@ -77,7 +86,7 @@ fn subslice_without_first_value<T: Eq>(slice: &[T]) -> &[T] {
 /// Cut sorted slice `slice` around start point, splitting around
 /// all values equal to value at start point.
 /// cost is O(log(|removed part size|))
-fn split_around<'a, T: Eq>(slice: &'a [T], start: usize) -> (&'a [T], &'a [T], &'a [T]) {
+fn split_around<T: Eq>(slice: &[T], start: usize) -> (&[T], &[T], &[T]) {
     let low_slice = subslice_without_last_value(&slice[0..(start + 1)]);
     let high_slice = subslice_without_first_value(&slice[start..]);
     let equal_slice = &slice[low_slice.len()..slice.len() - high_slice.len()];
@@ -305,17 +314,14 @@ pub fn parallel_merge_sort<T: Ord + Copy + Send + Sync + Debug, M: MergingStrate
 }
 
 fn partial_manual_merge<
-    'a,
-    'b,
-    'c,
     CheckLeft: Boolean,
     CheckRight: Boolean,
     CheckLimit: Boolean,
     T: Ord + Copy,
 >(
-    input1: &'a [T],
-    input2: &'b [T],
-    output: &'c mut [T],
+    input1: &[T],
+    input2: &[T],
+    output: &mut [T],
     limit: usize,
 ) -> Option<(usize, usize, usize)> {
     let mut i1 = 0;
@@ -370,7 +376,7 @@ fn partial_manual_merge<
             return None;
         }
     }
-    return Some((i1, i2, i_out));
+    Some((i1, i2, i_out))
 }
 
 /// split large array at midpoint and small array where needed for merge.
@@ -412,5 +418,6 @@ fn main() {
             parallel_merge_sort::<u32, ParallelMerge>(&mut w);
             assert_eq!(answer, w);
         },
+        "merge_sorts.html",
     ).expect("failed saving comparison results");
 }

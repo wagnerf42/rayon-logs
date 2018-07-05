@@ -106,10 +106,10 @@ pub fn fill_svg_file(
     let yscale = f64::from(svg_height) / (ymax - ymin);
 
     // Header
-    write!(
+    writeln!(
         file,
         "<?xml version=\"1.0\"?>
-<svg viewBox=\"0 0 {} {}\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\">\n",
+<svg viewBox=\"0 0 {} {}\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\">",
         svg_width, svg_height,
     )?;
 
@@ -127,10 +127,10 @@ pub fn fill_svg_file(
 
     for rectangle in rectangles {
         if let Some((start_time, end_time)) = rectangle.animation {
-            write!(file,
+            writeln!(file,
             "<rect x=\"{}\" y=\"{}\" width=\"0\" height=\"{}\" fill=\"rgba({},{},{},{})\">
 <animate attributeType=\"XML\" attributeName=\"width\" from=\"0\" to=\"{}\" begin=\"{}s\" dur=\"{}s\" fill=\"freeze\"/>
-</rect>\n",
+</rect>",
         (rectangle.x-xmin)*xscale,
         (rectangle.y-ymin)*yscale,
         rectangle.height*yscale,
@@ -143,9 +143,9 @@ pub fn fill_svg_file(
         (end_time - start_time) as f64 / 1_000_000.0,
         )?;
         } else {
-            write!(
+            writeln!(
                 file,
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"rgba({},{},{},{})\"/>\n",
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"rgba({},{},{},{})\"/>",
                 (rectangle.x - xmin) * xscale,
                 (rectangle.y - ymin) * yscale,
                 rectangle.width * xscale,
@@ -228,8 +228,7 @@ pub(crate) fn histogram(
     )?;
     write!(
         file,
-        "<text x=\"{}\" y=\"{}\">{}</text>",
-        100,
+        "<text x=\"100\" y=\"{}\">{}</text>",
         height - 50,
         min_duration
     )?;
