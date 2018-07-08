@@ -1,5 +1,5 @@
 //! Store a trace as a fork join graph (in a vector).
-use {svg::COLORS, Rectangle, TaskId, TaskLog};
+use {svg::Scene, svg::COLORS, Rectangle, TaskId, TaskLog};
 type BlockId = usize;
 use std::collections::HashMap;
 use std::iter::repeat;
@@ -79,7 +79,8 @@ fn create_graph(tasks: &[TaskLog]) -> Vec<Block> {
     for task_id in &sorted_tasks {
         let task = &tasks[*task_id];
         let current_block = *current_blocks
-            .get(task_id).unwrap_or_else(|| panic!("task {} is not created by anyone", task_id));
+            .get(task_id)
+            .unwrap_or_else(|| panic!("task {} is not created by anyone", task_id));
         // add task to its sequence
         let new_block = graph.add_task((*task).clone());
         graph.sequence(current_block).push(new_block);
@@ -205,15 +206,14 @@ fn generate_visualisation(
     graph: &[Block],
     positions: &[(f64, f64)],
     speeds: &HashMap<usize, f64>,
-    rectangles: &mut Vec<Rectangle>,
-    edges: &mut Vec<(Point, Point)>,
+    scene: &mut Scene,
 ) -> (Vec<Point>, Vec<Point>) {
     match graph[index] {
         Block::Sequence(ref s) => {
             let points: Vec<(Vec<Point>, Vec<Point>)> = s.iter()
-                .map(|b| generate_visualisation(*b, graph, positions, speeds, rectangles, edges))
+                .map(|b| generate_visualisation(*b, graph, positions, speeds, scene))
                 .collect();
-            edges.extend(
+            scene.segments.extend(
                 points
                     .windows(2)
                     .flat_map(|w| iproduct!(w[0].1.iter(), w[1].0.iter()).map(|(a, b)| (*a, *b))),
@@ -224,21 +224,13 @@ fn generate_visualisation(
             )
         }
         Block::Parallel(ref p) => p.iter().fold((Vec::new(), Vec::new()), |mut acc, b| {
-            let (entry, exit) =
-                generate_visualisation(*b, graph, positions, speeds, rectangles, edges);
+            let (entry, exit) = generate_visualisation(*b, graph, positions, speeds, scene);
             acc.0.extend(entry);
             acc.1.extend(exit);
             acc
         }),
         Block::Task(ref t) => {
             let duration = (t.end_time - t.start_time) as f64;
-            rectangles.push(Rectangle::new(
-                [0.0, 0.0, 0.0],
-                1.0,
-                positions[index],
-                (duration, 1.0),
-                None,
-            ));
             let opacity = if let Some((work_type, work_amount)) = t.work {
                 let speed = work_amount as f64 / duration;
                 let best_speed = speeds[&work_type];
@@ -246,14 +238,14 @@ fn generate_visualisation(
             } else {
                 1.0
             };
-            rectangles.push(Rectangle::new(
+            scene.rectangles.push(Rectangle::new(
                 COLORS[t.thread_id % COLORS.len()],
                 opacity as f32,
                 positions[index],
                 (duration, 1.0),
                 Some((t.start_time, t.end_time)),
             ));
-
+            scene.labels.push(format!("task: {}", 0));
             (
                 vec![(positions[index].0 + duration / 2.0, positions[index].1)],
                 vec![(
@@ -273,7 +265,7 @@ fn compute_idle_times(
     tasks: &[TaskLog],
     starting_position: &(f64, f64),
     threads_number: usize,
-    rectangles: &mut Vec<Rectangle>,
+    scene: &mut Scene,
 ) {
     // do one pass to figure out the last recorded time.
     // we need it to figure out who is idle at the end.
@@ -299,7 +291,7 @@ fn compute_idle_times(
         let previous_end = previous_activities[thread_id];
         if start > previous_end {
             let inactivity = (start - previous_end) as f64;
-            rectangles.push(Rectangle::new(
+            scene.rectangles.push(Rectangle::new(
                 COLORS[thread_id % COLORS.len()],
                 1.0,
                 (
@@ -316,11 +308,8 @@ fn compute_idle_times(
 }
 
 /// convert all tasks information into animated rectangles and edges.
-pub fn visualisation<'a>(
-    traces: impl Iterator<Item = &'a RunLog>,
-) -> (Vec<Rectangle>, Vec<(Point, Point)>) {
-    let mut rectangles = Vec::new();
-    let mut edges = Vec::new();
+pub fn visualisation<'a>(traces: impl Iterator<Item = &'a RunLog>) -> Scene {
+    let mut scene = Scene::new();
 
     traces.fold(0.0, |y, log| {
         let tasks = &log.tasks_logs;
@@ -340,8 +329,8 @@ pub fn visualisation<'a>(
         // adjust colors based on work
         let speeds = compute_speeds(tasks);
 
-        // generate all rectangles and all edges
-        generate_visualisation(0, &g, &positions, &speeds, &mut rectangles, &mut edges);
+        // generate all rectangles, edges and labels
+        generate_visualisation(0, &g, &positions, &speeds, &mut scene);
 
         // compute position for idle times widget
         let height = positions
@@ -362,14 +351,8 @@ pub fn visualisation<'a>(
             y + (height - log.threads_number as f64) / 2.0,
         );
 
-        compute_idle_times(
-            tasks,
-            &starting_position,
-            log.threads_number,
-            &mut rectangles,
-        );
+        compute_idle_times(tasks, &starting_position, log.threads_number, &mut scene);
         y + height
     });
-    // turn tasks into blocks (we build the fork join graph)
-    (rectangles, edges)
+    scene
 }

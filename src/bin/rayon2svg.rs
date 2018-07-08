@@ -26,10 +26,12 @@ fn main() {
     // load all files
     let logs: Vec<RunLog> = input_files
         .iter()
-        .map(|filename| RunLog::load(filename).unwrap_or_else(|_| panic!("failed loading {}", filename)))
+        .map(|filename| {
+            RunLog::load(filename).unwrap_or_else(|_| panic!("failed loading {}", filename))
+        })
         .collect();
 
     // display all logs together
-    let (rectangles, edges) = visualisation(logs.iter());
-    write_svg_file(&rectangles, &edges, &output_file).expect("failed saving svg");
+    let scene = visualisation(logs.iter());
+    write_svg_file(&scene, &output_file).expect("failed saving svg");
 }

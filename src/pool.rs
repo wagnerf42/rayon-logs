@@ -218,12 +218,12 @@ impl ThreadPool {
 
         write!(html_file, "<H2>Comparing median runs</H2>")?;
         let median_index = tests_number / 2;
-        let (rectangles, edges) = visualisation(logs.iter().map(|l| &l[median_index]));
-        fill_svg_file(&rectangles, &edges, &mut html_file)?;
+        let scene = visualisation(logs.iter().map(|l| &l[median_index]));
+        fill_svg_file(&scene, &mut html_file)?;
 
         write!(html_file, "<H2>Comparing best runs</H2>")?;
-        let (rectangles, edges) = visualisation(logs.iter().map(|l| &l[0]));
-        fill_svg_file(&rectangles, &edges, &mut html_file)?;
+        let scene = visualisation(logs.iter().map(|l| &l[0]));
+        fill_svg_file(&scene, &mut html_file)?;
 
         write!(html_file, "</body></html>")?;
         Ok(())

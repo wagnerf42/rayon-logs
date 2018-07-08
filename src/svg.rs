@@ -10,6 +10,29 @@ use RunLog;
 
 pub(crate) type Point = (f64, f64);
 
+/// all graphics elements for one `RunLog` display.
+pub struct Scene {
+    /// Each task is an animated rectangle.
+    /// We also display a black rectangle underneath.
+    /// idle times are also displayed as animated rectangles.
+    pub rectangles: Vec<Rectangle>,
+    /// Dependencies are shown as segments.
+    pub segments: Vec<(Point, Point)>,
+    /// We can hover on tasks to get more information.
+    /// rectangles[i] is associated to labels[i].
+    pub labels: Vec<String>,
+}
+
+impl Scene {
+    pub fn new() -> Self {
+        Scene {
+            rectangles: Vec::new(),
+            segments: Vec::new(),
+            labels: Vec::new(),
+        }
+    }
+}
+
 /// colors used for each thread
 pub(crate) const COLORS: [[f32; 3]; 8] = [
     [1.0, 0.0, 0.0],
@@ -63,40 +86,36 @@ impl Rectangle {
 
 /// saves a set of rectangles and edges as an animated svg file.
 /// 1 animated second is 1 milli second of run.
-pub fn write_svg_file<P: AsRef<Path>>(
-    rectangles: &[Rectangle],
-    edges: &[(Point, Point)],
-    path: P,
-) -> Result<(), Error> {
+pub fn write_svg_file<P: AsRef<Path>>(scene: &Scene, path: P) -> Result<(), Error> {
     let mut file = File::create(path)?;
-    fill_svg_file(rectangles, edges, &mut file)
+    fill_svg_file(scene, &mut file)
 }
 
 /// fill given file with a set of rectangles and edges as an animated svg.
-pub fn fill_svg_file(
-    rectangles: &[Rectangle],
-    edges: &[(Point, Point)],
-    file: &mut File,
-) -> Result<(), Error> {
+pub fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
     let svg_width = 1920; // this is just an aspect ratio
     let svg_height = 1080;
 
-    let xmax = rectangles
+    let xmax = scene
+        .rectangles
         .iter()
         .map(|r| r.width + r.x)
         .max_by(|a, b| a.partial_cmp(b).unwrap())
         .unwrap();
-    let ymax = rectangles
+    let ymax = scene
+        .rectangles
         .iter()
         .map(|r| r.height + r.y)
         .max_by(|a, b| a.partial_cmp(b).unwrap())
         .unwrap();
-    let xmin = rectangles
+    let xmin = scene
+        .rectangles
         .iter()
         .map(|r| r.x)
         .min_by(|a, b| a.partial_cmp(b).unwrap())
         .unwrap();
-    let ymin = rectangles
+    let ymin = scene
+        .rectangles
         .iter()
         .map(|r| r.y)
         .min_by(|a, b| a.partial_cmp(b).unwrap())
@@ -112,9 +131,14 @@ pub fn fill_svg_file(
 <svg viewBox=\"0 0 {} {}\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\">",
         svg_width, svg_height,
     )?;
-
+    writeln!(
+        file,
+        "<text x=\"{}\" y=\"{}\" id=\"hover_label\"/>",
+        3.0 * f64::from(svg_width) / 4.0,
+        7.0 * f64::from(svg_height) / 8.0
+    )?;
     // we start by edges so they will end up below tasks
-    for (start, end) in edges {
+    for (start, end) in &scene.segments {
         write!(
             file,
             "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"black\" stroke-width=\"2.0\"/>",
@@ -125,10 +149,21 @@ pub fn fill_svg_file(
         )?;
     }
 
-    for rectangle in rectangles {
-        if let Some((start_time, end_time)) = rectangle.animation {
-            writeln!(file,
-            "<rect x=\"{}\" y=\"{}\" width=\"0\" height=\"{}\" fill=\"rgba({},{},{},{})\">
+    for rectangle in &scene.rectangles {
+        // first a black rectangle
+        writeln!(
+            file,
+            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"black\"/>",
+            (rectangle.x - xmin) * xscale,
+            (rectangle.y - ymin) * yscale,
+            rectangle.width * xscale,
+            rectangle.height * yscale,
+        )?;
+
+        // now the animated one
+        let (start_time, end_time) = rectangle.animation.unwrap();
+        writeln!(file,
+            "<rect class=\"task\" x=\"{}\" y=\"{}\" width=\"0\" height=\"{}\" fill=\"rgba({},{},{},{})\">
 <animate attributeType=\"XML\" attributeName=\"width\" from=\"0\" to=\"{}\" begin=\"{}s\" dur=\"{}s\" fill=\"freeze\"/>
 </rect>",
         (rectangle.x-xmin)*xscale,
@@ -142,21 +177,40 @@ pub fn fill_svg_file(
         start_time as f64 / 1_000_000.0,
         (end_time - start_time) as f64 / 1_000_000.0,
         )?;
-        } else {
-            writeln!(
-                file,
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"rgba({},{},{},{})\"/>",
-                (rectangle.x - xmin) * xscale,
-                (rectangle.y - ymin) * yscale,
-                rectangle.width * xscale,
-                rectangle.height * yscale,
-                (rectangle.color[0] * 255.0) as u32,
-                (rectangle.color[1] * 255.0) as u32,
-                (rectangle.color[2] * 255.0) as u32,
-                rectangle.opacity,
-            )?;
-        }
     }
+
+    // this part will allow to get more info on tasks by hovering over them
+    file.write_all(
+        b"
+   <style>
+      .task-highlight {
+        fill: #ec008c;
+        opacity: 1;
+      }
+    </style>
+  <script><![CDATA[
+
+    var tasks = document.getElementsByClassName('task');
+
+    for (var i = 0; i < tasks.length; i++) {
+      tasks[i].index_value = i;
+      tasks[i].addEventListener('mouseover', mouseOverEffect);
+      tasks[i].addEventListener('mouseout', mouseOutEffect);
+    }
+
+    function mouseOverEffect() {
+      this.classList.add(\"task-highlight\");
+      document.getElementById(\"hover_label\").innerHTML = \"label:\"+this.index_value;
+    }
+
+    function mouseOutEffect() {
+      this.classList.remove(\"task-highlight\");
+      document.getElementById(\"hover_label\").innerHTML = \"\";
+    }
+  ]]></script>
+",
+    )?;
+
     write!(file, "</svg>")?;
     Ok(())
 }
