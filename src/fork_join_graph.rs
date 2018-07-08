@@ -14,14 +14,14 @@ trait BlockVector {
     fn push_block(&mut self, block: Block) -> BlockId;
     fn sequence(&mut self, id: BlockId) -> &mut Vec<BlockId>;
     fn parallel(&mut self, id: BlockId) -> &mut Vec<BlockId>;
-    fn add_task(&mut self, task: TaskLog) -> BlockId;
+    fn add_task(&mut self, task_id: TaskId, task: TaskLog) -> BlockId;
     fn add_sequence(&mut self) -> BlockId;
     fn add_parallel(&mut self) -> BlockId;
 }
 
 impl BlockVector for Vec<Block> {
-    fn add_task(&mut self, task: TaskLog) -> BlockId {
-        self.push_block(Block::Task(task))
+    fn add_task(&mut self, task_id: TaskId, task: TaskLog) -> BlockId {
+        self.push_block(Block::Task(task_id, task))
     }
 
     fn add_sequence(&mut self) -> BlockId {
@@ -52,7 +52,7 @@ impl BlockVector for Vec<Block> {
 
 #[derive(Debug)]
 enum Block {
-    Task(TaskLog),
+    Task(TaskId, TaskLog),
     Sequence(Vec<BlockId>),
     Parallel(Vec<BlockId>),
 }
@@ -82,7 +82,7 @@ fn create_graph(tasks: &[TaskLog]) -> Vec<Block> {
             .get(task_id)
             .unwrap_or_else(|| panic!("task {} is not created by anyone", task_id));
         // add task to its sequence
-        let new_block = graph.add_task((*task).clone());
+        let new_block = graph.add_task(*task_id, (*task).clone());
         graph.sequence(current_block).push(new_block);
 
         // now look at the children
@@ -144,7 +144,7 @@ fn compute_blocks_dimensions(
                 },
             )
         }),
-        Block::Task(ref t) => ((t.end_time - t.start_time) as f64, 1.0),
+        Block::Task(_, ref t) => ((t.end_time - t.start_time) as f64, 1.0),
     };
     blocks_dimensions[index] = dimensions;
     dimensions
@@ -229,7 +229,7 @@ fn generate_visualisation(
             acc.1.extend(exit);
             acc
         }),
-        Block::Task(ref t) => {
+        Block::Task(task_id, ref t) => {
             let duration = (t.end_time - t.start_time) as f64;
             let opacity = if let Some((work_type, work_amount)) = t.work {
                 let speed = work_amount as f64 / duration;
@@ -245,7 +245,7 @@ fn generate_visualisation(
                 (duration, 1.0),
                 Some((t.start_time, t.end_time)),
             ));
-            scene.labels.push(format!("task: {}", 0));
+            scene.labels.push(format!("task: {}", task_id));
             (
                 vec![(positions[index].0 + duration / 2.0, positions[index].1)],
                 vec![(

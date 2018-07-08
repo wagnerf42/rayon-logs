@@ -1,6 +1,6 @@
 //! Small module with display related functions.
 
-use itertools::repeat_call;
+use itertools::{repeat_call, Itertools};
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Error;
@@ -180,35 +180,43 @@ pub fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
     }
 
     // this part will allow to get more info on tasks by hovering over them
-    file.write_all(
-        b"
+    write!(
+        file,
+        "
    <style>
-      .task-highlight {
+      .task-highlight {{
         fill: #ec008c;
         opacity: 1;
-      }
+      }}
     </style>
   <script><![CDATA[
 
     var tasks = document.getElementsByClassName('task');
+    var labels = [{}];
 
-    for (var i = 0; i < tasks.length; i++) {
-      tasks[i].index_value = i;
+    for (var i = 0; i < tasks.length; i++) {{
+      tasks[i].task_id = i;
       tasks[i].addEventListener('mouseover', mouseOverEffect);
       tasks[i].addEventListener('mouseout', mouseOutEffect);
-    }
+    }}
 
-    function mouseOverEffect() {
+    function mouseOverEffect() {{
       this.classList.add(\"task-highlight\");
-      document.getElementById(\"hover_label\").innerHTML = \"label:\"+this.index_value;
-    }
+      document.getElementById(\"hover_label\").innerHTML = labels[this.task_id];
+    }}
 
-    function mouseOutEffect() {
+    function mouseOutEffect() {{
       this.classList.remove(\"task-highlight\");
       document.getElementById(\"hover_label\").innerHTML = \"\";
-    }
+    }}
   ]]></script>
 ",
+        scene
+            .labels
+            .iter()
+            .map(|s| format!("\"{}\"", s))
+            .intersperse(",".to_owned())
+            .collect::<String>()
     )?;
 
     write!(file, "</svg>")?;
