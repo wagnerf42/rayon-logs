@@ -6,7 +6,6 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::io::ErrorKind;
-use std::iter::once;
 use std::iter::repeat;
 use std::path::Path;
 use std::sync::Arc;
@@ -147,8 +146,8 @@ impl RunLog {
                     work_amount,
                 ) => {
                     tasks_info[sequential_task].children.push(continuation_task);
+                    tasks_info[sequential_task].work = Some((work_type, work_amount));
                     if let Some(active_task) = active_tasks {
-                        tasks_info[*active_task].work = Some((work_type, work_amount));
                         tasks_info[*active_task].children.push(sequential_task); //create direct links with children
 
                         let possible_child = dag_children.remove(active_task); // we were set as father of someone
@@ -188,7 +187,7 @@ impl RunLog {
 
     /// Save an svg file of all logged information.
     pub fn save_svg<P: AsRef<Path>>(&self, path: P) -> Result<(), io::Error> {
-        let scene = visualisation(once(self));
+        let scene = visualisation(self);
         write_svg_file(&scene, path)
     }
 

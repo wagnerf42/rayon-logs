@@ -6,6 +6,12 @@ use std::io::prelude::*;
 use std::io::Error;
 use std::iter::repeat;
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
+
+/// we need to count how many files we create because several svgs
+/// can end up on the same webpage, each one having its javascript.
+static FILES_COUNT: AtomicUsize = ATOMIC_USIZE_INIT;
+
 use RunLog;
 
 pub(crate) type Point = (f64, f64);
@@ -124,6 +130,8 @@ pub fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
     let xscale = f64::from(svg_width) / (xmax - xmin);
     let yscale = f64::from(svg_height) / (ymax - ymin);
 
+    let file_count = FILES_COUNT.fetch_add(1, Ordering::SeqCst);
+
     // Header
     writeln!(
         file,
@@ -133,9 +141,10 @@ pub fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
     )?;
     writeln!(
         file,
-        "<text x=\"{}\" y=\"{}\" id=\"hover_label\"/>",
-        3.0 * f64::from(svg_width) / 4.0,
-        7.0 * f64::from(svg_height) / 8.0
+        "<text x=\"{}\" y=\"{}\" id=\"hover_label{}\"/>",
+        3.0 * f64::from(svg_width) / 5.0,
+        7.0 * f64::from(svg_height) / 8.0,
+        file_count
     )?;
     // we start by edges so they will end up below tasks
     for (start, end) in &scene.segments {
@@ -163,9 +172,10 @@ pub fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
         // now the animated one
         let (start_time, end_time) = rectangle.animation.unwrap();
         writeln!(file,
-            "<rect class=\"task\" x=\"{}\" y=\"{}\" width=\"0\" height=\"{}\" fill=\"rgba({},{},{},{})\">
+            "<rect class=\"task{}\" x=\"{}\" y=\"{}\" width=\"0\" height=\"{}\" fill=\"rgba({},{},{},{})\">
 <animate attributeType=\"XML\" attributeName=\"width\" from=\"0\" to=\"{}\" begin=\"{}s\" dur=\"{}s\" fill=\"freeze\"/>
 </rect>",
+        file_count,
         (rectangle.x-xmin)*xscale,
         (rectangle.y-ymin)*yscale,
         rectangle.height*yscale,
@@ -191,8 +201,8 @@ pub fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
     </style>
   <script><![CDATA[
 
-    var tasks = document.getElementsByClassName('task');
-    var labels = [{}];
+    var tasks = document.getElementsByClassName('task{}');
+    var labels{} = [{}];
 
     for (var i = 0; i < tasks.length; i++) {{
       tasks[i].task_id = i;
@@ -202,21 +212,26 @@ pub fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
 
     function mouseOverEffect() {{
       this.classList.add(\"task-highlight\");
-      document.getElementById(\"hover_label\").innerHTML = labels[this.task_id];
+      document.getElementById(\"hover_label{}\").innerHTML = labels{}[this.task_id];
     }}
 
     function mouseOutEffect() {{
       this.classList.remove(\"task-highlight\");
-      document.getElementById(\"hover_label\").innerHTML = \"\";
+      document.getElementById(\"hover_label{}\").innerHTML = \"\";
     }}
   ]]></script>
 ",
+        file_count,
+        file_count,
         scene
             .labels
             .iter()
             .map(|s| format!("\"{}\"", s))
             .intersperse(",".to_owned())
-            .collect::<String>()
+            .collect::<String>(),
+        file_count,
+        file_count,
+        file_count,
     )?;
 
     write!(file, "</svg>")?;

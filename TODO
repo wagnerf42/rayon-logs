@@ -1,12 +1,14 @@
 - in case of join it would be nice to have : task1 displayed on the left and task2 on the right
 ---> i'm not sure it is the case right now because I think we go by starting times
 
+- redo examples and html web page
+  github is filtering a lot, what to do about it ?
+
 --- minor:
-- leaves have high speed variations: maybe taking the best speed for color is not the best idea
 - we can maybe rewrite TaskLog creator to avoid completing an array since we are in order now
 - impl tree scan to avoid passing mutable slices everywhere and all extra vector copies in fork_join
 - text labels on tasks : we need to provide a labeled join and a labeled iterator
 - add some genericity in logger to provides logging hooks
 - histograms are highly unstable for merge sort with sequential merge ??????
 - check why iterators advance contiguously
-- html: hover
+- remove visualize function and add method to runlog

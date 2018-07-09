@@ -234,8 +234,22 @@ fn generate_visualisation(
             let opacity = if let Some((work_type, work_amount)) = t.work {
                 let speed = work_amount as f64 / duration;
                 let best_speed = speeds[&work_type];
-                speed / best_speed
+                let ratio = speed / best_speed;
+                scene.labels.push(format!(
+                    "task: {}, duration: {} (ms), work: {}, speed: {}, type: {}",
+                    task_id,
+                    (t.end_time - t.start_time) as f64 / 1_000_000.0,
+                    work_amount,
+                    ratio,
+                    work_type
+                ));
+                ratio
             } else {
+                scene.labels.push(format!(
+                    "task: {}, duration: {} (ms)",
+                    task_id,
+                    (t.end_time - t.start_time) as f64 / 1_000_000.0,
+                ));
                 1.0
             };
             scene.rectangles.push(Rectangle::new(
@@ -245,7 +259,6 @@ fn generate_visualisation(
                 (duration, 1.0),
                 Some((t.start_time, t.end_time)),
             ));
-            scene.labels.push(format!("task: {}", task_id));
             (
                 vec![(positions[index].0 + duration / 2.0, positions[index].1)],
                 vec![(
@@ -308,51 +321,46 @@ fn compute_idle_times(
 }
 
 /// convert all tasks information into animated rectangles and edges.
-pub fn visualisation<'a>(traces: impl Iterator<Item = &'a RunLog>) -> Scene {
+pub fn visualisation(log: &RunLog) -> Scene {
     let mut scene = Scene::new();
 
-    traces.fold(0.0, |y, log| {
-        let tasks = &log.tasks_logs;
-        let g = create_graph(tasks);
+    let tasks = &log.tasks_logs;
+    let g = create_graph(tasks);
 
-        // compute recursively the width and height of each block
-        let mut blocks_dimensions = Vec::with_capacity(g.len());
-        unsafe { blocks_dimensions.set_len(g.len()) }
-        compute_blocks_dimensions(0, &g, &mut blocks_dimensions);
+    // compute recursively the width and height of each block
+    let mut blocks_dimensions = Vec::with_capacity(g.len());
+    unsafe { blocks_dimensions.set_len(g.len()) }
+    compute_blocks_dimensions(0, &g, &mut blocks_dimensions);
 
-        // compute recursively the position of each block
-        let mut positions = Vec::with_capacity(g.len());
-        unsafe { positions.set_len(g.len()) }
-        positions[0] = (0.0, y);
-        compute_positions(0, &g, &blocks_dimensions, &mut positions);
+    // compute recursively the position of each block
+    let mut positions = Vec::with_capacity(g.len());
+    unsafe { positions.set_len(g.len()) }
+    positions[0] = (0.0, 0.0);
+    compute_positions(0, &g, &blocks_dimensions, &mut positions);
 
-        // adjust colors based on work
-        let speeds = compute_speeds(tasks);
+    // adjust colors based on work
+    let speeds = compute_speeds(tasks);
 
-        // generate all rectangles, edges and labels
-        generate_visualisation(0, &g, &positions, &speeds, &mut scene);
+    // generate all rectangles, edges and labels
+    generate_visualisation(0, &g, &positions, &speeds, &mut scene);
 
-        // compute position for idle times widget
-        let height = positions
-            .iter()
-            .map(|(_, y)| y)
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap() + 1.0 - y;
+    // compute position for idle times widget
+    let height = positions
+        .iter()
+        .map(|(_, y)| y)
+        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap() + 1.0;
 
-        let width = positions
-            .iter()
-            .zip(blocks_dimensions.iter())
-            .map(|((x, _), (w, _))| *x + *w)
-            .max_by(|a, b| a.partial_cmp(&b).unwrap())
-            .unwrap();
+    let width = positions
+        .iter()
+        .zip(blocks_dimensions.iter())
+        .map(|((x, _), (w, _))| *x + *w)
+        .max_by(|a, b| a.partial_cmp(&b).unwrap())
+        .unwrap();
 
-        let starting_position = (
-            width as f64 * 1.02,
-            y + (height - log.threads_number as f64) / 2.0,
-        );
+    let starting_position = (width as f64 * 0.1, height + 1.0);
 
-        compute_idle_times(tasks, &starting_position, log.threads_number, &mut scene);
-        y + height
-    });
+    compute_idle_times(tasks, &starting_position, log.threads_number, &mut scene);
+
     scene
 }
