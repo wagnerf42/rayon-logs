@@ -236,7 +236,7 @@ fn generate_visualisation(
                 let best_speed = speeds[&work_type];
                 let ratio = speed / best_speed;
                 scene.labels.push(format!(
-                    "task: {}, duration: {} (ms), work: {}, speed: {}, type: {}",
+                    "task: {}, duration: {} (ms),\n work: {},\n speed: {},\n type: {}",
                     task_id,
                     (t.end_time - t.start_time) as f64 / 1_000_000.0,
                     work_amount,

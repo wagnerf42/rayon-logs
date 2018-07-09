@@ -1,6 +1,6 @@
 //! Small module with display related functions.
 
-use itertools::{repeat_call, Itertools};
+use itertools::repeat_call;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Error;
@@ -139,13 +139,6 @@ pub fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
 <svg viewBox=\"0 0 {} {}\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\">",
         svg_width, svg_height,
     )?;
-    writeln!(
-        file,
-        "<text x=\"{}\" y=\"{}\" id=\"hover_label{}\"/>",
-        3.0 * f64::from(svg_width) / 5.0,
-        7.0 * f64::from(svg_height) / 8.0,
-        file_count
-    )?;
     // we start by edges so they will end up below tasks
     for (start, end) in &scene.segments {
         write!(
@@ -189,6 +182,27 @@ pub fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
         )?;
     }
 
+    for (index, (rectangle, label)) in scene.rectangles.iter().zip(scene.labels.iter()).enumerate()
+    {
+        // now the box for the tooltip
+        writeln!(file, "<g id=\"tip_{}_{}\">", file_count, index)?;
+        let x = (rectangle.x - xmin) * xscale;
+        let mut y = (rectangle.y - ymin) * yscale + 80.0;
+        let height = label.lines().count() as f64 * 20.0;
+        writeln!(
+            file,
+            "<rect x=\"{}\" y=\"{}\" width=\"300\" height=\"{}\" fill=\"white\" stroke=\"black\"/>",
+            x,
+            y,
+            height + 10.0
+        )?;
+        for line in label.lines() {
+            y += 20.0;
+            writeln!(file, "<text x=\"{}\" y=\"{}\">{}</text>", x + 5.0, y, line)?;
+        }
+        writeln!(file, "</g>")?;
+    }
+
     // this part will allow to get more info on tasks by hovering over them
     write!(
         file,
@@ -202,36 +216,27 @@ pub fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
   <script><![CDATA[
 
     var tasks = document.getElementsByClassName('task{}');
-    var labels{} = [{}];
 
     for (var i = 0; i < tasks.length; i++) {{
-      tasks[i].task_id = i;
+      var tip = document.getElementById('tip_{}_'+i);
+      tip.style.display='none';
+      tasks[i].tip = tip;
       tasks[i].addEventListener('mouseover', mouseOverEffect);
       tasks[i].addEventListener('mouseout', mouseOutEffect);
     }}
 
     function mouseOverEffect() {{
       this.classList.add(\"task-highlight\");
-      document.getElementById(\"hover_label{}\").innerHTML = labels{}[this.task_id];
+      this.tip.style.display='block';
     }}
 
     function mouseOutEffect() {{
       this.classList.remove(\"task-highlight\");
-      document.getElementById(\"hover_label{}\").innerHTML = \"\";
+      this.tip.style.display='none';
     }}
   ]]></script>
 ",
-        file_count,
-        file_count,
-        scene
-            .labels
-            .iter()
-            .map(|s| format!("\"{}\"", s))
-            .intersperse(",".to_owned())
-            .collect::<String>(),
-        file_count,
-        file_count,
-        file_count,
+        file_count, file_count,
     )?;
 
     write!(file, "</svg>")?;
