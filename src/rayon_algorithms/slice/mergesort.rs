@@ -10,6 +10,7 @@ use std::mem;
 use std::mem::size_of;
 use std::ptr;
 use std::slice;
+use Logged;
 
 unsafe fn get_and_increment<T>(ptr: &mut *mut T) -> *mut T {
     let old = *ptr;
@@ -670,9 +671,7 @@ where
         // Convert the pointer to `usize` because `*mut T` is not `Send`.
         let buf = buf as usize;
 
-        v.par_chunks_mut(CHUNK_LENGTH)
-            .with_max_len(1)
-            .enumerate()
+        Logged::new(v.par_chunks_mut(CHUNK_LENGTH).with_max_len(1).enumerate())
             .map(|(i, chunk)| {
                 let l = CHUNK_LENGTH * i;
                 let r = l + chunk.len();
