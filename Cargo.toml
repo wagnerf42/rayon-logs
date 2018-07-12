@@ -1,6 +1,6 @@
 [package]
 name = "rayon_logs"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["frederic wagner <frederic.wagner@imag.fr>", "Quentin Guilloteau <quentin.guilloteau@grenoble-inp.org>"]
 description = "Traces for the rayon work-stealing library"
 license = "Apache-2.0/MIT"
