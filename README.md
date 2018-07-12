@@ -4,13 +4,19 @@
 
 rayon-logs is a logging extension for the [rayon](https://github.com/rayon-rs/rayon) library.
 
+The library is available on crates.io.
+
 Logs are performance oriented and should hopefully enable users to enhance applications performances.
 
+It can generated animate svg traces of the dag of executed tasks.
+
+Github seems to filter out animated svgs so feel free to navigate my web page for some
+[eye candy](http://www-id.imag.fr/Laboratoire/Membres/Wagner_Frederic/rayon-logs.html).
+
 Here is an example of an svg animation of a merge sort's logs :
-![merge sort animation](merge_sort_sequential_merge.svg)
+![merge sort animation](https://github.com/wagnerf42/rayon-logs/blob/master/merge_sort_sequential_merge.svg)
 
 You can see all 4 threads executing the fork-join graph of the application with the idle times displayed on the right
-(click to animate).
 
 analyzing this figure you can see:
 
@@ -18,24 +24,6 @@ analyzing this figure you can see:
 - the merge is not parallel which generates idle times
 - no idle times related to *join_context*
 - tasks decomposition generate no tangible overhead
-
-Now, a second example comparing a run with a merge sort with sequential merge (top graph) and a
-merge sort with parallel merge (bottom graph) (click to animate).
-![merge sort parallel_animation](merge_sort_parallel_merge.svg)
-
-Here I show more detail by refining sequential tasks further down into chains.
-You can see that the parallel merge is improving on the idle times.
-Moreover if you look closely you can see potential improvement points within rayon.
-The bottom graph looks perfect but on a closer look you can see something not so nice:
-
-- last level uses all 4 threads : seems perfect
-- one level before you have green and red on the left and yellow and blue on the right
-- again one level before you have yellow, red, blue, green
-
-This means that when reaching next to last level the yellow thread will switch sides
-with the green one, destroying the algorithm locality.
-The impact on performances does not seem that big here since
-all merge tasks are tagged as such and the displayed color would dim on large performance hits.
 
 
 ## Use

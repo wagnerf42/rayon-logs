@@ -3,8 +3,8 @@
 
 extern crate itertools;
 extern crate rand;
-extern crate rayon_logs;
-use rayon_logs::{join, join_context, sequential_task, ThreadPoolBuilder};
+extern crate rayon_logs as rayon;
+use rayon::{join, join_context, sequential_task, ThreadPoolBuilder};
 
 use rand::{ChaChaRng, Rng};
 use std::fmt::Debug;

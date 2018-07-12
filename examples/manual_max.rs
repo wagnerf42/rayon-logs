@@ -1,5 +1,5 @@
-extern crate rayon_logs;
-use rayon_logs::{join, sequential_task, ThreadPoolBuilder};
+extern crate rayon_logs as rayon;
+use rayon::{join, sequential_task, ThreadPoolBuilder};
 
 fn manual_max(slice: &[u32]) -> u32 {
     if slice.len() < 200_000 {
