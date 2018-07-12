@@ -13,3 +13,5 @@ pub trait IntoLoggedParallelRefIterator<'data>: IntoParallelRefIterator<'data> {
 }
 
 impl<'data, I: IntoParallelRefIterator<'data>> IntoLoggedParallelRefIterator<'data> for I {}
+
+pub use rayon_algorithms::slice::ParallelSliceMut;

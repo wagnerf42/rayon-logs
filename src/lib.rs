@@ -26,6 +26,7 @@ pub(crate) mod svg;
 pub use {svg::fill_svg_file, svg::write_svg_file, svg::Rectangle};
 mod log;
 pub use log::{RunLog, TaskLog};
+mod rayon_algorithms;
 
 type TaskId = usize;
 type IteratorId = usize;
