@@ -1,6 +1,3 @@
-- redo examples and html web page
-  github is filtering a lot, what to do about it ?
-
 --- minor:
 - we can maybe rewrite TaskLog creator to avoid completing an array since we are in order now
 - impl tree scan to avoid passing mutable slices everywhere and all extra vector copies in fork_join
