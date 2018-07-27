@@ -211,8 +211,8 @@ impl ThreadPool {
 
         write!(
             html_file,
-            "<H2>Distribution of execution times over {} runs</H2>",
-            tests_number
+            "<H2>Distribution of execution times over {} runs (red is {}, blue is {})</H2>",
+            tests_number, label1, label2,
         )?;
         histogram(&mut html_file, &logs, 30)?;
 

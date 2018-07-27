@@ -4,7 +4,7 @@
 extern crate itertools;
 extern crate rand;
 extern crate rayon_logs as rayon;
-use rayon::{join, join_context, sequential_task, ThreadPoolBuilder};
+use rayon::{join, join_context, prelude::*, sequential_task, ThreadPoolBuilder};
 
 use rand::{ChaChaRng, Rng};
 use std::fmt::Debug;
@@ -249,7 +249,6 @@ fn recursive_parallel_merge_sort<T: Ord + Copy + Send + Sync + Debug, M: Merging
     input: &mut [T],
     output: &mut [T],
     recursions: u8,
-    sequential: bool,
 ) {
     if recursions == 0 {
         let mut size = input.len() as f64;
@@ -260,32 +259,16 @@ fn recursive_parallel_merge_sort<T: Ord + Copy + Send + Sync + Debug, M: Merging
         let (out1, out2) = output.split_at_mut(midpoint);
         {
             let (in1, in2) = input.split_at_mut(midpoint);
-            if sequential {
-                recursive_parallel_merge_sort::<T, SequentialMerge>(
-                    out1,
-                    in1,
-                    recursions - 1,
-                    true,
-                );
-                recursive_parallel_merge_sort::<T, SequentialMerge>(
-                    out2,
-                    in2,
-                    recursions - 1,
-                    true,
-                );
-            } else {
-                join_context(
-                    |_| recursive_parallel_merge_sort::<T, M>(out1, in1, recursions - 1, false),
-                    |c| {
-                        recursive_parallel_merge_sort::<T, M>(
-                            out2,
-                            in2,
-                            recursions - 1,
-                            !c.migrated(),
-                        )
-                    },
-                );
-            }
+            join_context(
+                |_| recursive_parallel_merge_sort::<T, M>(out1, in1, recursions - 1),
+                |c| {
+                    if c.migrated() {
+                        recursive_parallel_merge_sort::<T, M>(out2, in2, recursions - 1);
+                    } else {
+                        recursive_parallel_merge_sort::<T, M>(out2, in2, (recursions - 1) % 2);
+                    }
+                },
+            );
         }
         M::merge(out1, out2, input);
     }
@@ -310,7 +293,7 @@ pub fn parallel_merge_sort<T: Ord + Copy + Send + Sync + Debug, M: MergingStrate
     unsafe {
         buffer.set_len(slice.len());
     }
-    recursive_parallel_merge_sort::<T, M>(slice, &mut buffer, recursions as u8, false);
+    recursive_parallel_merge_sort::<T, M>(slice, &mut buffer, recursions as u8);
 }
 
 fn partial_manual_merge<
@@ -399,23 +382,26 @@ fn merge_split<'a, T: Ord>(
 fn main() {
     let mut ra = ChaChaRng::new_unseeded();
 
-    let mut v: Vec<u32> = (0..100_000).collect();
+    let mut v: Vec<u32> = (0..500_000).collect();
     let answer = v.clone();
     ra.shuffle(&mut v);
 
-    let p = ThreadPoolBuilder::new().build().expect("builder failed");
+    let p = ThreadPoolBuilder::new()
+        .num_threads(3)
+        .build()
+        .expect("builder failed");
 
     p.compare(
-        "merge sort with sequential merge",
-        "merge sort with parallel merge",
+        "merge sort with adaptive merge",
+        "rayon's merge sort",
         || {
             let mut w = v.clone();
-            parallel_merge_sort::<u32, SequentialMerge>(&mut w);
+            parallel_merge_sort::<u32, AdaptiveMerge>(&mut w);
             assert_eq!(answer, w);
         },
         || {
             let mut w = v.clone();
-            parallel_merge_sort::<u32, ParallelMerge>(&mut w);
+            w.par_sort();
             assert_eq!(answer, w);
         },
         "merge_sorts.html",
