@@ -336,7 +336,7 @@ fn partial_manual_merge<
                     *o = *value1;
                     i1 += 1;
                     i_out += 1;
-                    if check_right && i1 >= input1.len() {
+                    if check_left && i1 >= input1.len() {
                         break;
                     }
                     value1 = input1.get_unchecked(i1);
