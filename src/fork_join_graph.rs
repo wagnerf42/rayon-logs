@@ -244,7 +244,7 @@ fn generate_visualisation(
                     ratio,
                     work_type
                 ));
-                ratio
+                (ratio * 2.0 / 3.0) + 1.0 / 3.0 // not too dark. so we rescale between 0.33 and 1.0
             } else {
                 scene.labels.push(format!(
                     "task: {}, duration: {} (ms)",

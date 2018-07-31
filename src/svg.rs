@@ -187,7 +187,10 @@ pub fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
         // now the box for the tooltip
         writeln!(file, "<g id=\"tip_{}_{}\">", file_count, index)?;
         let x = (rectangle.x - xmin) * xscale;
-        let mut y = (rectangle.y - ymin) * yscale + 80.0;
+        let mut y = (rectangle.y - ymin) * yscale + 40.0;
+        if y > (svg_height / 2) as f64 {
+            y -= 160.0; // so that label does end below image
+        }
         let height = label.lines().count() as f64 * 20.0;
         writeln!(
             file,
