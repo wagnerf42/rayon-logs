@@ -40,7 +40,7 @@ where
         let iterator_id = next_iterator_id();
         let consumer1 = LoggedConsumer {
             base: consumer,
-            part: None,
+            part: self.base.opt_len().map(|l| (0, l)),
             iterator_id,
             continuing_task_id,
         };
