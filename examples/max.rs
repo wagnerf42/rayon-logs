@@ -4,7 +4,7 @@ use rayon_logs::{prelude::*, ThreadPoolBuilder};
 fn main() {
     let v: Vec<u32> = (0..2_000_000).collect();
     let pool = ThreadPoolBuilder::new()
-        .num_threads(2)
+        .num_threads(4)
         .build()
         .expect("building pool failed");
 
