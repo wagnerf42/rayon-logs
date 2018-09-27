@@ -187,7 +187,7 @@ impl RunLog {
 
     /// Save an svg file of all logged information.
     pub fn save_svg<P: AsRef<Path>>(&self, path: P) -> Result<(), io::Error> {
-        let scene = visualisation(self);
+        let scene = visualisation(self, None);
         write_svg_file(&scene, path)
     }
 

@@ -11,11 +11,11 @@ use storage::Storage;
 use time::precise_time_ns;
 use {fill_svg_file, visualisation};
 
+use fork_join_graph::compute_speeds;
 use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 use TaskId;
-use {svg::histogram, RayonEvent, RunLog};
-
+use {svg::histogram, RayonEvent, RunLog, TaskLog};
 /// We use an atomic usize to generate unique ids for tasks.
 pub(crate) static NEXT_TASK_ID: AtomicUsize = ATOMIC_USIZE_INIT;
 /// We use an atomic usize to generate unique ids for iterators.
@@ -218,15 +218,23 @@ impl ThreadPool {
 
         write!(html_file, "<H2>Comparing median runs</H2>")?;
         let median_index = tests_number / 2;
+        let mut tasklogs: Vec<TaskLog> = Vec::new();
         for log in &logs {
-            let scene = visualisation(&log[median_index]);
+            tasklogs.extend_from_slice(&log[median_index].tasks_logs);
+        }
+        for log in &logs {
+            let scene = visualisation(&log[median_index], Some(compute_speeds(&tasklogs[..])));
             fill_svg_file(&scene, &mut html_file)?;
             writeln!(html_file, "<p>")?;
         }
 
         write!(html_file, "<H2>Comparing best runs</H2>")?;
+        tasklogs.clear();
         for log in &logs {
-            let scene = visualisation(&log[0]);
+            tasklogs.extend_from_slice(&log[0].tasks_logs);
+        }
+        for log in &logs {
+            let scene = visualisation(&log[0], Some(compute_speeds(&tasklogs[..])));
             fill_svg_file(&scene, &mut html_file)?;
             writeln!(html_file, "<p>")?;
         }

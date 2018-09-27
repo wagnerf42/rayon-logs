@@ -185,7 +185,7 @@ fn compute_positions(
 /// For some tasks we know the type and work.
 /// We can therefore compute a speed of computation.
 /// We figure out what is the max speed for each task type.
-fn compute_speeds(tasks: &[TaskLog]) -> HashMap<usize, f64> {
+pub fn compute_speeds(tasks: &[TaskLog]) -> HashMap<usize, f64> {
     let mut speeds: HashMap<usize, f64> = HashMap::new();
     for task in tasks {
         if let Some((ref work_type, work_amount)) = task.work {
@@ -210,7 +210,8 @@ fn generate_visualisation(
 ) -> (Vec<Point>, Vec<Point>) {
     match graph[index] {
         Block::Sequence(ref s) => {
-            let points: Vec<(Vec<Point>, Vec<Point>)> = s.iter()
+            let points: Vec<(Vec<Point>, Vec<Point>)> = s
+                .iter()
                 .map(|b| generate_visualisation(*b, graph, positions, speeds, scene))
                 .collect();
             scene.segments.extend(
@@ -322,7 +323,7 @@ fn compute_idle_times(
 }
 
 /// convert all tasks information into animated rectangles and edges.
-pub fn visualisation(log: &RunLog) -> Scene {
+pub fn visualisation(log: &RunLog, speeds: Option<HashMap<usize, f64>>) -> Scene {
     let mut scene = Scene::new();
 
     let tasks = &log.tasks_logs;
@@ -340,10 +341,15 @@ pub fn visualisation(log: &RunLog) -> Scene {
     compute_positions(0, &g, &blocks_dimensions, &mut positions);
 
     // adjust colors based on work
-    let speeds = compute_speeds(tasks);
-
+    //  speeds = Some(compute_speeds(tasks));
     // generate all rectangles, edges and labels
-    generate_visualisation(0, &g, &positions, &speeds, &mut scene);
+    generate_visualisation(
+        0,
+        &g,
+        &positions,
+        &(speeds.unwrap_or(compute_speeds(tasks))),
+        &mut scene,
+    );
 
     // compute position for idle times widget
     let height = positions
