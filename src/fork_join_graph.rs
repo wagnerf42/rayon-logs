@@ -185,18 +185,16 @@ fn compute_positions(
 /// For some tasks we know the type and work.
 /// We can therefore compute a speed of computation.
 /// We figure out what is the max speed for each task type.
-pub fn compute_speeds(tasks: &[TaskLog]) -> HashMap<usize, f64> {
-    let mut speeds: HashMap<usize, f64> = HashMap::new();
+pub fn compute_speeds(tasks: &[TaskLog], speeds: &mut HashMap<usize, f64>) {
     for task in tasks {
         if let Some((ref work_type, work_amount)) = task.work {
             let speed = work_amount as f64 / (task.end_time as f64 - task.start_time as f64);
-            let existing_speed: f64 = speeds.get(work_type).cloned().unwrap_or(0.0);
+            let existing_speed: f64 = (*speeds).get(work_type).cloned().unwrap_or(0.0);
             if speed > existing_speed {
-                speeds.insert(*work_type, speed);
+                (*speeds).insert(*work_type, speed);
             }
         }
     }
-    speeds
 }
 
 /// Take a block ; fill its rectangles and edges and return a set of entry points for incoming edges
@@ -323,7 +321,7 @@ fn compute_idle_times(
 }
 
 /// convert all tasks information into animated rectangles and edges.
-pub fn visualisation(log: &RunLog, speeds: Option<HashMap<usize, f64>>) -> Scene {
+pub fn visualisation(log: &RunLog, speeds: Option<&HashMap<usize, f64>>) -> Scene {
     let mut scene = Scene::new();
 
     let tasks = &log.tasks_logs;
@@ -341,16 +339,13 @@ pub fn visualisation(log: &RunLog, speeds: Option<HashMap<usize, f64>>) -> Scene
     compute_positions(0, &g, &blocks_dimensions, &mut positions);
 
     // adjust colors based on work
-    //  speeds = Some(compute_speeds(tasks));
-    // generate all rectangles, edges and labels
-    generate_visualisation(
-        0,
-        &g,
-        &positions,
-        &(speeds.unwrap_or(compute_speeds(tasks))),
-        &mut scene,
-    );
-
+    let mut actual_speeds: HashMap<usize, f64> = HashMap::new();
+    if speeds.is_none() {
+        compute_speeds(tasks, &mut actual_speeds);
+        generate_visualisation(0, &g, &positions, &(actual_speeds), &mut scene);
+    } else {
+        generate_visualisation(0, &g, &positions, &(speeds.unwrap()), &mut scene);
+    }
     // compute position for idle times widget
     let height = positions
         .iter()
