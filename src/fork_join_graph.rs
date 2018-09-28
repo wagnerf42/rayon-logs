@@ -185,16 +185,21 @@ fn compute_positions(
 /// For some tasks we know the type and work.
 /// We can therefore compute a speed of computation.
 /// We figure out what is the max speed for each task type.
-pub fn compute_speeds(tasks: &[TaskLog], speeds: &mut HashMap<usize, f64>) {
+pub fn compute_speeds<'a, I>(tasks: I) -> HashMap<usize, f64>
+where
+    I: IntoIterator<Item = &'a TaskLog>,
+{
+    let mut speeds: HashMap<usize, f64> = HashMap::new();
     for task in tasks {
         if let Some((ref work_type, work_amount)) = task.work {
             let speed = work_amount as f64 / (task.end_time as f64 - task.start_time as f64);
-            let existing_speed: f64 = (*speeds).get(work_type).cloned().unwrap_or(0.0);
+            let existing_speed: f64 = speeds.get(work_type).cloned().unwrap_or(0.0);
             if speed > existing_speed {
-                (*speeds).insert(*work_type, speed);
+                speeds.insert(*work_type, speed);
             }
         }
     }
+    speeds
 }
 
 /// Take a block ; fill its rectangles and edges and return a set of entry points for incoming edges
@@ -339,10 +344,14 @@ pub fn visualisation(log: &RunLog, speeds: Option<&HashMap<usize, f64>>) -> Scen
     compute_positions(0, &g, &blocks_dimensions, &mut positions);
 
     // adjust colors based on work
-    let mut actual_speeds: HashMap<usize, f64> = HashMap::new();
     if speeds.is_none() {
-        compute_speeds(tasks, &mut actual_speeds);
-        generate_visualisation(0, &g, &positions, &(actual_speeds), &mut scene);
+        generate_visualisation(
+            0,
+            &g,
+            &positions,
+            &(compute_speeds(&log.tasks_logs)),
+            &mut scene,
+        );
     } else {
         generate_visualisation(0, &g, &positions, &(speeds.unwrap()), &mut scene);
     }
