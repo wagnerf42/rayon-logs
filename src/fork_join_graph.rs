@@ -69,7 +69,7 @@ fn create_graph(tasks: &[TaskLog]) -> Vec<Block> {
 
     // we sort by starting time to be sure fathers are processed before children
     let mut sorted_tasks: Vec<TaskId> = (0..tasks.len()).collect();
-    sorted_tasks.sort_unstable_by(|t1, t2| {
+    sorted_tasks.sort_by(|t1, t2| {
         tasks[*t1]
             .start_time
             .partial_cmp(&tasks[*t2].start_time)
