@@ -252,11 +252,13 @@ pub(crate) fn histogram(
     logs: &[Vec<RunLog>],
     bars_number: usize,
 ) -> Result<(), Error> {
-    let min_duration = logs.iter()
+    let min_duration = logs
+        .iter()
         .map(|l| l.first().map(|fl| fl.duration).unwrap())
         .min()
         .unwrap();
-    let max_duration = logs.iter()
+    let max_duration = logs
+        .iter()
         .map(|l| l.last().map(|ll| ll.duration).unwrap())
         .max()
         .unwrap();
@@ -288,7 +290,7 @@ pub(crate) fn histogram(
     let max_count = bars.iter().flat_map(|b| b.iter()).max().unwrap();
     let unit_height = (height - 100) as f32 / *max_count as f32;
     let unit_width = width as f32 / (bars_number as f32 * 1.5);
-    let colors = ["red", "blue"];
+    let colors = ["red", "blue", "green", "yellow"];
     for (algorithm_index, (counts, color)) in bars.iter().zip(colors.iter().cycle()).enumerate() {
         for (index, &count) in counts.iter().enumerate() {
             if count != 0 {
