@@ -302,6 +302,22 @@ impl<'a> Comparator<'a> {
         }
         write!(html_file, "</H2>")?;
         histogram(&mut html_file, &self.logs, 30)?;
+        write!(html_file, "<H2> The mean times are: </H2>")?;
+        self.logs
+            .iter()
+            .zip(self.labels.iter())
+            .for_each(|(algorithm, name)| {
+                let _ = write!(
+                    html_file,
+                    "{} - {}<br>",
+                    name,
+                    (algorithm
+                        .iter()
+                        .map(|experiment| experiment.duration as f64)
+                        .sum::<f64>() / (self.runs_number as f64)
+                        / (1e6 as f64))
+                );
+            });
         write!(html_file, "<H2> The median times are: </H2>")?;
         self.logs
             .iter()
@@ -311,9 +327,10 @@ impl<'a> Comparator<'a> {
                     html_file,
                     "{} - {}<br>",
                     name,
-                    (algorithm[self.runs_number / 2].duration as f64) / (1e6 as f64)
+                    (algorithm[self.runs_number / 2].duration as f64 / (1e6 as f64))
                 );
             });
+
         write!(html_file, "<H2>Comparing median runs</H2>")?;
         let median_index = (self.runs_number) / 2;
         let speeds = compute_speeds(
