@@ -1,10 +1,10 @@
 //! `LoggedPool` structure for logging raw tasks events.
 
 use fork_join_graph::compute_speeds;
+use itertools::repeat_call;
 use rayon;
 use rayon::FnContext;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Error;
@@ -15,9 +15,10 @@ use storage::Storage;
 use time::precise_time_ns;
 use TaskId;
 use {fill_svg_file, visualisation};
-use {svg::histogram, RayonEvent, RunLog};
-
-const TESTS_NUMBER: u32 = 100;
+use {
+    svg::{histogram, HISTOGRAM_COLORS},
+    RayonEvent, RunLog,
+};
 
 /// We use an atomic usize to generate unique ids for tasks.
 pub(crate) static NEXT_TASK_ID: AtomicUsize = ATOMIC_USIZE_INIT;
@@ -205,58 +206,75 @@ impl ThreadPool {
     //    }
 
     ///This function simply returns a comparator that allows us to add algorithms for comparison.
-    pub fn compare(self) -> Comparator {
+    pub fn compare(&self) -> Comparator {
         Comparator {
-            logs: HashMap::new(),
+            labels: Vec::new(),
+            logs: Vec::new(),
             pool: self,
+            runs_number: 100,
         }
     }
 }
 /// This struct implements a pseudo builder pattern for multi-way comparisons in a single file.
-pub struct Comparator {
-    logs: HashMap<String, Vec<RunLog>>,
-    pool: ThreadPool,
+pub struct Comparator<'a> {
+    labels: Vec<String>,
+    logs: Vec<Vec<RunLog>>,
+    pool: &'a ThreadPool,
+    runs_number: usize,
 }
 
-impl Comparator {
+impl<'a> Comparator<'a> {
+    /// PRECONDITION: call that BEFORE attaching algorithms
+    pub fn runs_number(self, runs_wanted: usize) -> Self {
+        Comparator {
+            labels: self.labels,
+            logs: self.logs,
+            pool: self.pool,
+            runs_number: runs_wanted,
+        }
+    }
+
+    fn record_experiments<F: FnMut() -> RunLog>(&self, run_function: F) -> Vec<RunLog> {
+        let mut experiments_logs: Vec<_> =
+            repeat_call(run_function).take(self.runs_number).collect();
+        experiments_logs.sort_unstable_by_key(|run| run.duration);
+        experiments_logs
+    }
     /// Use this method for attaching an algorithm to the comparator. The algorithm will be taken
     /// as a closure and run as is.
-    pub fn attach_algorithm<A>(mut self, label: String, algo: A) -> Self
+    pub fn attach_algorithm<A, STR>(mut self, label: STR, algorithm: A) -> Self
     where
         A: Fn() + Send + Sync,
+        STR: Into<String>,
     {
-        let mut temp = Vec::new();
-        for _ in 0..TESTS_NUMBER {
-            temp.push(self.pool.install(&algo).1);
-        }
-        temp.sort_unstable_by_key(|l| l.duration);
-        self.logs.insert(label, temp);
+        let logs = self.record_experiments(|| self.pool.install(&algorithm).1);
+        self.logs.push(logs);
+        self.labels.push(label.into());
         self
     }
 
     /// This method lets you attach an algorithm with a setup function that will be run each time
     /// the algorithm is run. The output of the setup function will be given to the algorithm as
     /// the input.
-    pub fn attach_algorithm_with_setup<A, I, S, T>(
+    pub fn attach_algorithm_with_setup<A, I, S, T, STR>(
         mut self,
-        label: String,
+        label: STR,
         mut setup_function: S,
-        algo: A,
+        algorithm: A,
     ) -> Self
     where
         S: FnMut() -> I,
         I: Send,
         A: Fn(I) -> T + Send + Sync,
         T: Send + Sync,
+        STR: Into<String>,
     {
-        let mut temp = Vec::new();
-        for _ in 0..TESTS_NUMBER {
-            //pass the setup function in the closure to include the setup time.
+        let logs = self.record_experiments(|| {
             let input = setup_function();
-            temp.push(self.pool.install(|| algo(input)).1);
-        }
-        temp.sort_unstable_by_key(|l| l.duration);
-        self.logs.insert(label, temp);
+            self.pool.install(|| algorithm(input)).1
+        });
+        self.logs.push(logs);
+        self.labels.push(label.into());
         self
     }
 
@@ -266,43 +284,40 @@ impl Comparator {
 
         write!(html_file, "<!DOCTYPE html>")?;
         write!(html_file, "<html><body><center>")?;
-        write!(html_file, "<H1>Comparing ")?;
-        for (pos, label) in self.logs.keys().enumerate() {
-            if pos == (self.logs.len() - 1) {
-                write!(html_file, "and {} </H1>", label)?;
-            } else {
-                write!(html_file, "{},", label)?;
-            }
-        }
-        let colors = ["red", "blue", "green", "yellow"];
-        let mut keys = Vec::new();
-        let mut values = Vec::new();
-        for ordered_pair in self.logs {
-            keys.push(ordered_pair.0);
-            values.push(ordered_pair.1);
-        }
+        let (last_label, first_labels) = self.labels.split_last().expect("not enough experiments");
+        write!(
+            html_file,
+            "<H1> Comparing {} and {}</H1>",
+            first_labels.join(", "),
+            last_label
+        )?;
+
         write!(
             html_file,
             "<H2>Distribution of execution times over {} runs ",
-            TESTS_NUMBER
+            self.runs_number
         )?;
-        for (label, color) in keys.iter().zip(colors.iter()) {
+        for (label, color) in self.labels.iter().zip(HISTOGRAM_COLORS.iter().cycle()) {
             write!(html_file, "{} is {}, ", color, label)?;
         }
         write!(html_file, "</H2>")?;
-        histogram(&mut html_file, &values, 30)?;
+        histogram(&mut html_file, &self.logs, 30)?;
         write!(html_file, "<H2>Comparing median runs</H2>")?;
-        let median_index: usize = (TESTS_NUMBER as usize) / 2;
-        let speeds = compute_speeds(values.iter().flat_map(|row| &row[median_index].tasks_logs));
-        for log in &values {
+        let median_index = (self.runs_number) / 2;
+        let speeds = compute_speeds(
+            self.logs
+                .iter()
+                .flat_map(|row| &row[median_index].tasks_logs),
+        );
+        for log in &self.logs {
             let scene = visualisation(&log[median_index], Some(&speeds));
             fill_svg_file(&scene, &mut html_file)?;
             writeln!(html_file, "<p>")?;
         }
 
         write!(html_file, "<H2>Comparing best runs</H2>")?;
-        let speeds = compute_speeds(values.iter().flat_map(|row| &row[0].tasks_logs));
-        for log in &values {
+        let speeds = compute_speeds(self.logs.iter().flat_map(|row| &row[0].tasks_logs));
+        for log in &self.logs {
             let scene = visualisation(&log[0], Some(&speeds));
             fill_svg_file(&scene, &mut html_file)?;
             writeln!(html_file, "<p>")?;

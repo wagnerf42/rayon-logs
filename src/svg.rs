@@ -11,6 +11,8 @@ use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 /// we need to count how many files we create because several svgs
 /// can end up on the same webpage, each one having its javascript.
 static FILES_COUNT: AtomicUsize = ATOMIC_USIZE_INIT;
+/// all svg colors names used for histograms displays
+pub const HISTOGRAM_COLORS: [&str; 4] = ["red", "blue", "green", "yellow"];
 
 use RunLog;
 
@@ -290,8 +292,9 @@ pub(crate) fn histogram(
     let max_count = bars.iter().flat_map(|b| b.iter()).max().unwrap();
     let unit_height = (height - 100) as f32 / *max_count as f32;
     let unit_width = width as f32 / (bars_number as f32 * 1.5);
-    let colors = ["red", "blue", "green", "yellow"];
-    for (algorithm_index, (counts, color)) in bars.iter().zip(colors.iter().cycle()).enumerate() {
+    for (algorithm_index, (counts, color)) in
+        bars.iter().zip(HISTOGRAM_COLORS.iter().cycle()).enumerate()
+    {
         for (index, &count) in counts.iter().enumerate() {
             if count != 0 {
                 write!(
