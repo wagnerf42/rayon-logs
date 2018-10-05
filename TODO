@@ -3,6 +3,13 @@
 - impl tree scan to avoid passing mutable slices everywhere and all extra vector copies in fork_join
 - add some genericity in logger to provides logging hooks
 - histograms are highly unstable for merge sort with sequential merge ??????
-- check why iterators advance contiguously
-- remove visualize function and add method to runlog
 - are fully inactive threads also displayed in idle times ?
+
+--- more important:
+- change colors: don't take min speed but smooth it (remove too exreme points ?, take work into account ?)
+    -> right now it just takes one good very small point to get dark colors everywhere
+
+- log viewer in opengl (to avoind the slow javascript and html animation "bugs" (if too small, not run))
+- move more of rayon into rayon-logs : par_split ?
+- rethink the iterator interface : should we log on inner most or outer most level ?
+- have an option to not display iterators like special tasks
