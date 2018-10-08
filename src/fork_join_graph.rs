@@ -1,6 +1,7 @@
 //! Store a trace as a fork join graph (in a vector).
 use {svg::Scene, svg::COLORS, Rectangle, TaskId, TaskLog};
 type BlockId = usize;
+use log::WorkType;
 use std::collections::HashMap;
 use std::iter::repeat;
 use RunLog;
@@ -191,12 +192,16 @@ where
 {
     let mut speeds: HashMap<usize, f64> = HashMap::new();
     for task in tasks {
-        if let Some((ref work_type, work_amount)) = task.work {
-            let speed = work_amount as f64 / (task.end_time as f64 - task.start_time as f64);
-            let existing_speed: f64 = speeds.get(work_type).cloned().unwrap_or(0.0);
-            if speed > existing_speed {
-                speeds.insert(*work_type, speed);
+        match task.work {
+            Some(WorkType::IteratorWork((ref work_type, work_amount)))
+            | Some(WorkType::SequentialWork((ref work_type, work_amount))) => {
+                let speed = work_amount as f64 / (task.end_time as f64 - task.start_time as f64);
+                let existing_speed: f64 = speeds.get(work_type).cloned().unwrap_or(0.0);
+                if speed > existing_speed {
+                    speeds.insert(*work_type, speed);
+                }
             }
+            _ => {}
         }
     }
     speeds
@@ -235,11 +240,13 @@ fn generate_visualisation(
         }),
         Block::Task(task_id, ref t) => {
             let duration = (t.end_time - t.start_time) as f64;
-            let opacity = if let Some((work_type, work_amount)) = t.work {
-                let speed = work_amount as f64 / duration;
-                let best_speed = speeds[&work_type];
-                let ratio = speed / best_speed;
-                scene.labels.push(format!(
+            let opacity = match t.work {
+                Some(WorkType::SequentialWork((ref work_type, work_amount)))
+                | Some(WorkType::IteratorWork((ref work_type, work_amount))) => {
+                    let speed = work_amount as f64 / duration;
+                    let best_speed = speeds[&work_type];
+                    let ratio = speed / best_speed;
+                    scene.labels.push(format!(
                     "task: {}, thread: {},\n duration: {} (ms),\n work: {},\n speed: {},\n type: {}",
                     task_id,
                     t.thread_id,
@@ -248,14 +255,16 @@ fn generate_visualisation(
                     ratio,
                     work_type
                 ));
-                (ratio * 2.0 / 3.0) + 1.0 / 3.0 // not too dark. so we rescale between 0.33 and 1.0
-            } else {
-                scene.labels.push(format!(
-                    "task: {}, duration: {} (ms)",
-                    task_id,
-                    (t.end_time - t.start_time) as f64 / 1_000_000.0,
-                ));
-                1.0
+                    (ratio * 2.0 / 3.0) + 1.0 / 3.0 // not too dark. so we rescale between 0.33 and 1.0
+                }
+                _ => {
+                    scene.labels.push(format!(
+                        "task: {}, duration: {} (ms)",
+                        task_id,
+                        (t.end_time - t.start_time) as f64 / 1_000_000.0,
+                    ));
+                    1.0
+                }
             };
             scene.rectangles.push(Rectangle::new(
                 COLORS[t.thread_id % COLORS.len()],
@@ -360,7 +369,8 @@ pub fn visualisation(log: &RunLog, speeds: Option<&HashMap<usize, f64>>) -> Scen
         .iter()
         .map(|(_, y)| y)
         .max_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap() + 1.0;
+        .unwrap()
+        + 1.0;
 
     let width = positions
         .iter()
