@@ -33,15 +33,16 @@ pub struct TaskLog {
     /// work field may identify the task to be of iterator type, sequential type or simply untagged
     /// task. In case it is tagged to be either of the above, it will contain an ordered pair that
     /// denotes the (id, amount of work done).
-    pub work: Option<WorkType>,
+    pub work: WorkInformation,
 }
 
-/// This enum allows to identify the type of work being carried out, which helps in computing only
-/// the relevant statistics and omit iterator based tasks for the statistics.
+/// For some tasks we know a work amount. We might know it from an iterator or from a user tag
+/// using `sequential_task`.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum WorkType {
+pub enum WorkInformation {
     IteratorWork((usize, usize)),
     SequentialWork((usize, usize)),
+    NoInformation,
 }
 
 /// Store information on all tasks and threads number.
@@ -71,8 +72,9 @@ impl RunLog {
                 end_time: 0,
                 thread_id: 0,
                 children: Vec::new(),
-                work: None,
-            }).collect();
+                work: WorkInformation::NoInformation,
+            })
+            .collect();
 
         let mut iterators_info: Vec<_> = (0..iterators_number).map(|_| Vec::new()).collect();
         let mut iterators_fathers = Vec::new();
@@ -139,8 +141,9 @@ impl RunLog {
                         0
                     };
                     tasks_info[task].children.push(continuing_task);
-                    tasks_info[task].work =
-                        part.map(|(s, e)| WorkType::IteratorWork((iterator, e - s)));
+                    tasks_info[task].work = part.map(|(s, e)| {
+                        WorkInformation::IteratorWork((iterator, e - s))
+                    }).unwrap_or(WorkInformation::NoInformation);
                     iterators_info[iterator].push((task, start));
                 }
                 RayonEvent::IteratorStart(iterator) => {
@@ -156,7 +159,7 @@ impl RunLog {
                 ) => {
                     tasks_info[sequential_task].children.push(continuation_task);
                     tasks_info[sequential_task].work =
-                        Some(WorkType::SequentialWork((work_type, work_amount)));
+                        WorkInformation::SequentialWork((work_type, work_amount));
                     if let Some(active_task) = active_tasks {
                         tasks_info[*active_task].children.push(sequential_task); //create direct links with children
 

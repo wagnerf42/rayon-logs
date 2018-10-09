@@ -2,7 +2,7 @@
 
 use fork_join_graph::compute_speeds;
 use itertools::repeat_call;
-use log::WorkType;
+use log::WorkInformation;
 use rayon;
 use rayon::FnContext;
 use std::cell::RefCell;
@@ -18,8 +18,7 @@ use time::precise_time_ns;
 use TaskId;
 use {fill_svg_file, visualisation};
 use {
-    svg::{histogram, HISTOGRAM_COLORS},
-    RayonEvent, RunLog,
+    svg::{histogram, HISTOGRAM_COLORS}, RayonEvent, RunLog,
 };
 
 /// We use an atomic usize to generate unique ids for tasks.
@@ -305,18 +304,15 @@ impl<'a> Comparator<'a> {
         write!(html_file, "</H2>")?;
         histogram(&mut html_file, &self.logs, 30)?;
         let number_of_threads = self.logs[0][0].threads_number as f64;
-        let mut total_times: Vec<f64> = self
-            .logs
+        let mut total_times: Vec<f64> = self.logs
             .iter()
             .map(|algorithm| algorithm.iter().map(|run| run.duration as f64).sum::<f64>())
             .collect::<Vec<_>>();
-        let mut median_times: Vec<f64> = self
-            .logs
+        let mut median_times: Vec<f64> = self.logs
             .iter()
             .map(|algorithm| algorithm[self.runs_number / 2].duration as f64)
             .collect::<Vec<_>>();
-        let mut sequential_time_sum: Vec<HashMap<usize, f64>> = self
-            .logs
+        let mut sequential_time_sum: Vec<HashMap<usize, f64>> = self.logs
             .iter()
             .map(|algorithm| {
                 algorithm
@@ -326,7 +322,7 @@ impl<'a> Comparator<'a> {
                             .iter()
                             .clone()
                             .for_each(|task| match task.work {
-                                Some(WorkType::SequentialWork((id, _))) => {
+                                WorkInformation::SequentialWork((id, _)) => {
                                     let mut duration = map.entry(id).or_insert(0 as f64);
                                     *duration += ((*task).end_time - (*task).start_time) as f64;
                                 }
@@ -334,9 +330,9 @@ impl<'a> Comparator<'a> {
                             });
                         map
                     })
-            }).collect::<Vec<_>>();
-        let mut sequential_time_median: Vec<HashMap<usize, f64>> = self
-            .logs
+            })
+            .collect::<Vec<_>>();
+        let mut sequential_time_median: Vec<HashMap<usize, f64>> = self.logs
             .iter()
             .map(|algorithm| {
                 let mut map: HashMap<usize, f64> = HashMap::new();
@@ -345,16 +341,16 @@ impl<'a> Comparator<'a> {
                     .iter()
                     .clone()
                     .for_each(|task| match task.work {
-                        Some(WorkType::SequentialWork((id, _))) => {
+                        WorkInformation::SequentialWork((id, _)) => {
                             let mut duration = map.entry(id).or_insert(0 as f64);
                             *duration += ((*task).end_time - (*task).start_time) as f64;
                         }
                         _ => {}
                     });
                 map
-            }).collect::<Vec<_>>();
-        let mut idle_time_sum: Vec<f64> = self
-            .logs
+            })
+            .collect::<Vec<_>>();
+        let mut idle_time_sum: Vec<f64> = self.logs
             .iter()
             .map(|algorithm| {
                 algorithm
@@ -364,12 +360,13 @@ impl<'a> Comparator<'a> {
                             .iter()
                             .map(|log| (log.end_time - log.start_time) as f64)
                             .sum::<f64>()
-                    }).sum::<f64>()
-            }).zip(total_times.iter())
+                    })
+                    .sum::<f64>()
+            })
+            .zip(total_times.iter())
             .map(|(compute_time, total_time)| (*total_time * number_of_threads) - compute_time)
             .collect::<Vec<_>>();
-        let mut idle_time_median: Vec<f64> = self
-            .logs
+        let mut idle_time_median: Vec<f64> = self.logs
             .iter()
             .map(|algorithm| {
                 algorithm[self.runs_number / 2]
@@ -377,7 +374,8 @@ impl<'a> Comparator<'a> {
                     .iter()
                     .map(|log| (log.end_time - log.start_time) as f64)
                     .sum::<f64>()
-            }).zip(median_times.iter())
+            })
+            .zip(median_times.iter())
             .map(|(compute_time, total_time)| (*total_time * number_of_threads) - compute_time)
             .collect::<Vec<_>>();
 
@@ -408,7 +406,8 @@ impl<'a> Comparator<'a> {
                 total_times
                     .iter()
                     .zip(sequential_time_sum.iter().zip(idle_time_sum.iter())),
-            ).for_each(|(name, (avg_time, (sequential_avg, idle_avg)))| {
+            )
+            .for_each(|(name, (avg_time, (sequential_avg, idle_avg)))| {
                 write!(
                     html_file,
                     "{} net average time: {} average times per task:{:?} idle times: {:?}<br>",
@@ -425,7 +424,8 @@ impl<'a> Comparator<'a> {
                 median_times
                     .iter()
                     .zip(sequential_time_median.iter().zip(idle_time_median.iter())),
-            ).for_each(|(name, (median_time, (sequential_median, idle_median)))| {
+            )
+            .for_each(|(name, (median_time, (sequential_median, idle_median)))| {
                 write!(
                     html_file,
                     "{} net median time: {} median times per task:{:?} idle times: {:?}<br>",

@@ -1,7 +1,7 @@
 //! Store a trace as a fork join graph (in a vector).
 use {svg::Scene, svg::COLORS, Rectangle, TaskId, TaskLog};
 type BlockId = usize;
-use log::WorkType;
+use log::WorkInformation;
 use std::collections::HashMap;
 use std::iter::repeat;
 use RunLog;
@@ -193,8 +193,8 @@ where
     let mut speeds: HashMap<usize, f64> = HashMap::new();
     for task in tasks {
         match task.work {
-            Some(WorkType::IteratorWork((ref work_type, work_amount)))
-            | Some(WorkType::SequentialWork((ref work_type, work_amount))) => {
+            WorkInformation::IteratorWork((ref work_type, work_amount))
+            | WorkInformation::SequentialWork((ref work_type, work_amount)) => {
                 let speed = work_amount as f64 / (task.end_time as f64 - task.start_time as f64);
                 let existing_speed: f64 = speeds.get(work_type).cloned().unwrap_or(0.0);
                 if speed > existing_speed {
@@ -218,8 +218,7 @@ fn generate_visualisation(
 ) -> (Vec<Point>, Vec<Point>) {
     match graph[index] {
         Block::Sequence(ref s) => {
-            let points: Vec<(Vec<Point>, Vec<Point>)> = s
-                .iter()
+            let points: Vec<(Vec<Point>, Vec<Point>)> = s.iter()
                 .map(|b| generate_visualisation(*b, graph, positions, speeds, scene))
                 .collect();
             scene.segments.extend(
@@ -241,8 +240,8 @@ fn generate_visualisation(
         Block::Task(task_id, ref t) => {
             let duration = (t.end_time - t.start_time) as f64;
             let opacity = match t.work {
-                Some(WorkType::SequentialWork((ref work_type, work_amount)))
-                | Some(WorkType::IteratorWork((ref work_type, work_amount))) => {
+                WorkInformation::SequentialWork((ref work_type, work_amount))
+                | WorkInformation::IteratorWork((ref work_type, work_amount)) => {
                     let speed = work_amount as f64 / duration;
                     let best_speed = speeds[&work_type];
                     let ratio = speed / best_speed;
@@ -369,8 +368,7 @@ pub fn visualisation(log: &RunLog, speeds: Option<&HashMap<usize, f64>>) -> Scen
         .iter()
         .map(|(_, y)| y)
         .max_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap()
-        + 1.0;
+        .unwrap() + 1.0;
 
     let width = positions
         .iter()
