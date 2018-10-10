@@ -36,6 +36,13 @@ pub struct TaskLog {
     pub work: WorkInformation,
 }
 
+impl TaskLog {
+    /// Return how much time it took to run this task.
+    pub fn duration(&self) -> u64 {
+        self.end_time - self.start_time
+    }
+}
+
 /// For some tasks we know a work amount. We might know it from an iterator or from a user tag
 /// using `sequential_task`.
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -73,8 +80,7 @@ impl RunLog {
                 thread_id: 0,
                 children: Vec::new(),
                 work: WorkInformation::NoInformation,
-            })
-            .collect();
+            }).collect();
 
         let mut iterators_info: Vec<_> = (0..iterators_number).map(|_| Vec::new()).collect();
         let mut iterators_fathers = Vec::new();
@@ -141,9 +147,9 @@ impl RunLog {
                         0
                     };
                     tasks_info[task].children.push(continuing_task);
-                    tasks_info[task].work = part.map(|(s, e)| {
-                        WorkInformation::IteratorWork((iterator, e - s))
-                    }).unwrap_or(WorkInformation::NoInformation);
+                    tasks_info[task].work = part
+                        .map(|(s, e)| WorkInformation::IteratorWork((iterator, e - s)))
+                        .unwrap_or(WorkInformation::NoInformation);
                     iterators_info[iterator].push((task, start));
                 }
                 RayonEvent::IteratorStart(iterator) => {

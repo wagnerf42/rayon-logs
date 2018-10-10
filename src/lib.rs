@@ -21,6 +21,9 @@ mod builder;
 pub mod prelude;
 pub use builder::ThreadPoolBuilder;
 
+mod stats;
+pub use stats::Stats;
+
 mod fork_join_graph;
 pub use fork_join_graph::visualisation;
 pub(crate) mod svg;

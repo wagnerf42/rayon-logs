@@ -2,9 +2,10 @@
 
 use fork_join_graph::compute_speeds;
 use itertools::repeat_call;
-use log::WorkInformation;
+use itertools::Itertools;
 use rayon;
 use rayon::FnContext;
+use stats::Stats;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::File;
@@ -18,7 +19,8 @@ use time::precise_time_ns;
 use TaskId;
 use {fill_svg_file, visualisation};
 use {
-    svg::{histogram, HISTOGRAM_COLORS}, RayonEvent, RunLog,
+    svg::{histogram, HISTOGRAM_COLORS},
+    RayonEvent, RunLog,
 };
 
 /// We use an atomic usize to generate unique ids for tasks.
@@ -181,31 +183,6 @@ impl ThreadPool {
         (r, log)
     }
 
-    //    ///This function will time the setup and give the output of the setup function to the actual
-    //    ///algorithm.
-    //    pub fn install_with_setup<S, OP, R>(&self, setup_function: S, algorithm:OP) -> (R, RunLog)
-    //    where S: Fn()->T, OP:FnOnce(T)->R,
-    //    {
-    //        self.reset();
-    //        let id = next_task_id();
-    //        let c = || {
-    //            log(RayonEvent::TaskStart(id, precise_time_ns()));
-    //            let inp = setup_function();
-    //            let result = op();
-    //            log(RayonEvent::TaskEnd(precise_time_ns()));
-    //            result
-    //        };
-    //        let start = precise_time_ns();
-    //        let r = self.pool.install(c);
-    //        let log = RunLog::new(
-    //            NEXT_TASK_ID.load(Ordering::Relaxed),
-    //            NEXT_ITERATOR_ID.load(Ordering::Relaxed),
-    //            &*self.logs.lock().unwrap(),
-    //            start,
-    //        );
-    //        (r, log)
-    //    }
-
     ///This function simply returns a comparator that allows us to add algorithms for comparison.
     pub fn compare(&self) -> Comparator {
         Comparator {
@@ -304,134 +281,50 @@ impl<'a> Comparator<'a> {
         write!(html_file, "</H2>")?;
         histogram(&mut html_file, &self.logs, 30)?;
         let number_of_threads = self.logs[0][0].threads_number as f64;
-        let mut total_times: Vec<f64> = self.logs
-            .iter()
-            .map(|algorithm| algorithm.iter().map(|run| run.duration as f64).sum::<f64>())
-            .collect::<Vec<_>>();
-        let mut median_times: Vec<f64> = self.logs
-            .iter()
-            .map(|algorithm| algorithm[self.runs_number / 2].duration as f64)
-            .collect::<Vec<_>>();
-        let mut sequential_time_sum: Vec<HashMap<usize, f64>> = self.logs
-            .iter()
-            .map(|algorithm| {
-                algorithm
-                    .iter()
-                    .fold(HashMap::new(), |mut map: HashMap<usize, f64>, run| {
-                        run.tasks_logs
-                            .iter()
-                            .clone()
-                            .for_each(|task| match task.work {
-                                WorkInformation::SequentialWork((id, _)) => {
-                                    let mut duration = map.entry(id).or_insert(0 as f64);
-                                    *duration += ((*task).end_time - (*task).start_time) as f64;
-                                }
-                                _ => {}
-                            });
-                        map
-                    })
-            })
-            .collect::<Vec<_>>();
-        let mut sequential_time_median: Vec<HashMap<usize, f64>> = self.logs
-            .iter()
-            .map(|algorithm| {
-                let mut map: HashMap<usize, f64> = HashMap::new();
-                algorithm[self.runs_number / 2]
-                    .tasks_logs
-                    .iter()
-                    .clone()
-                    .for_each(|task| match task.work {
-                        WorkInformation::SequentialWork((id, _)) => {
-                            let mut duration = map.entry(id).or_insert(0 as f64);
-                            *duration += ((*task).end_time - (*task).start_time) as f64;
-                        }
-                        _ => {}
-                    });
-                map
-            })
-            .collect::<Vec<_>>();
-        let mut idle_time_sum: Vec<f64> = self.logs
-            .iter()
-            .map(|algorithm| {
-                algorithm
-                    .iter()
-                    .map(|run| {
-                        run.tasks_logs
-                            .iter()
-                            .map(|log| (log.end_time - log.start_time) as f64)
-                            .sum::<f64>()
-                    })
-                    .sum::<f64>()
-            })
-            .zip(total_times.iter())
-            .map(|(compute_time, total_time)| (*total_time * number_of_threads) - compute_time)
-            .collect::<Vec<_>>();
-        let mut idle_time_median: Vec<f64> = self.logs
-            .iter()
-            .map(|algorithm| {
-                algorithm[self.runs_number / 2]
-                    .tasks_logs
-                    .iter()
-                    .map(|log| (log.end_time - log.start_time) as f64)
-                    .sum::<f64>()
-            })
-            .zip(median_times.iter())
-            .map(|(compute_time, total_time)| (*total_time * number_of_threads) - compute_time)
-            .collect::<Vec<_>>();
-
-        //normalisation for the statistics
-        sequential_time_sum.iter_mut().for_each(|algo| {
-            algo.values_mut()
-                .for_each(|time| *time /= 1e6 * self.runs_number as f64 * number_of_threads)
-        });
-        sequential_time_median.iter_mut().for_each(|algo| {
-            algo.values_mut()
-                .for_each(|time| *time /= 1e6 * number_of_threads)
-        });
-        total_times
-            .iter_mut()
-            .for_each(|time| *time /= 1e6 * self.runs_number as f64);
-        median_times.iter_mut().for_each(|time| *time /= 1e6);
-        idle_time_sum
-            .iter_mut()
-            .for_each(|time| *time /= 1e6 * self.runs_number as f64 * number_of_threads);
-        idle_time_median
-            .iter_mut()
-            .for_each(|time| *time /= 1e6 * number_of_threads);
-
-        write!(html_file, "<H2> The (per-thread) Mean statistics are</H2>");
-        self.labels
-            .iter()
-            .zip(
-                total_times
-                    .iter()
-                    .zip(sequential_time_sum.iter().zip(idle_time_sum.iter())),
-            )
-            .for_each(|(name, (avg_time, (sequential_avg, idle_avg)))| {
-                write!(
-                    html_file,
-                    "{} net average time: {} average times per task:{:?} idle times: {:?}<br>",
-                    name, avg_time, sequential_avg, idle_avg
-                );
-            });
+        let statistics =
+            Stats::get_statistics(&self.logs, number_of_threads, self.runs_number as f64);
+        write!(html_file, "<H2> The Mean statistics are</H2>")?;
         write!(
             html_file,
-            "<H2> The (per-thread) Median statistics are</H2>"
-        );
-        self.labels
-            .iter()
-            .zip(
-                median_times
-                    .iter()
-                    .zip(sequential_time_median.iter().zip(idle_time_median.iter())),
-            )
-            .for_each(|(name, (median_time, (sequential_median, idle_median)))| {
-                write!(
-                    html_file,
-                    "{} net median time: {} median times per task:{:?} idle times: {:?}<br>",
-                    name, median_time, sequential_median, idle_median
-                );
-            });
+            "<table><tr><th>algorithm</th><th>net time</th><th>sequential times</th><th>idle time</th></tr>",
+        )?;
+        izip!(
+            self.labels.iter(),
+            statistics.total_times(),
+            statistics.sequential_times(),
+            statistics.idle_times()
+        ).for_each(|(name, total_time, sequential_times, idle_time)| {
+            write!(
+                html_file,
+                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                name,
+                total_time,
+                compute_sequential_times_string(&sequential_times),
+                idle_time
+            );
+        });
+        write!(html_file, "</table>",)?;
+        write!(html_file, "<H2> The Median statistics are</H2>");
+        write!(
+            html_file,
+            "<table><tr><th>algorithm</th><th>net time</th><th>sequential times</th><th>idle time</th></tr>",
+        )?;
+        izip!(
+            self.labels.iter(),
+            statistics.total_times_median(),
+            statistics.sequential_times_median(),
+            statistics.idle_times_median()
+        ).for_each(|(name, total_time, sequential_times, idle_time)| {
+            write!(
+                html_file,
+                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                name,
+                total_time,
+                compute_sequential_times_string(&sequential_times),
+                idle_time
+            );
+        });
+        write!(html_file, "</table>",)?;
         write!(html_file, "<H2>Comparing median runs</H2>")?;
         let median_index = (self.runs_number) / 2;
         let speeds = compute_speeds(
@@ -456,4 +349,12 @@ impl<'a> Comparator<'a> {
         write!(html_file, "</body></html>")?;
         Ok(())
     }
+}
+
+fn compute_sequential_times_string(times: &HashMap<usize, f64>) -> String {
+    let mut keys: Vec<usize> = times.keys().cloned().collect();
+    keys.sort_unstable();
+    keys.iter()
+        .map(|key| format!("{}:{}", key, times[key]))
+        .join(", ")
 }
