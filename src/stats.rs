@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 /// This struct mainly supplies the methods that can be used to get various statistics.
 pub struct Stats<'a> {
-    logs: &'a Vec<Vec<RunLog>>,
+    logs: &'a [<Vec<RunLog>],
     threads_number: f64,
     runs_number: f64,
 }
@@ -62,13 +62,12 @@ impl<'l> Stats<'l> {
                 algorithm
                     .iter()
                     .fold(HashMap::new(), |mut map: HashMap<usize, f64>, run| {
-                        run.tasks_logs.iter().for_each(|task| match task.work {
-                            WorkInformation::SequentialWork((id, _)) => {
-                                let mut duration = map.entry(id).or_insert(0 as f64);
+                        run.tasks_logs.iter().for_each(|task|
+                            if let WorkInformation::SequentialWork((id, _)) = task.work {
+                                let mut duration = map.entry(id).or_insert(0.0);
                                 *duration += task.duration() as f64;
                             }
-                            _ => {}
-                        });
+                        );
                         map
                     });
             sequential_times
@@ -95,13 +94,12 @@ impl<'l> Stats<'l> {
                 .tasks_logs
                 .iter()
                 .clone()
-                .for_each(|task| match task.work {
-                    WorkInformation::SequentialWork((id, _)) => {
-                        let mut duration = map.entry(id).or_insert(0 as f64);
+                .for_each(|task|
+                    if let WorkInformation::SequentialWork((id, _)) = task.work {
+                        let mut duration = map.entry(id).or_insert(0.0);
                         *duration += (task.duration()) as f64;
                     }
-                    _ => {}
-                });
+                );
             map.values_mut().for_each(|time| *time /= 1e6);
             map
         })
