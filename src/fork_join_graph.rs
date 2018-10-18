@@ -206,6 +206,35 @@ where
     }
     speeds
 }
+/// This function computes absolute average speed for a given set of tasks.
+pub fn compute_avg_speeds<'a, I>(tasks: I, task_type: u64, best_speeds: &HashMap<usize, f64>) -> f64
+where
+    I: IntoIterator<Item = &'a TaskLog>,
+{
+    let mut count = 0;
+
+    let sum = tasks
+        .into_iter()
+        .map(|task| match task.work {
+            WorkInformation::IteratorWork((ref work_type, work_amount))
+            | WorkInformation::SequentialWork((ref work_type, work_amount)) => {
+                if *work_type as u64 == task_type {
+                    count += work_amount;
+                    ((work_amount as f64 / (task.end_time as f64 - task.start_time as f64))
+                        / best_speeds[work_type])
+                        * work_amount as f64
+                } else {
+                    0 as f64
+                }
+            }
+            _ => 0 as f64,
+        }).sum::<f64>();
+    if count == 0 {
+        0 as f64
+    } else {
+        sum / count as f64
+    }
+}
 
 /// Take a block ; fill its rectangles and edges and return a set of entry points for incoming edges
 /// and a set of exit points for outgoing edges.
@@ -218,7 +247,8 @@ fn generate_visualisation(
 ) -> (Vec<Point>, Vec<Point>) {
     match graph[index] {
         Block::Sequence(ref s) => {
-            let points: Vec<(Vec<Point>, Vec<Point>)> = s.iter()
+            let points: Vec<(Vec<Point>, Vec<Point>)> = s
+                .iter()
                 .map(|b| generate_visualisation(*b, graph, positions, speeds, scene))
                 .collect();
             scene.segments.extend(
@@ -368,7 +398,8 @@ pub fn visualisation(log: &RunLog, speeds: Option<&HashMap<usize, f64>>) -> Scen
         .iter()
         .map(|(_, y)| y)
         .max_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap() + 1.0;
+        .unwrap()
+        + 1.0;
 
     let width = positions
         .iter()

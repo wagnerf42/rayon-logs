@@ -1,5 +1,6 @@
 //! `LoggedPool` structure for logging raw tasks events.
 
+use fork_join_graph::compute_avg_speeds;
 use fork_join_graph::compute_speeds;
 use itertools::repeat_call;
 use itertools::Itertools;
@@ -337,7 +338,17 @@ impl<'a> Comparator<'a> {
             fill_svg_file(&scene, &mut html_file)?;
             writeln!(html_file, "<p>")?;
         }
-
+        self.logs
+            .iter()
+            .zip(self.labels.iter())
+            .for_each(|(algorithm, name)| {
+                write!(
+                    html_file,
+                    "The average speeds for median run of {} are {}<br>",
+                    name,
+                    compute_avg_speeds(&algorithm[median_index].tasks_logs, 0, &speeds)
+                ).expect("avg speeds failed");
+            });
         write!(html_file, "<H2>Comparing best runs</H2>")?;
         let speeds = compute_speeds(self.logs.iter().flat_map(|row| &row[0].tasks_logs));
         for log in &self.logs {
@@ -345,7 +356,17 @@ impl<'a> Comparator<'a> {
             fill_svg_file(&scene, &mut html_file)?;
             writeln!(html_file, "<p>")?;
         }
-
+        self.logs
+            .iter()
+            .zip(self.labels.iter())
+            .for_each(|(algorithm, name)| {
+                write!(
+                    html_file,
+                    "The average speeds for best run of {} are {}<br>",
+                    name,
+                    compute_avg_speeds(&algorithm[0].tasks_logs, 0, &speeds)
+                ).expect("avg speeds failed");
+            });
         write!(html_file, "</body></html>")?;
         Ok(())
     }
