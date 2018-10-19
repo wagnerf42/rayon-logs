@@ -71,6 +71,7 @@ impl ThreadPoolBuilder {
                 });
                 if bind {
                     binder(thread_id, &topo);
+                    bind_main_thread(&topo);
                 }
             }).build();
 
@@ -78,10 +79,10 @@ impl ThreadPoolBuilder {
     }
 }
 
-fn binder(thread_id: usize, topo: &Mutex<Topology>) {
+fn bind_main_thread(topo: &Mutex<Topology>) {
     let pthread_id = get_thread_id();
     let mut locked_topo = topo.lock().unwrap();
-    let mut bind_to = cpuset_for_core(&locked_topo, thread_id);
+    let mut bind_to = cpuset_for_core(&locked_topo, 0);
     bind_to.singlify();
     println!("binding {} to {}", pthread_id, bind_to);
     locked_topo
@@ -89,5 +90,19 @@ fn binder(thread_id: usize, topo: &Mutex<Topology>) {
         .unwrap();
     println!("binding done");
     let after = locked_topo.get_cpubind_for_thread(pthread_id, CPUBIND_THREAD);
-    println!("Thread {}, bind to {:?}", thread_id, after);
+    println!("Thread {}, bind to {:?}", 0, after);
+}
+
+fn binder(thread_id: usize, topo: &Mutex<Topology>) {
+    let pthread_id = get_thread_id();
+    let mut locked_topo = topo.lock().unwrap();
+    let mut bind_to = cpuset_for_core(&locked_topo, thread_id + 1);
+    bind_to.singlify();
+    println!("binding {} to {}", pthread_id, bind_to);
+    locked_topo
+        .set_cpubind_for_thread(pthread_id, bind_to, CPUBIND_THREAD)
+        .unwrap();
+    println!("binding done");
+    let after = locked_topo.get_cpubind_for_thread(pthread_id, CPUBIND_THREAD);
+    println!("Thread {}, bind to {:?}", thread_id + 1, after);
 }
