@@ -61,6 +61,9 @@ impl ThreadPoolBuilder {
         let shared_logs = logs.clone();
         let topo = Mutex::new(Topology::new());
         let bind = self.bind_to_core;
+        if bind {
+            bind_main_thread(&topo);
+        }
         let pool = self
             .builder
             .start_handler(move |thread_id| {
@@ -71,7 +74,6 @@ impl ThreadPoolBuilder {
                 });
                 if bind {
                     binder(thread_id, &topo);
-                    bind_main_thread(&topo);
                 }
             }).build();
 
