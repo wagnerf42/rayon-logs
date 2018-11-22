@@ -17,7 +17,7 @@ pub struct Logged<I: ParallelIterator> {
 
 impl<I: ParallelIterator> Logged<I> {
     /// Create a new `Logged` iterator.
-    pub(crate) fn new(base: I) -> Logged<I>
+    pub fn new(base: I) -> Logged<I>
     where
         I: ParallelIterator,
     {
