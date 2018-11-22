@@ -58,13 +58,12 @@ where
     log(RayonEvent::SequentialTask(
         sequential_task_id,
         continuation_task_id,
-        work_type,
-        work_amount,
     ));
     // end current task
     log(RayonEvent::TaskEnd(precise_time_ns()));
     // execute full sequential task
     log(RayonEvent::TaskStart(sequential_task_id, precise_time_ns()));
+    log(RayonEvent::Tag(work_type, work_amount));
     let r = op();
     log(RayonEvent::TaskEnd(precise_time_ns()));
 

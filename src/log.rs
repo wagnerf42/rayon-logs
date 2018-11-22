@@ -157,15 +157,16 @@ impl RunLog {
                         iterators_fathers.push((iterator, *active_task));
                     }
                 }
-                RayonEvent::SequentialTask(
-                    sequential_task,
-                    continuation_task,
-                    work_type,
-                    work_amount,
-                ) => {
-                    tasks_info[sequential_task].children.push(continuation_task);
-                    tasks_info[sequential_task].work =
-                        WorkInformation::SequentialWork((work_type, work_amount));
+                RayonEvent::Tag(work_type, work_amount) => {
+                    if let Some(active_task) = active_tasks {
+                        tasks_info[*active_task].work =
+                            WorkInformation::SequentialWork((work_type, work_amount));
+                    } else {
+                        panic!("tagging a non existing task");
+                    }
+                }
+                RayonEvent::SequentialTask(sequential_task, continuation_task) => {
+                    dag_children.insert(sequential_task, continuation_task);
                     if let Some(active_task) = active_tasks {
                         tasks_info[*active_task].children.push(sequential_task); //create direct links with children
 

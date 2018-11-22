@@ -37,14 +37,16 @@ where
         C: UnindexedConsumer<Self::Item>,
     {
         let continuing_task_id = next_task_id();
+        let consumer_id = next_task_id();
         let iterator_id = next_iterator_id();
         let consumer1 = LoggedConsumer {
             base: consumer,
             part: self.base.opt_len().map(|l| (0, l)),
             iterator_id,
-            continuing_task_id,
+            consumer_id,
         };
-        log(RayonEvent::IteratorStart(consumer1.iterator_id));
+        //log(RayonEvent::IteratorStart(consumer1.iterator_id));
+        log(RayonEvent::SequentialTask(consumer_id, continuing_task_id));
         log(RayonEvent::TaskEnd(precise_time_ns()));
         let r = self.base.drive_unindexed(consumer1);
         log(RayonEvent::TaskStart(continuing_task_id, precise_time_ns()));
@@ -67,14 +69,16 @@ where
     {
         let part = Some((0, self.base.len()));
         let continuing_task_id = next_task_id();
+        let consumer_id = next_task_id();
         let iterator_id = next_iterator_id();
         let consumer1 = LoggedConsumer {
             base: consumer,
             part,
             iterator_id,
-            continuing_task_id,
+            consumer_id,
         };
-        log(RayonEvent::IteratorStart(consumer1.iterator_id));
+        //log(RayonEvent::IteratorStart(consumer1.iterator_id));
+        log(RayonEvent::SequentialTask(consumer_id, continuing_task_id));
         log(RayonEvent::TaskEnd(precise_time_ns()));
         let r = self.base.drive(consumer1);
         log(RayonEvent::TaskStart(continuing_task_id, precise_time_ns()));
@@ -162,8 +166,7 @@ struct LoggedConsumer<C> {
     base: C,
     part: Option<(usize, usize)>,
     iterator_id: IteratorId,
-    /// which task comes after the iterator finishes (to mark dependencies)
-    continuing_task_id: TaskId,
+    consumer_id: TaskId,
 }
 
 impl<T, C> Consumer<T> for LoggedConsumer<C>
@@ -172,44 +175,56 @@ where
     T: Send,
 {
     type Folder = LoggedFolder<C::Folder>;
-    type Reducer = C::Reducer;
+    type Reducer = LoggedReducer<C::Reducer>;
     type Result = C::Result;
 
     fn split_at(self, index: usize) -> (Self, Self, Self::Reducer) {
+        let consumer_id_1 = next_task_id();
+        let consumer_id_2 = next_task_id();
+        let continuing_reducer_id = next_task_id();
+        log(RayonEvent::TaskStart(self.consumer_id, precise_time_ns()));
+        log(RayonEvent::Join(
+            consumer_id_1,
+            consumer_id_2,
+            continuing_reducer_id,
+        ));
         let (left, right, reducer) = self.base.split_at(index);
         let left_part = self.part.map(|(s, _)| (s, s + index));
         let right_part = self.part.map(|(s, e)| (s + index, e));
-        (
+        let r = (
             LoggedConsumer {
                 base: left,
                 part: left_part,
                 iterator_id: self.iterator_id,
-                continuing_task_id: self.continuing_task_id,
+                consumer_id: consumer_id_1,
             },
             LoggedConsumer {
                 base: right,
                 part: right_part,
                 iterator_id: self.iterator_id,
-                continuing_task_id: self.continuing_task_id,
+                consumer_id: consumer_id_2,
             },
-            reducer,
-        )
+            LoggedReducer {
+                rayon_reducer: reducer,
+                id: continuing_reducer_id,
+            },
+        );
+        log(RayonEvent::TaskEnd(precise_time_ns()));
+        r
     }
 
     fn into_folder(self) -> LoggedFolder<C::Folder> {
-        let id = next_task_id();
-
-        log(RayonEvent::TaskStart(id, precise_time_ns()));
-        log(RayonEvent::IteratorTask(
-            id,
-            self.iterator_id,
-            self.part,
-            self.continuing_task_id,
-        ));
+        log(RayonEvent::TaskStart(self.consumer_id, precise_time_ns()));
+        //log(RayonEvent::IteratorTask(
+        //    self.consumer_id,
+        //    self.iterator_id,
+        //    self.part,
+        //    continuing_id,
+        //));
 
         LoggedFolder {
             base: self.base.into_folder(),
-            id,
+            //id: self.consumer_id,
         }
     }
 
@@ -224,16 +239,26 @@ where
     T: Send,
 {
     fn split_off_left(&self) -> Self {
-        LoggedConsumer {
+        let split_task_id = next_task_id();
+        log(RayonEvent::TaskStart(split_task_id, precise_time_ns()));
+        let consumer_id = next_task_id();
+        //log(RayonEvent::Join(id, second_id, self.continuing_task_id));
+        let r = LoggedConsumer {
             base: self.base.split_off_left(),
             part: None,
             iterator_id: self.iterator_id,
-            continuing_task_id: self.continuing_task_id,
-        }
+            consumer_id,
+        };
+        log(RayonEvent::TaskEnd(precise_time_ns()));
+        r
     }
-
-    fn to_reducer(&self) -> Self::Reducer {
-        self.base.to_reducer()
+    //TODO [ASK] if this can be called multiple times?
+    fn to_reducer(&self) -> LoggedReducer<C::Reducer> {
+        let reducer_id = next_task_id();
+        LoggedReducer {
+            rayon_reducer: self.base.to_reducer(),
+            id: reducer_id, //TODO [TRY] replace this with a new id.
+        }
     }
 }
 
@@ -242,7 +267,7 @@ where
 
 struct LoggedFolder<F> {
     base: F,
-    id: TaskId,
+    //id: TaskId, //TODO [ASK] why does folder need an ID??
 }
 
 impl<T, F> Folder<T> for LoggedFolder<F>
@@ -255,7 +280,7 @@ where
     fn consume(self, item: T) -> Self {
         LoggedFolder {
             base: self.base.consume(item),
-            id: self.id,
+            //id: self.id,
         }
     }
 
@@ -267,5 +292,25 @@ where
 
     fn full(&self) -> bool {
         self.base.full()
+    }
+}
+
+/// Logged Reducer struct implementation.
+
+struct LoggedReducer<R> {
+    rayon_reducer: R,
+    id: TaskId,
+}
+
+impl<T, R> Reducer<T> for LoggedReducer<R>
+where
+    R: Reducer<T>,
+    T: Send,
+{
+    fn reduce(self, left: T, right: T) -> T {
+        log(RayonEvent::TaskStart(self.id, precise_time_ns()));
+        let r = self.rayon_reducer.reduce(left, right);
+        log(RayonEvent::TaskEnd(precise_time_ns()));
+        r
     }
 }

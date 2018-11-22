@@ -51,8 +51,10 @@ enum RayonEvent {
     /// Who starts a new iterator.
     IteratorStart(IteratorId),
     /// We have a sequential task (child).
-    /// id is of child and grand child. We have a work type and work amount.
-    SequentialTask(TaskId, TaskId, usize, usize),
+    /// id is of child and grand child.
+    SequentialTask(TaskId, TaskId),
+    /// Tag a task with work and type.
+    Tag(usize, usize),
 }
 
 impl RayonEvent {
