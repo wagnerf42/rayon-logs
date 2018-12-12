@@ -288,12 +288,12 @@ impl<'a> Comparator<'a> {
             html_file,
             "<table><tr><th>algorithm</th><th>net time</th><th>sequential times</th><th>idle time</th></tr>",
         )?;
-        izip!(
+        for (name, total_time, sequential_times, idle_time) in izip!(
             self.labels.iter(),
             statistics.total_times(),
             statistics.sequential_times(),
             statistics.idle_times()
-        ).for_each(|(name, total_time, sequential_times, idle_time)| {
+        ) {
             write!(
                 html_file,
                 "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
@@ -301,20 +301,20 @@ impl<'a> Comparator<'a> {
                 total_time,
                 compute_sequential_times_string(&sequential_times),
                 idle_time
-            );
-        });
+            )?;
+        }
         write!(html_file, "</table>",)?;
-        write!(html_file, "<H2> The Median statistics are</H2>");
+        write!(html_file, "<H2> The Median statistics are</H2>")?;
         write!(
             html_file,
             "<table><tr><th>algorithm</th><th>net time</th><th>sequential times</th><th>idle time</th></tr>",
         )?;
-        izip!(
+        for (name, total_time, sequential_times, idle_time) in izip!(
             self.labels.iter(),
             statistics.total_times_median(),
             statistics.sequential_times_median(),
             statistics.idle_times_median()
-        ).for_each(|(name, total_time, sequential_times, idle_time)| {
+        ) {
             write!(
                 html_file,
                 "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
@@ -322,8 +322,8 @@ impl<'a> Comparator<'a> {
                 total_time,
                 compute_sequential_times_string(&sequential_times),
                 idle_time
-            );
-        });
+            )?;
+        }
         write!(html_file, "</table>",)?;
         write!(html_file, "<H2>Comparing median runs</H2>")?;
         let median_index = (self.runs_number) / 2;
@@ -346,7 +346,8 @@ impl<'a> Comparator<'a> {
                     "The average speeds for median run of {} are {}<br>",
                     name,
                     compute_avg_speeds(&algorithm[median_index].tasks_logs, 0, &speeds)
-                ).expect("avg speeds failed");
+                )
+                .expect("avg speeds failed");
             });
         write!(html_file, "<H2>Comparing best runs</H2>")?;
         let speeds = compute_speeds(self.logs.iter().flat_map(|row| &row[0].tasks_logs));
@@ -364,7 +365,8 @@ impl<'a> Comparator<'a> {
                     "The average speeds for best run of {} are {}<br>",
                     name,
                     compute_avg_speeds(&algorithm[0].tasks_logs, 0, &speeds)
-                ).expect("avg speeds failed");
+                )
+                .expect("avg speeds failed");
             });
         write!(html_file, "</body></html>")?;
         Ok(())

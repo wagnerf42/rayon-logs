@@ -20,6 +20,7 @@ pub use pool::{join, join_context, sequential_task, ThreadPool};
 mod builder;
 pub mod prelude;
 pub use builder::ThreadPoolBuilder;
+pub use rayon::current_num_threads;
 
 mod stats;
 pub use stats::Stats;
