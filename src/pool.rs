@@ -2,7 +2,6 @@
 
 use fork_join_graph::compute_avg_speeds;
 use fork_join_graph::compute_speeds;
-use itertools::repeat_call;
 use itertools::Itertools;
 use rayon;
 use rayon::FnContext;
@@ -12,6 +11,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Error;
+use std::iter::repeat_with;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 use std::sync::{Arc, Mutex};
@@ -214,7 +214,7 @@ impl<'a> Comparator<'a> {
 
     fn record_experiments<F: FnMut() -> RunLog>(&self, run_function: F) -> Vec<RunLog> {
         let mut experiments_logs: Vec<_> =
-            repeat_call(run_function).take(self.runs_number).collect();
+            repeat_with(run_function).take(self.runs_number).collect();
         experiments_logs.sort_unstable_by_key(|run| run.duration);
         experiments_logs
     }

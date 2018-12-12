@@ -1,10 +1,10 @@
 //! Small module with display related functions.
 
-use itertools::repeat_call;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Error;
 use std::iter::repeat;
+use std::iter::repeat_with;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 
@@ -266,7 +266,7 @@ pub(crate) fn histogram(
         .unwrap();
 
     // lets compute how many durations go in each bar
-    let mut bars: Vec<Vec<usize>> = repeat_call(|| repeat(0).take(bars_number).collect())
+    let mut bars: Vec<Vec<usize>> = repeat_with(|| repeat(0).take(bars_number).collect())
         .take(logs.len())
         .collect();
     let slot = (max_duration - min_duration) / bars_number as u64;
