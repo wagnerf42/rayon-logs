@@ -6,13 +6,9 @@ use std::io::Error;
 use std::iter::repeat;
 use std::iter::repeat_with;
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 
-/// we need to count how many files we create because several svgs
-/// can end up on the same webpage, each one having its javascript.
-static FILES_COUNT: AtomicUsize = ATOMIC_USIZE_INIT;
 /// all svg colors names used for histograms displays
-pub const HISTOGRAM_COLORS: [&str; 4] = ["red", "blue", "green", "yellow"];
+pub const HISTOGRAM_COLORS: [&str; 6] = ["red", "blue", "green", "yellow", "purple", "brown"];
 
 use RunLog;
 
@@ -132,7 +128,7 @@ pub fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
     let xscale = f64::from(svg_width) / (xmax - xmin);
     let yscale = f64::from(svg_height) / (ymax - ymin);
 
-    let file_count = FILES_COUNT.fetch_add(1, Ordering::SeqCst);
+    let random_id: usize = rand::random();
 
     // Header
     writeln!(
@@ -170,7 +166,7 @@ pub fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
             "<rect class=\"task{}\" x=\"{}\" y=\"{}\" width=\"0\" height=\"{}\" fill=\"rgba({},{},{},{})\">
 <animate attributeType=\"XML\" attributeName=\"width\" from=\"0\" to=\"{}\" begin=\"{}s\" dur=\"{}s\" fill=\"freeze\"/>
 </rect>",
-        file_count,
+        random_id,
         (rectangle.x-xmin)*xscale,
         (rectangle.y-ymin)*yscale,
         rectangle.height*yscale,
@@ -187,7 +183,7 @@ pub fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
     for (index, (rectangle, label)) in scene.rectangles.iter().zip(scene.labels.iter()).enumerate()
     {
         // now the box for the tooltip
-        writeln!(file, "<g id=\"tip_{}_{}\">", file_count, index)?;
+        writeln!(file, "<g id=\"tip_{}_{}\">", random_id, index)?;
         let x = (rectangle.x - xmin) * xscale;
         let mut y = (rectangle.y - ymin) * yscale + 40.0;
         if y > (svg_height / 2) as f64 {
@@ -241,7 +237,7 @@ pub fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
     }}
   ]]></script>
 ",
-        file_count, file_count,
+        random_id, random_id,
     )?;
 
     write!(file, "</svg>")?;
