@@ -148,6 +148,19 @@ pub fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
             (end.1 - xmin) * yscale
         )?;
     }
+    let min_time = scene
+        .rectangles
+        .iter()
+        .map(|r| r.animation.unwrap().0)
+        .min()
+        .unwrap();
+    let max_time = scene
+        .rectangles
+        .iter()
+        .map(|r| r.animation.unwrap().1)
+        .max()
+        .unwrap();
+    let total_time = max_time - min_time;
 
     for rectangle in &scene.rectangles {
         // first a black rectangle
@@ -175,8 +188,8 @@ pub fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
         (rectangle.color[2] * 255.0) as u32,
         rectangle.opacity,
         rectangle.width*xscale,
-        start_time as f64 / 1_000_000.0,
-        (end_time - start_time) as f64 / 1_000_000.0,
+        ((start_time-min_time)*60) as f64 / total_time as f64,
+        ((end_time - start_time)*60) as f64 / total_time as f64,
         )?;
     }
 
