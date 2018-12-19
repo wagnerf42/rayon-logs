@@ -190,6 +190,7 @@ impl ThreadPool {
             logs: Vec::new(),
             pool: self,
             runs_number: 100,
+            display_preferences: Vec::new(),
         }
     }
 }
@@ -199,6 +200,7 @@ pub struct Comparator<'a> {
     logs: Vec<Vec<RunLog>>,
     pool: &'a ThreadPool,
     runs_number: usize,
+    display_preferences: Vec<bool>,
 }
 
 impl<'a> Comparator<'a> {
@@ -209,6 +211,7 @@ impl<'a> Comparator<'a> {
             logs: self.logs,
             pool: self.pool,
             runs_number: runs_wanted,
+            display_preferences: self.display_preferences,
         }
     }
 
@@ -239,6 +242,7 @@ impl<'a> Comparator<'a> {
         label: STR,
         mut setup_function: S,
         algorithm: A,
+        svg: bool,
     ) -> Self
     where
         S: FnMut() -> I,
@@ -253,6 +257,7 @@ impl<'a> Comparator<'a> {
         });
         self.logs.push(logs);
         self.labels.push(label.into());
+        self.display_preferences.push(svg);
         self
     }
 
@@ -332,10 +337,14 @@ impl<'a> Comparator<'a> {
                 .iter()
                 .flat_map(|row| &row[median_index].tasks_logs),
         );
-        for log in &self.logs {
-            let scene = visualisation(&log[median_index], Some(&speeds));
-            fill_svg_file(&scene, &mut html_file)?;
-            writeln!(html_file, "<p>")?;
+        for (pos, log) in self.logs.iter().enumerate() {
+            if self.display_preferences[pos] {
+                let scene = visualisation(&log[median_index], Some(&speeds));
+                fill_svg_file(&scene, &mut html_file)?;
+                writeln!(html_file, "<p>")?;
+            } else {
+                continue;
+            }
         }
         self.logs
             .iter()
