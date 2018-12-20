@@ -221,6 +221,18 @@ impl<'a> Comparator<'a> {
         experiments_logs.sort_unstable_by_key(|run| run.duration);
         experiments_logs
     }
+    /// A copy of the following method except that it does not generate an SVG.
+    pub fn attach_algorithm_nodisplay<A, STR>(mut self, label: STR, algorithm: A) -> Self
+    where
+        A: Fn() + Send + Sync,
+        STR: Into<String>,
+    {
+        let logs = self.record_experiments(|| self.pool.install(&algorithm).1);
+        self.logs.push(logs);
+        self.labels.push(label.into());
+        self.display_preferences.push(false);
+        self
+    }
     /// Use this method for attaching an algorithm to the comparator. The algorithm will be taken
     /// as a closure and run as is.
     pub fn attach_algorithm<A, STR>(mut self, label: STR, algorithm: A) -> Self
@@ -231,6 +243,7 @@ impl<'a> Comparator<'a> {
         let logs = self.record_experiments(|| self.pool.install(&algorithm).1);
         self.logs.push(logs);
         self.labels.push(label.into());
+        self.display_preferences.push(true);
         self
     }
 
