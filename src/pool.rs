@@ -234,15 +234,13 @@ impl<'a> Comparator<'a> {
         self
     }
 
-    /// This method lets you attach an algorithm with a setup function that will be run each time
-    /// the algorithm is run. The output of the setup function will be given to the algorithm as
-    /// the input.
-    pub fn attach_algorithm_with_setup<A, I, S, T, STR>(
+    /// This will not create an SVG for the algorithm in the comparator.
+
+    pub fn attach_algorithm_nodisplay_with_setup<A, I, S, T, STR>(
         mut self,
         label: STR,
         mut setup_function: S,
         algorithm: A,
-        svg: bool,
     ) -> Self
     where
         S: FnMut() -> I,
@@ -257,7 +255,33 @@ impl<'a> Comparator<'a> {
         });
         self.logs.push(logs);
         self.labels.push(label.into());
-        self.display_preferences.push(svg);
+        self.display_preferences.push(false);
+        self
+    }
+
+    /// This method lets you attach an algorithm with a setup function that will be run each time
+    /// the algorithm is run. The output of the setup function will be given to the algorithm as
+    /// the input.
+    pub fn attach_algorithm_with_setup<A, I, S, T, STR>(
+        mut self,
+        label: STR,
+        mut setup_function: S,
+        algorithm: A,
+    ) -> Self
+    where
+        S: FnMut() -> I,
+        I: Send,
+        A: Fn(I) -> T + Send + Sync,
+        T: Send + Sync,
+        STR: Into<String>,
+    {
+        let logs = self.record_experiments(|| {
+            let input = setup_function();
+            self.pool.install(|| algorithm(input)).1
+        });
+        self.logs.push(logs);
+        self.labels.push(label.into());
+        self.display_preferences.push(true);
         self
     }
 
