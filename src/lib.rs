@@ -1,6 +1,7 @@
 //! This crate provides logging facilities to evaluate performances
 //! of code parallelized with the rayon parallel computing library.
 #![deny(missing_docs)]
+#![warn(clippy::all)]
 extern crate rayon;
 extern crate time;
 
