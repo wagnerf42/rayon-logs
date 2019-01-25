@@ -721,17 +721,16 @@ where
 #[cfg(test)]
 mod tests {
     use super::split_for_merge;
-    use rand::{thread_rng, Rng};
+    extern crate rand;
+    use self::rand::{thread_rng, Rng};
 
     #[test]
     fn test_split_for_merge() {
         fn check(left: &[u32], right: &[u32]) {
             let (l, r) = split_for_merge(left, right, &|&a, &b| a < b);
-            assert!(
-                left[..l]
-                    .iter()
-                    .all(|&x| right[r..].iter().all(|&y| x <= y))
-            );
+            assert!(left[..l]
+                .iter()
+                .all(|&x| right[r..].iter().all(|&y| x <= y)));
             assert!(right[..r].iter().all(|&x| left[l..].iter().all(|&y| x < y)));
         }
 
@@ -746,11 +745,13 @@ mod tests {
             let left_len = rng.gen::<usize>() % 20;
             let right_len = rng.gen::<usize>() % 20;
 
-            let mut left = rng.gen_iter::<u32>()
+            let mut left = rng
+                .gen_iter::<u32>()
                 .map(|x| x % limit)
                 .take(left_len)
                 .collect::<Vec<_>>();
-            let mut right = rng.gen_iter::<u32>()
+            let mut right = rng
+                .gen_iter::<u32>()
                 .map(|x| x % limit)
                 .take(right_len)
                 .collect::<Vec<_>>();

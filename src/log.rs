@@ -80,7 +80,8 @@ impl RunLog {
                 thread_id: 0,
                 children: Vec::new(),
                 work: WorkInformation::NoInformation,
-            }).collect();
+            })
+            .collect();
 
         let mut iterators_info: Vec<_> = (0..iterators_number).map(|_| Vec::new()).collect();
         let mut iterators_fathers = Vec::new();
@@ -111,6 +112,7 @@ impl RunLog {
             .map(|(thread_id, thread_log)| thread_log.logs().map(move |log| (thread_id, log)))
             .kmerge_by(|a, b| a.1.time() < b.1.time())
         {
+            eprintln!("thread: {}, event: {:?}", thread_id, event);
             let active_tasks = &mut all_active_tasks[thread_id];
             match *event {
                 RayonEvent::Join(a, b, c) => {
@@ -136,6 +138,7 @@ impl RunLog {
                     }
                 }
                 RayonEvent::TaskStart(task, time) => {
+                    println!("task started");
                     tasks_info[task].thread_id = thread_id;
                     tasks_info[task].start_time = time - start;
                     *active_tasks = Some(task);
