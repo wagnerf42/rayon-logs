@@ -112,7 +112,6 @@ impl RunLog {
             .map(|(thread_id, thread_log)| thread_log.logs().map(move |log| (thread_id, log)))
             .kmerge_by(|a, b| a.1.time() < b.1.time())
         {
-            eprintln!("thread: {}, event: {:?}", thread_id, event);
             let active_tasks = &mut all_active_tasks[thread_id];
             match *event {
                 RayonEvent::Join(a, b, c) => {
