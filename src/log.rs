@@ -137,7 +137,6 @@ impl RunLog {
                     }
                 }
                 RayonEvent::TaskStart(task, time) => {
-                    println!("task started");
                     tasks_info[task].thread_id = thread_id;
                     tasks_info[task].start_time = time - start;
                     *active_tasks = Some(task);
