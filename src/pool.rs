@@ -55,16 +55,14 @@ where
     let sequential_task_id = next_task_id();
     let continuation_task_id = next_task_id();
     // log child's work and dependencies.
-    log(RayonEvent::SequentialTask(
-        sequential_task_id,
-        continuation_task_id,
-    ));
+    log(RayonEvent::Child(sequential_task_id));
     // end current task
     log(RayonEvent::TaskEnd(precise_time_ns()));
     // execute full sequential task
     log(RayonEvent::TaskStart(sequential_task_id, precise_time_ns()));
     log(RayonEvent::Tag(work_type, work_amount));
     let r = op();
+    log(RayonEvent::Child(continuation_task_id));
     log(RayonEvent::TaskEnd(precise_time_ns()));
 
     // start continuation task
@@ -83,10 +81,12 @@ where
     RA: Send,
     RB: Send,
 {
+    let id_c = next_task_id();
     let id_a = next_task_id();
     let ca = |c| {
         log(RayonEvent::TaskStart(id_a, precise_time_ns()));
         let result = oper_a(c);
+        log(RayonEvent::Child(id_c));
         log(RayonEvent::TaskEnd(precise_time_ns()));
         result
     };
@@ -95,12 +95,14 @@ where
     let cb = |c| {
         log(RayonEvent::TaskStart(id_b, precise_time_ns()));
         let result = oper_b(c);
+        log(RayonEvent::Child(id_c));
         log(RayonEvent::TaskEnd(precise_time_ns()));
         result
     };
 
-    let id_c = next_task_id();
-    log(RayonEvent::Join(id_a, id_b, id_c));
+    log(RayonEvent::Child(id_a));
+    log(RayonEvent::Child(id_b));
+
     log(RayonEvent::TaskEnd(precise_time_ns()));
     let r = rayon::join_context(ca, cb);
     log(RayonEvent::TaskStart(id_c, precise_time_ns()));
@@ -115,10 +117,12 @@ where
     RA: Send,
     RB: Send,
 {
+    let id_c = next_task_id();
     let id_a = next_task_id();
     let ca = || {
         log(RayonEvent::TaskStart(id_a, precise_time_ns()));
         let result = oper_a();
+        log(RayonEvent::Child(id_c));
         log(RayonEvent::TaskEnd(precise_time_ns()));
         result
     };
@@ -127,12 +131,13 @@ where
     let cb = || {
         log(RayonEvent::TaskStart(id_b, precise_time_ns()));
         let result = oper_b();
+        log(RayonEvent::Child(id_c));
         log(RayonEvent::TaskEnd(precise_time_ns()));
         result
     };
 
-    let id_c = next_task_id();
-    log(RayonEvent::Join(id_a, id_b, id_c));
+    log(RayonEvent::Child(id_a));
+    log(RayonEvent::Child(id_b));
     log(RayonEvent::TaskEnd(precise_time_ns()));
     let r = rayon::join(ca, cb);
     log(RayonEvent::TaskStart(id_c, precise_time_ns()));

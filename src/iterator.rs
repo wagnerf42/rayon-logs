@@ -44,9 +44,10 @@ where
             part: self.base.opt_len().map(|l| (0, l)),
             iterator_id,
             consumer_id,
+            continuing_task_id,
         };
         //log(RayonEvent::IteratorStart(consumer1.iterator_id));
-        log(RayonEvent::SequentialTask(consumer_id, continuing_task_id));
+        log(RayonEvent::Child(consumer_id));
         log(RayonEvent::TaskEnd(precise_time_ns()));
         let r = self.base.drive_unindexed(consumer1);
         log(RayonEvent::TaskStart(continuing_task_id, precise_time_ns()));
@@ -76,9 +77,10 @@ where
             part,
             iterator_id,
             consumer_id,
+            continuing_task_id,
         };
         //log(RayonEvent::IteratorStart(consumer1.iterator_id));
-        log(RayonEvent::SequentialTask(consumer_id, continuing_task_id));
+        log(RayonEvent::Child(consumer_id));
         log(RayonEvent::TaskEnd(precise_time_ns()));
         let r = self.base.drive(consumer1);
         log(RayonEvent::TaskStart(continuing_task_id, precise_time_ns()));
@@ -167,6 +169,7 @@ struct LoggedConsumer<C> {
     part: Option<(usize, usize)>,
     iterator_id: IteratorId,
     consumer_id: TaskId,
+    continuing_task_id: TaskId,
 }
 
 impl<T, C> Consumer<T> for LoggedConsumer<C>
@@ -183,11 +186,8 @@ where
         let consumer_id_2 = next_task_id();
         let continuing_reducer_id = next_task_id();
         log(RayonEvent::TaskStart(self.consumer_id, precise_time_ns()));
-        log(RayonEvent::Join(
-            consumer_id_1,
-            consumer_id_2,
-            continuing_reducer_id,
-        ));
+        log(RayonEvent::Child(consumer_id_1));
+        log(RayonEvent::Child(consumer_id_2));
         let (left, right, reducer) = self.base.split_at(index);
         let left_part = self.part.map(|(s, _)| (s, s + index));
         let right_part = self.part.map(|(s, e)| (s + index, e));
@@ -197,16 +197,19 @@ where
                 part: left_part,
                 iterator_id: self.iterator_id,
                 consumer_id: consumer_id_1,
+                continuing_task_id: continuing_reducer_id,
             },
             LoggedConsumer {
                 base: right,
                 part: right_part,
                 iterator_id: self.iterator_id,
                 consumer_id: consumer_id_2,
+                continuing_task_id: continuing_reducer_id,
             },
             LoggedReducer {
                 rayon_reducer: reducer,
                 id: continuing_reducer_id,
+                continuing_task_id: self.continuing_task_id,
             },
         );
         log(RayonEvent::TaskEnd(precise_time_ns()));
@@ -224,7 +227,7 @@ where
 
         LoggedFolder {
             base: self.base.into_folder(),
-            //id: self.consumer_id,
+            continuing_task_id: self.continuing_task_id,
         }
     }
 
@@ -240,6 +243,7 @@ where
 {
     fn split_off_left(&self) -> Self {
         let split_task_id = next_task_id();
+        let continuing_task_id = next_task_id();
         log(RayonEvent::TaskStart(split_task_id, precise_time_ns()));
         let consumer_id = next_task_id();
         //log(RayonEvent::Join(id, second_id, self.continuing_task_id));
@@ -248,16 +252,17 @@ where
             part: None,
             iterator_id: self.iterator_id,
             consumer_id,
+            continuing_task_id,
         };
         log(RayonEvent::TaskEnd(precise_time_ns()));
         r
     }
-    //TODO [ASK] if this can be called multiple times?
     fn to_reducer(&self) -> LoggedReducer<C::Reducer> {
         let reducer_id = next_task_id();
         LoggedReducer {
             rayon_reducer: self.base.to_reducer(),
-            id: reducer_id, //TODO [TRY] replace this with a new id.
+            id: reducer_id,
+            continuing_task_id: self.continuing_task_id,
         }
     }
 }
@@ -267,7 +272,7 @@ where
 
 struct LoggedFolder<F> {
     base: F,
-    //id: TaskId, //TODO [ASK] why does folder need an ID??
+    continuing_task_id: TaskId,
 }
 
 impl<T, F> Folder<T> for LoggedFolder<F>
@@ -280,12 +285,13 @@ where
     fn consume(self, item: T) -> Self {
         LoggedFolder {
             base: self.base.consume(item),
-            //id: self.id,
+            continuing_task_id: self.continuing_task_id,
         }
     }
 
     fn complete(self) -> F::Result {
         let result = self.base.complete();
+        log(RayonEvent::Child(self.continuing_task_id));
         log(RayonEvent::TaskEnd(precise_time_ns()));
         result
     }
@@ -300,6 +306,7 @@ where
 struct LoggedReducer<R> {
     rayon_reducer: R,
     id: TaskId,
+    continuing_task_id: TaskId,
 }
 
 impl<T, R> Reducer<T> for LoggedReducer<R>
@@ -310,6 +317,7 @@ where
     fn reduce(self, left: T, right: T) -> T {
         log(RayonEvent::TaskStart(self.id, precise_time_ns()));
         let r = self.rayon_reducer.reduce(left, right);
+        log(RayonEvent::Child(self.continuing_task_id));
         log(RayonEvent::TaskEnd(precise_time_ns()));
         r
     }

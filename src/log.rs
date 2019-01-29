@@ -2,7 +2,6 @@
 use fork_join_graph::visualisation;
 use itertools::Itertools;
 use serde_json;
-use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::io::ErrorKind;
@@ -85,22 +84,6 @@ impl RunLog {
 
         let mut iterators_info: Vec<_> = (0..iterators_number).map(|_| Vec::new()).collect();
         let mut iterators_fathers = Vec::new();
-        // links to tasks created by join are tricky to recompute
-        // when a join happens we immediately stop currently running task
-        // execute the join and then create a new task "resuming" the stopped one
-        // this new task has two ancestors in the dag.
-        // these ancestors might be the two tasks from the join OR some tasks created down the road
-        // by further joins.
-        //                    0
-        //              1            2
-        //          4     5        7   8
-        //             6             9
-        //                    3
-        //  at first when 0 joins 1 and 2 the resume task (3) is set to be the child of 1 and 2
-        //  but when later on 1 and 2 are re-decomposed by a join we need to update this
-        //  information.
-        //  this dynamic information is stored in the following hashmap:
-        let mut dag_children: HashMap<TaskId, TaskId> = HashMap::new();
 
         let threads_number = tasks_logs.len();
         // remember the active task on each thread
@@ -114,27 +97,13 @@ impl RunLog {
         {
             let active_tasks = &mut all_active_tasks[thread_id];
             match *event {
-                RayonEvent::Join(a, b, c) => {
-                    if let Some(active_task) = active_tasks {
-                        tasks_info[*active_task].children.push(a); //create direct links with children
-                        tasks_info[*active_task].children.push(b);
-
-                        let possible_child = dag_children.remove(active_task); // we were set as father of someone
-                        if let Some(child) = possible_child {
-                            // it is not the case anymore since we are interrupted
-                            dag_children.insert(c, child);
-                        }
-                    }
-                    dag_children.insert(a, c); // a and b might be fathers of c (they are for now)
-                    dag_children.insert(b, c);
+                RayonEvent::Child(c) => {
+                    let father = active_tasks.expect("child with no active task as father");
+                    tasks_info[father].children.push(c);
                 }
                 RayonEvent::TaskEnd(time) => {
                     let task = active_tasks.take().unwrap();
                     tasks_info[task].end_time = time - start;
-                    let possible_child = dag_children.remove(&task);
-                    if let Some(child) = possible_child {
-                        tasks_info[task].children.push(child);
-                    }
                 }
                 RayonEvent::TaskStart(task, time) => {
                     tasks_info[task].thread_id = thread_id;
@@ -164,18 +133,6 @@ impl RunLog {
                             WorkInformation::SequentialWork((work_type, work_amount));
                     } else {
                         panic!("tagging a non existing task");
-                    }
-                }
-                RayonEvent::SequentialTask(sequential_task, continuation_task) => {
-                    dag_children.insert(sequential_task, continuation_task);
-                    if let Some(active_task) = active_tasks {
-                        tasks_info[*active_task].children.push(sequential_task); //create direct links with children
-
-                        let possible_child = dag_children.remove(active_task); // we were set as father of someone
-                        if let Some(child) = possible_child {
-                            // it is not the case anymore since we are interrupted
-                            dag_children.insert(continuation_task, child);
-                        }
                     }
                 }
             }

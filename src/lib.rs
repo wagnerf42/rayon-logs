@@ -46,16 +46,12 @@ enum RayonEvent {
     TaskStart(TaskId, TimeStamp),
     /// Active task ends.
     TaskEnd(TimeStamp),
-    /// We create two tasks with join (contains dependencies information) at their end we continue
-    /// with another task (third id).
-    Join(TaskId, TaskId, TaskId),
+    /// Direct link in the graph between two tasks (active one and given one).
+    Child(TaskId),
     /// Log additional informations for iterators tasks.
     IteratorTask(TaskId, IteratorId, Option<(usize, usize)>, TaskId),
     /// Who starts a new iterator.
     IteratorStart(IteratorId),
-    /// We have a sequential task (child).
-    /// id is of child and grand child.
-    SequentialTask(TaskId, TaskId),
     /// Tag a task with work and type.
     Tag(usize, usize),
 }
