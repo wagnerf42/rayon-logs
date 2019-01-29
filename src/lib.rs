@@ -23,6 +23,8 @@ mod builder;
 pub mod prelude;
 pub use builder::ThreadPoolBuilder;
 pub use rayon::current_num_threads;
+mod scope;
+pub use scope::scope;
 
 mod stats;
 pub use stats::Stats;
