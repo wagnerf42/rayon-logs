@@ -61,12 +61,25 @@ enum Block {
 /// Create a fork join graph (stored in a vec). This is used to convert the logs into
 /// a graphical display of animated rectangles.
 fn create_graph(tasks: &[TaskLog]) -> Vec<Block> {
-    let mut graph = vec![Block::Sequence(Vec::new())];
+    // graph is composed of sequential or parallel blocks
+    let mut graph = vec![Block::Sequence(Vec::new())]; // start with a sequence
 
-    // ok let's start now
-    let mut fathers: HashMap<BlockId, BlockId> = HashMap::new();
-    let mut current_blocks: HashMap<TaskId, BlockId> = HashMap::new();
-    current_blocks.insert(0, 0); // init task and all its descendants go in initial sequence
+    // we need a quick way to find all fathers for a given node
+    let mut fathers: HashMap<TaskId, Vec<TaskId>> = HashMap::new();
+    for (task_id, task) in tasks.iter().enumerate() {
+        for child in &task.children {
+            fathers.entry(*child).or_insert_with(Vec::new).push(task_id);
+        }
+    }
+
+    // now, we are going to compute in which block is every node
+    let mut blocks: HashMap<TaskId, BlockId> = HashMap::new();
+
+    // store all parallel blocks (one for each multi-children node)
+    let mut parallel_blocks: HashMap<TaskId, BlockId> = HashMap::new();
+
+    // also store what is the father block of each block
+    let mut blocks_fathers: HashMap<BlockId, BlockId> = HashMap::new();
 
     // we sort by starting time to be sure fathers are processed before children
     let mut sorted_tasks: Vec<TaskId> = (0..tasks.len()).collect();
@@ -79,38 +92,49 @@ fn create_graph(tasks: &[TaskLog]) -> Vec<Block> {
 
     for task_id in &sorted_tasks {
         let task = &tasks[*task_id];
-        let current_block = *current_blocks
-            .get(task_id)
-            .unwrap_or_else(|| panic!("task {} is not created by anyone", task_id));
-        // add task to its sequence
-        let new_block = graph.add_task(*task_id, (*task).clone());
-        graph.sequence(current_block).push(new_block);
-
-        // now look at the children
-        if task.children.len() == 1 {
-            let child = task.children[0];
-            let possible_existing_block = current_blocks.remove(&child);
-            if possible_existing_block.is_some() {
-                // hard case, this child has several fathers.
-                current_blocks.insert(child, fathers[&current_block]);
+        let sequence_id = if !fathers.contains_key(task_id) {
+            // we are the root
+            assert_eq!(*task_id, 0);
+            0
+        } else if fathers[task_id].len() == 1 {
+            // check if we have brothers
+            let father = fathers[task_id][0];
+            if tasks[father].children.len() == 1 {
+                // one father, no brothers, we go directly after him
+                // in his block
+                blocks[&father]
             } else {
-                //easy case, first time child is seen by a father. maybe he has only one.
-                current_blocks.insert(child, current_block);
+                // several brothers, we need to create a new sequence
+                let sequential_block = graph.add_sequence();
+                blocks_fathers.insert(sequential_block, blocks[&father]); // save where to go back
+                let parallel_block = parallel_blocks[&father];
+                graph.parallel(parallel_block).push(sequential_block);
+                sequential_block
             }
-        } else if !task.children.is_empty() {
+        } else {
+            // several fathers
+            // look at each father
+            // its block
+            // the father_block of its block
+            // take the min to get the oldest (ancestor)
+            fathers[task_id]
+                .iter()
+                .map(|f| blocks[f])
+                .map(|b| blocks_fathers[&b])
+                .min()
+                .unwrap()
+        };
+        let new_block = graph.add_task(*task_id, (*task).clone());
+        graph.sequence(sequence_id).push(new_block);
+        blocks.insert(*task_id, sequence_id);
+
+        // now create a parallel block after us when we have multiple children
+        if task.children.len() > 1 {
             // several children, we create a parallel block
             let parallel_block = graph.add_parallel();
             // add it to our block
-            graph.sequence(current_block).push(parallel_block);
-            // now each child will execute in a different sequence we create now
-            for child in &task.children {
-                let sequential_block = graph.add_sequence();
-                graph.parallel(parallel_block).push(sequential_block);
-                let should_be_none = current_blocks.insert(*child, sequential_block);
-                assert!(should_be_none.is_none());
-
-                fathers.insert(sequential_block, current_block); // store where to go back at end of sequence
-            }
+            graph.sequence(blocks[task_id]).push(parallel_block);
+            parallel_blocks.insert(*task_id, parallel_block);
         }
     }
     graph
@@ -228,7 +252,8 @@ where
                 }
             }
             _ => 0 as f64,
-        }).sum::<f64>();
+        })
+        .sum::<f64>();
     if count == 0 {
         0 as f64
     } else {

@@ -14,17 +14,22 @@ impl<'scope> Scope<'scope> {
         BODY: FnOnce(&Scope<'scope>) + Send + 'scope,
     {
         let spawned_id = next_task_id();
+        let seq_id = next_task_id();
         log(RayonEvent::Child(spawned_id));
+        log(RayonEvent::Child(seq_id));
         // sorry I need to erase the borrow's lifetime.
         // it's ok though since the pointed self will survive all spawned tasks.
         let floating_self: &'scope Scope<'scope> = unsafe { transmute(self) };
         let logged_body = move |_: &rayon::Scope<'scope>| {
             log(RayonEvent::TaskStart(spawned_id, precise_time_ns()));
+            log(RayonEvent::Tag(1, 1)); // TODO: remove
             body(floating_self);
             log(RayonEvent::Child(floating_self.continuing_task_id));
             log(RayonEvent::TaskEnd(precise_time_ns()));
         };
         self.rayon_scope.as_ref().unwrap().spawn(logged_body);
+        log(RayonEvent::TaskEnd(precise_time_ns()));
+        log(RayonEvent::TaskStart(seq_id, precise_time_ns()));
     }
 }
 
@@ -61,5 +66,6 @@ where
         r
     });
     log(RayonEvent::TaskStart(continuing_task_id, precise_time_ns()));
+    eprintln!("at the end we start {}", continuing_task_id);
     r
 }
