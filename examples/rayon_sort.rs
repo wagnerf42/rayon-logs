@@ -12,7 +12,7 @@ fn main() {
     ra.shuffle(&mut v);
 
     let p = ThreadPoolBuilder::new().build().expect("builder failed");
-    let log = p.install(|| v.par_sort()).1;
+    let log = p.logging_install(|| v.par_sort()).1;
     log.save_svg("rayon_sort.svg")
         .expect("saving svg file failed");
 }

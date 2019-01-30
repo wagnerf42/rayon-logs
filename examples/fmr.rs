@@ -11,7 +11,7 @@ fn main() {
         .build()
         .expect("building pool failed");
 
-    let (even_elements, log) = pool.install(|| {
+    let (even_elements, log) = pool.logging_install(|| {
         let mut vecs = v
             .par_iter()
             .filter(|&e| *e % 2 == 0)

@@ -144,6 +144,9 @@ where
     r
 }
 
+// small global counter to increment file names
+static INSTALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+
 /// We wrap rayon's pool into our own struct to overload the install method.
 pub struct ThreadPool {
     pub(crate) logs: Arc<Mutex<Vec<Arc<Storage>>>>,
@@ -164,7 +167,7 @@ impl ThreadPool {
     /// Execute given closure in the thread pool, logging it's task as the initial one.
     /// After running, we post-process the logs and return a `RunLog` together with the closure's
     /// result.
-    pub fn install<OP, R>(&self, op: OP) -> (R, RunLog)
+    pub fn logging_install<OP, R>(&self, op: OP) -> (R, RunLog)
     where
         OP: FnOnce() -> R + Send,
         R: Send,
@@ -186,6 +189,22 @@ impl ThreadPool {
             start,
         );
         (r, log)
+    }
+
+    /// Execute given closure in the thread pool, logging it's task as the initial one.
+    /// After running, we save a json file with filename being an incremental counter.
+    pub fn install<OP, R>(&self, op: OP) -> R
+    where
+        OP: FnOnce() -> R + Send,
+        R: Send,
+    {
+        let (r, log) = self.logging_install(op);
+        log.save(format!(
+            "log_{}.json",
+            INSTALL_COUNT.fetch_add(1, Ordering::SeqCst)
+        ))
+        .expect("saving json failed");
+        r
     }
 
     ///This function simply returns a comparator that allows us to add algorithms for comparison.
@@ -232,7 +251,7 @@ impl<'a> Comparator<'a> {
         A: Fn() + Send + Sync,
         STR: Into<String>,
     {
-        let logs = self.record_experiments(|| self.pool.install(&algorithm).1);
+        let logs = self.record_experiments(|| self.pool.logging_install(&algorithm).1);
         self.logs.push(logs);
         self.labels.push(label.into());
         self.display_preferences.push(false);
@@ -245,7 +264,7 @@ impl<'a> Comparator<'a> {
         A: Fn() + Send + Sync,
         STR: Into<String>,
     {
-        let logs = self.record_experiments(|| self.pool.install(&algorithm).1);
+        let logs = self.record_experiments(|| self.pool.logging_install(&algorithm).1);
         self.logs.push(logs);
         self.labels.push(label.into());
         self.display_preferences.push(true);
@@ -269,7 +288,7 @@ impl<'a> Comparator<'a> {
     {
         let logs = self.record_experiments(|| {
             let input = setup_function();
-            self.pool.install(|| algorithm(input)).1
+            self.pool.logging_install(|| algorithm(input)).1
         });
         self.logs.push(logs);
         self.labels.push(label.into());
@@ -295,7 +314,7 @@ impl<'a> Comparator<'a> {
     {
         let logs = self.record_experiments(|| {
             let input = setup_function();
-            self.pool.install(|| algorithm(input)).1
+            self.pool.logging_install(|| algorithm(input)).1
         });
         self.logs.push(logs);
         self.labels.push(label.into());

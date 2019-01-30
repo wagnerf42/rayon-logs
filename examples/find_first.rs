@@ -8,7 +8,8 @@ fn main() {
         .num_threads(2)
         .build()
         .expect("building pool failed");
-    let (first, log) = pool.install(|| v.par_iter().find_first(|&x| *x == 4_800_000).cloned());
+    let (first, log) =
+        pool.logging_install(|| v.par_iter().find_first(|&x| *x == 4_800_000).cloned());
     assert_eq!(first, Some(4_800_000));
 
     log.save_svg("find_first.svg")

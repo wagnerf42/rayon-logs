@@ -19,7 +19,7 @@ fn main() {
         .num_threads(2)
         .build()
         .expect("building pool failed");
-    let (max, log) = pool.install(|| manual_max(&v));
+    let (max, log) = pool.logging_install(|| manual_max(&v));
     assert_eq!(max, v.last().cloned().unwrap());
 
     log.save_svg("manual_max.svg")

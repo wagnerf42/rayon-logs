@@ -1,4 +1,5 @@
 //! This is rayon's scope documentation example.
+//! Log will be saved as "log_0.json".
 extern crate rayon_logs as rayon;
 use rayon::{scope, ThreadPoolBuilder};
 
@@ -7,7 +8,8 @@ fn main() {
         .num_threads(2)
         .build()
         .expect("building pool failed");
-    let (_, log) = pool.install(|| {
+
+    pool.install(|| {
         // point start
         rayon::scope(|s| {
             s.spawn(|s| {
@@ -27,6 +29,4 @@ fn main() {
         });
         // point end
     });
-
-    log.save_svg("scope.svg").expect("saving svg file failed");
 }
