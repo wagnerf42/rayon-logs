@@ -17,8 +17,8 @@ use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 use std::sync::{Arc, Mutex};
 use storage::Storage;
 use time::precise_time_ns;
-use TaskId;
 use {fill_svg_file, visualisation};
+use {scope, Scope, TaskId};
 use {
     svg::{histogram, HISTOGRAM_COLORS},
     RayonEvent, RunLog,
@@ -189,6 +189,20 @@ impl ThreadPool {
             start,
         );
         (r, log)
+    }
+
+    /// Creates a scope that executes within this thread-pool.
+    /// Equivalent to `self.install(|| scope(...))`.
+    ///
+    /// See also: [the `scope()` function][scope].
+    ///
+    /// [scope]: fn.scope.html
+    pub fn scope<'scope, OP, R>(&self, op: OP) -> R
+    where
+        OP: for<'s> FnOnce(&'s Scope<'scope>) -> R + 'scope + Send,
+        R: Send,
+    {
+        self.install(|| scope(op))
     }
 
     /// Execute given closure in the thread pool, logging it's task as the initial one.
