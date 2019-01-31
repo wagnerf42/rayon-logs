@@ -1,6 +1,7 @@
 //! Store a trace as a fork join graph (in a vector).
 use {svg::Scene, svg::COLORS, Rectangle, TaskId, TaskLog};
 type BlockId = usize;
+use itertools::Itertools;
 use log::WorkInformation;
 use std::collections::HashMap;
 use std::iter::repeat;
@@ -58,6 +59,37 @@ enum Block {
     Parallel(Vec<BlockId>),
 }
 
+/// iterate on all ancestors blocks (including initial block)
+fn ancestors_blocks<'a>(
+    blocks_fathers: &'a HashMap<BlockId, BlockId>,
+    block: BlockId,
+) -> impl Iterator<Item = BlockId> + 'a {
+    (0..).scan(block, move |b, _| {
+        blocks_fathers
+            .get(b)
+            .map(|f| {
+                let current_b = *b;
+                *b = *f;
+                current_b
+            })
+            .or_else(|| Some(*b)) // it repeats on last but I guess it's ok
+    })
+}
+
+/// find first block common ancestor of two blocks
+fn common_ancestor_block(
+    blocks_fathers: &HashMap<BlockId, BlockId>,
+    blocks: &[BlockId],
+) -> Option<BlockId> {
+    blocks
+        .iter()
+        .map(|b| ancestors_blocks(blocks_fathers, *b))
+        .kmerge_by(|b1, b2| b1 > b2) // blocks order is topological order
+        .tuples()
+        .find(|(b1, b2)| b1 == b2)
+        .map(|(b1, _)| b1)
+}
+
 /// Create a fork join graph (stored in a vec). This is used to convert the logs into
 /// a graphical display of animated rectangles.
 fn create_graph(tasks: &[TaskLog]) -> Vec<Block> {
@@ -113,16 +145,12 @@ fn create_graph(tasks: &[TaskLog]) -> Vec<Block> {
             }
         } else {
             // several fathers
-            // look at each father
-            // its block
-            // the father_block of its block
-            // take the min to get the oldest (ancestor)
-            fathers[task_id]
-                .iter()
-                .map(|f| blocks[f])
-                .map(|b| blocks_fathers[&b])
-                .min()
-                .unwrap()
+            // we need to find the first (while going up) common ancestor block
+            let mut direct_fathers_blocks = fathers[task_id].iter().map(|f| blocks[f]);
+            let starting_block = direct_fathers_blocks.next().unwrap();
+            direct_fathers_blocks.fold(starting_block, |b1, b2| {
+                common_ancestor_block(&blocks_fathers, &[b1, b2]).expect("no common ancestor")
+            })
         };
         let new_block = graph.add_task(*task_id, (*task).clone());
         graph.sequence(sequence_id).push(new_block);
