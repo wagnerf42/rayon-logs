@@ -77,7 +77,6 @@ impl<'scope> Scope<'scope> {
         let floating_self: &'scope Scope<'scope> = unsafe { transmute(self) };
         let logged_body = move |_: &rayon::Scope<'scope>| {
             log(RayonEvent::TaskStart(spawned_id, precise_time_ns()));
-            log(RayonEvent::Tag(1, 1)); // TODO: remove
             body(floating_self);
             log(RayonEvent::Child(floating_self.continuing_task_id));
             log(RayonEvent::TaskEnd(precise_time_ns()));

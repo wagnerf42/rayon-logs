@@ -297,12 +297,13 @@ fn generate_visualisation(
     positions: &[(f64, f64)],
     speeds: &HashMap<usize, f64>,
     scene: &mut Scene,
+    tags: &[String],
 ) -> (Vec<Point>, Vec<Point>) {
     match graph[index] {
         Block::Sequence(ref s) => {
             let points: Vec<(Vec<Point>, Vec<Point>)> = s
                 .iter()
-                .map(|b| generate_visualisation(*b, graph, positions, speeds, scene))
+                .map(|b| generate_visualisation(*b, graph, positions, speeds, scene, tags))
                 .collect();
             scene.segments.extend(
                 points
@@ -315,38 +316,50 @@ fn generate_visualisation(
             )
         }
         Block::Parallel(ref p) => p.iter().fold((Vec::new(), Vec::new()), |mut acc, b| {
-            let (entry, exit) = generate_visualisation(*b, graph, positions, speeds, scene);
+            let (entry, exit) = generate_visualisation(*b, graph, positions, speeds, scene, tags);
             acc.0.extend(entry);
             acc.1.extend(exit);
             acc
         }),
         Block::Task(task_id, ref t) => {
             let duration = (t.end_time - t.start_time) as f64;
+            let work_label = match t.work {
+                WorkInformation::SequentialWork((work_type, work_amount))
+                | WorkInformation::IteratorWork((work_type, work_amount)) => {
+                    let speed = work_amount as f64 / duration;
+                    let best_speed = speeds[&work_type];
+                    let ratio = speed / best_speed;
+                    format!(" work: {},\n speed: {},\n", work_amount, ratio)
+                }
+                _ => String::new(),
+            };
+            let type_label = match t.work {
+                WorkInformation::SequentialWork((work_type, _)) => {
+                    format!(" type: {}\n", tags[work_type])
+                }
+                WorkInformation::IteratorWork((iterator_id, _)) => {
+                    format!(" iterator: {}\n", iterator_id)
+                }
+                _ => String::new(),
+            };
+            scene.labels.push(format!(
+                "task: {}, thread: {},\n duration: {} (ms)\n{}{}",
+                task_id,
+                t.thread_id,
+                (t.end_time - t.start_time) as f64 / 1_000_000.0,
+                work_label,
+                type_label,
+            ));
+
             let opacity = match t.work {
                 WorkInformation::SequentialWork((ref work_type, work_amount))
                 | WorkInformation::IteratorWork((ref work_type, work_amount)) => {
                     let speed = work_amount as f64 / duration;
                     let best_speed = speeds[&work_type];
                     let ratio = speed / best_speed;
-                    scene.labels.push(format!(
-                    "task: {}, thread: {},\n duration: {} (ms),\n work: {},\n speed: {},\n type: {}",
-                    task_id,
-                    t.thread_id,
-                    (t.end_time - t.start_time) as f64 / 1_000_000.0,
-                    work_amount,
-                    ratio,
-                    work_type
-                ));
                     (ratio * 2.0 / 3.0) + 1.0 / 3.0 // not too dark. so we rescale between 0.33 and 1.0
                 }
-                _ => {
-                    scene.labels.push(format!(
-                        "task: {}, duration: {} (ms)",
-                        task_id,
-                        (t.end_time - t.start_time) as f64 / 1_000_000.0,
-                    ));
-                    1.0
-                }
+                _ => 1.0,
             };
             scene.rectangles.push(Rectangle::new(
                 COLORS[t.thread_id % COLORS.len()],
@@ -442,9 +455,10 @@ pub fn visualisation(log: &RunLog, speeds: Option<&HashMap<usize, f64>>) -> Scen
             &positions,
             &(compute_speeds(&log.tasks_logs)),
             &mut scene,
+            &log.tags,
         );
     } else {
-        generate_visualisation(0, &g, &positions, &(speeds.unwrap()), &mut scene);
+        generate_visualisation(0, &g, &positions, &(speeds.unwrap()), &mut scene, &log.tags);
     }
     // compute position for idle times widget
     let height = positions

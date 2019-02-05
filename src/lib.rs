@@ -55,7 +55,7 @@ enum RayonEvent {
     /// Who starts a new iterator.
     IteratorStart(IteratorId),
     /// Tag a task with work and type.
-    Tag(usize, usize),
+    Tag(&'static str, usize),
 }
 
 impl RayonEvent {

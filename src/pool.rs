@@ -48,7 +48,7 @@ pub(crate) fn log(event: RayonEvent) {
 
 /// Launch a sequential task with tagged work.
 /// We expect `op` to be sequential.
-pub fn sequential_task<OP, R>(work_type: usize, work_amount: usize, op: OP) -> R
+pub fn sequential_task<OP, R>(work_type: &'static str, work_amount: usize, op: OP) -> R
 where
     OP: FnOnce() -> R,
 {

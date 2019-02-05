@@ -31,7 +31,7 @@ fn main() {
             .into_iter();
         let final_vec = vecs.next().unwrap();
         vecs.fold(final_vec, |mut f, v| {
-            sequential_task(3, v.len(), || {
+            sequential_task("extend", v.len(), || {
                 f.extend(v);
                 f
             })

@@ -3,7 +3,7 @@ use rayon::{join_context, sequential_task, ThreadPoolBuilder};
 
 fn manual_max(slice: &[u32]) -> u32 {
     if slice.len() < 1000 {
-        sequential_task(0, slice.len(), || slice.iter().max().cloned().unwrap())
+        sequential_task("max", slice.len(), || slice.iter().max().cloned().unwrap())
     } else {
         let middle = slice.len() / 2;
         let (left, right) = slice.split_at(middle);
@@ -13,7 +13,7 @@ fn manual_max(slice: &[u32]) -> u32 {
                 if c.migrated() {
                     manual_max(right)
                 } else {
-                    sequential_task(0, right.len(), || *right.iter().max().unwrap())
+                    sequential_task("max", right.len(), || *right.iter().max().unwrap())
                 }
             },
         );

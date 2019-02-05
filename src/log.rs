@@ -2,6 +2,8 @@
 use fork_join_graph::visualisation;
 use itertools::Itertools;
 use serde_json;
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::io::ErrorKind;
@@ -62,6 +64,8 @@ pub struct RunLog {
     pub tasks_logs: Vec<TaskLog>,
     /// total run time in nanoseconds.
     pub duration: u64,
+    /// all strings used for tagging tasks.
+    pub tags: Vec<String>,
 }
 
 impl RunLog {
@@ -72,6 +76,8 @@ impl RunLog {
         tasks_logs: &[Arc<Storage>],
         start: TimeStamp,
     ) -> Self {
+        let mut seen_tags = HashMap::new(); // associate each take to a usize index
+        let mut tags = Vec::new(); // vector containing all tags strings
         let mut tasks_info: Vec<_> = (0..tasks_number)
             .map(|_| TaskLog {
                 start_time: 0, // will be filled later
@@ -129,8 +135,18 @@ impl RunLog {
                 }
                 RayonEvent::Tag(work_type, work_amount) => {
                     if let Some(active_task) = active_tasks {
+                        let existing_tag = seen_tags.entry(work_type);
+                        let tag_index = match existing_tag {
+                            Entry::Occupied(o) => *o.get(),
+                            Entry::Vacant(v) => {
+                                let index = tags.len();
+                                v.insert(index);
+                                tags.push(work_type.to_string());
+                                index
+                            }
+                        };
                         tasks_info[*active_task].work =
-                            WorkInformation::SequentialWork((work_type, work_amount));
+                            WorkInformation::SequentialWork((tag_index, work_amount));
                     } else {
                         panic!("tagging a non existing task");
                     }
@@ -154,6 +170,7 @@ impl RunLog {
             threads_number,
             tasks_logs: tasks_info,
             duration,
+            tags,
         }
     }
 
