@@ -18,7 +18,7 @@ mod storage;
 pub use iterator::Logged;
 mod pool;
 pub use pool::Comparator;
-pub use pool::{join, join_context, sequential_task, ThreadPool};
+pub use pool::{join, join_context, sequential_task, tag_task, ThreadPool};
 mod builder;
 pub mod prelude;
 pub use builder::ThreadPoolBuilder;

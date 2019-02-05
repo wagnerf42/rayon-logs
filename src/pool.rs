@@ -46,6 +46,11 @@ pub(crate) fn log(event: RayonEvent) {
     LOGS.with(|l| l.borrow().push(event))
 }
 
+/// Add a label and work amount tag to the currently running task.
+pub fn tag_task(work_type: &'static str, work_amount: usize) {
+    log(RayonEvent::Tag(work_type, work_amount))
+}
+
 /// Launch a sequential task with tagged work.
 /// We expect `op` to be sequential.
 pub fn sequential_task<OP, R>(work_type: &'static str, work_amount: usize, op: OP) -> R
