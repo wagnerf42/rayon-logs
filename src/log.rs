@@ -42,6 +42,14 @@ impl TaskLog {
     pub fn duration(&self) -> u64 {
         self.end_time - self.start_time
     }
+    /// Return if we mark the start of a subgraph.
+    pub fn starts_subgraph(&self) -> bool {
+        if let WorkInformation::SubgraphStartWork((_, _)) = self.work {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 /// For some tasks we know a work amount. We might know it from an iterator or from a user tag
@@ -135,25 +143,7 @@ impl RunLog {
                         iterators_fathers.push((iterator, *active_task));
                     }
                 }
-                RayonEvent::SubgraphStart(work_type, work_amount) => {
-                    if let Some(active_task) = active_tasks {
-                        let existing_tag = seen_tags.entry(work_type);
-                        let tag_index = match existing_tag {
-                            Entry::Occupied(o) => *o.get(),
-                            Entry::Vacant(v) => {
-                                let index = tags.len();
-                                v.insert(index);
-                                tags.push(work_type.to_string());
-                                index
-                            }
-                        };
-                        tasks_info[*active_task].work =
-                            WorkInformation::SubgraphStartWork((tag_index, work_amount));
-                    } else {
-                        panic!("tagging a non existing task");
-                    }
-                }
-                RayonEvent::SubgraphEnd(work_type) => {
+                RayonEvent::SubgraphStart(work_type, _) | RayonEvent::SubgraphEnd(work_type) => {
                     if let Some(active_task) = active_tasks {
                         let existing_tag = seen_tags.entry(work_type);
                         let tag_index = match existing_tag {
@@ -167,8 +157,15 @@ impl RunLog {
                         };
                         match tasks_info[*active_task].work {
                             WorkInformation::NoInformation => {
-                                tasks_info[*active_task].work =
-                                    WorkInformation::SubgraphEndWork(tag_index);
+                                tasks_info[*active_task].work = match *event {
+                                    RayonEvent::SubgraphStart(_, work_amount) => {
+                                        WorkInformation::SubgraphStartWork((tag_index, work_amount))
+                                    }
+                                    RayonEvent::SubgraphEnd(_) => {
+                                        WorkInformation::SubgraphEndWork(tag_index)
+                                    }
+                                    _ => WorkInformation::NoInformation,
+                                };
                             }
                             WorkInformation::SubgraphStartWork((tag_index, work_amount)) => {
                                 // Handling the case where the subgraph is just one sequential
