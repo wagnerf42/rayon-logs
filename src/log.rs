@@ -50,6 +50,8 @@ impl TaskLog {
 pub enum WorkInformation {
     IteratorWork((usize, usize)),
     SequentialWork((usize, usize)),
+    SubgraphStartWork((usize, usize)),
+    SubgraphEndWork(usize),
     NoInformation,
 }
 
@@ -133,7 +135,7 @@ impl RunLog {
                         iterators_fathers.push((iterator, *active_task));
                     }
                 }
-                RayonEvent::Tag(work_type, work_amount) => {
+                RayonEvent::SubgraphStart(work_type, work_amount) => {
                     if let Some(active_task) = active_tasks {
                         let existing_tag = seen_tags.entry(work_type);
                         let tag_index = match existing_tag {
@@ -146,7 +148,39 @@ impl RunLog {
                             }
                         };
                         tasks_info[*active_task].work =
-                            WorkInformation::SequentialWork((tag_index, work_amount));
+                            WorkInformation::SubgraphStartWork((tag_index, work_amount));
+                    } else {
+                        panic!("tagging a non existing task");
+                    }
+                }
+                RayonEvent::SubgraphEnd(work_type) => {
+                    if let Some(active_task) = active_tasks {
+                        let existing_tag = seen_tags.entry(work_type);
+                        let tag_index = match existing_tag {
+                            Entry::Occupied(o) => *o.get(),
+                            Entry::Vacant(v) => {
+                                let index = tags.len();
+                                v.insert(index);
+                                tags.push(work_type.to_string());
+                                index
+                            }
+                        };
+                        match tasks_info[*active_task].work {
+                            WorkInformation::NoInformation => {
+                                tasks_info[*active_task].work =
+                                    WorkInformation::SubgraphEndWork(tag_index);
+                            }
+                            WorkInformation::SubgraphStartWork((tag_index, work_amount)) => {
+                                // Handling the case where the subgraph is just one sequential
+                                // task.
+                                tasks_info[*active_task].work =
+                                    WorkInformation::SequentialWork((tag_index, work_amount));
+                            }
+                            _ => panic!(
+                                "Tried to end subgraph for a task marked with {:?}",
+                                tasks_info[*active_task].work
+                            ),
+                        }
                     } else {
                         panic!("tagging a non existing task");
                     }
