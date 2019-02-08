@@ -18,7 +18,7 @@ mod storage;
 pub use iterator::Logged;
 mod pool;
 pub use pool::Comparator;
-pub use pool::{join, join_context, sequential_task, tag_task, ThreadPool};
+pub use pool::{join, join_context, make_subgraph, sequential_task, ThreadPool};
 mod builder;
 pub mod prelude;
 pub use builder::ThreadPoolBuilder;
@@ -54,8 +54,10 @@ enum RayonEvent {
     IteratorTask(TaskId, IteratorId, Option<(usize, usize)>, TaskId),
     /// Who starts a new iterator.
     IteratorStart(IteratorId),
-    /// Tag a task with work and type.
-    Tag(&'static str, usize),
+    /// Tag a subgraph with work type, work amount.
+    SubgraphStart(&'static str, usize),
+    /// Tag the end of a subgraph.
+    SubgraphEnd(&'static str),
 }
 
 impl RayonEvent {

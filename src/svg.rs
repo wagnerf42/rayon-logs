@@ -151,31 +151,32 @@ pub fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
     let min_time = scene
         .rectangles
         .iter()
-        .map(|r| r.animation.unwrap().0)
+        .filter_map(|r| r.animation.map(|t| t.0))
         .min()
         .unwrap();
     let max_time = scene
         .rectangles
         .iter()
-        .map(|r| r.animation.unwrap().1)
+        .filter_map(|r| r.animation.map(|t| t.1))
         .max()
         .unwrap();
     let total_time = max_time - min_time;
 
     for rectangle in &scene.rectangles {
-        // first a black rectangle
-        writeln!(
-            file,
-            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"black\"/>",
-            (rectangle.x - xmin) * xscale,
-            (rectangle.y - ymin) * yscale,
-            rectangle.width * xscale,
-            rectangle.height * yscale,
-        )?;
+        if let Some(animation) = rectangle.animation {
+            // first a black rectangle
+            writeln!(
+                file,
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"black\"/>",
+                (rectangle.x - xmin) * xscale,
+                (rectangle.y - ymin) * yscale,
+                rectangle.width * xscale,
+                rectangle.height * yscale,
+            )?;
 
-        // now the animated one
-        let (start_time, end_time) = rectangle.animation.unwrap();
-        writeln!(file,
+            // now the animated one
+            let (start_time, end_time) = animation;
+            writeln!(file,
             "<rect class=\"task{}\" x=\"{}\" y=\"{}\" width=\"0\" height=\"{}\" fill=\"rgba({},{},{},{})\">
 <animate attributeType=\"XML\" attributeName=\"width\" from=\"0\" to=\"{}\" begin=\"{}s\" dur=\"{}s\" fill=\"freeze\"/>
 </rect>",
@@ -191,9 +192,28 @@ pub fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
         ((start_time-min_time)*60) as f64 / total_time as f64,
         ((end_time - start_time)*60) as f64 / total_time as f64,
         )?;
+        } else {
+            writeln!(
+                file,
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"rgba({},{},{},{})\"/>",
+                (rectangle.x - xmin) * xscale,
+                (rectangle.y - ymin) * yscale,
+                rectangle.width * xscale,
+                rectangle.height * yscale,
+                (rectangle.color[0] * 255.0) as u32,
+                (rectangle.color[1] * 255.0) as u32,
+                (rectangle.color[2] * 255.0) as u32,
+                rectangle.opacity,
+            )?;
+        }
     }
 
-    for (index, (rectangle, label)) in scene.rectangles.iter().zip(scene.labels.iter()).enumerate()
+    for (index, (rectangle, label)) in scene
+        .rectangles
+        .iter()
+        .filter(|&r| r.animation.is_some())
+        .zip(scene.labels.iter())
+        .enumerate()
     {
         // now the box for the tooltip
         writeln!(file, "<g id=\"tip_{}_{}\">", random_id, index)?;

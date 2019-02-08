@@ -46,12 +46,10 @@ pub(crate) fn log(event: RayonEvent) {
     LOGS.with(|l| l.borrow().push(event))
 }
 
-/// Add a label and work amount tag to the currently running task.
-/// Work amount should not be 0.
-pub fn tag_task(work_type: &'static str, work_amount: usize) {
-    assert!(work_amount > 0);
-    log(RayonEvent::Tag(work_type, work_amount))
-}
+///// Add a label and work amount tag to the currently running task.
+//pub fn tag_task(work_type: &'static str, work_amount: usize) {
+//    log(RayonEvent::Tag(work_type, work_amount))
+//}
 
 /// Launch a sequential task with tagged work.
 /// We expect `op` to be sequential.
@@ -67,8 +65,37 @@ where
     log(RayonEvent::TaskEnd(precise_time_ns()));
     // execute full sequential task
     log(RayonEvent::TaskStart(sequential_task_id, precise_time_ns()));
-    log(RayonEvent::Tag(work_type, work_amount));
+    log(RayonEvent::SubgraphStart(work_type, work_amount));
     let r = op();
+    log(RayonEvent::SubgraphEnd(work_type));
+    log(RayonEvent::Child(continuation_task_id));
+    log(RayonEvent::TaskEnd(precise_time_ns()));
+
+    // start continuation task
+    log(RayonEvent::TaskStart(
+        continuation_task_id,
+        precise_time_ns(),
+    ));
+    r
+}
+
+/// We tag all the tasks that op makes as one subgraph. Useful for speed and time computation, and
+/// will eventually be added to the SVG for display as well.
+pub fn make_subgraph<OP, R>(work_type: &'static str, work_amount: usize, op: OP) -> R
+where
+    OP: FnOnce() -> R,
+{
+    let sequential_task_id = next_task_id();
+    let continuation_task_id = next_task_id();
+    // log child's work and dependencies.
+    log(RayonEvent::Child(sequential_task_id));
+    // end current task
+    log(RayonEvent::TaskEnd(precise_time_ns()));
+    // execute full sequential task
+    log(RayonEvent::TaskStart(sequential_task_id, precise_time_ns()));
+    log(RayonEvent::SubgraphStart(work_type, work_amount));
+    let r = op();
+    log(RayonEvent::SubgraphEnd(work_type));
     log(RayonEvent::Child(continuation_task_id));
     log(RayonEvent::TaskEnd(precise_time_ns()));
 
