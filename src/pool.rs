@@ -47,7 +47,9 @@ pub(crate) fn log(event: RayonEvent) {
 }
 
 /// Add a label and work amount tag to the currently running task.
+/// Work amount should not be 0.
 pub fn tag_task(work_type: &'static str, work_amount: usize) {
+    assert!(work_amount > 0);
     log(RayonEvent::Tag(work_type, work_amount))
 }
 
