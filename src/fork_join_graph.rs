@@ -68,7 +68,7 @@ impl BlockVector for Vec<Block> {
 }
 
 #[derive(Debug)]
-enum Block {
+pub(crate) enum Block {
     Task(TaskId, TaskLog),
     Sequence(Vec<BlockId>),
     Parallel(Vec<BlockId>),
@@ -107,7 +107,7 @@ fn common_ancestor_block(
 
 /// Create a fork join graph (stored in a vec). This is used to convert the logs into
 /// a graphical display of animated rectangles.
-fn create_graph(tasks: &[TaskLog]) -> Vec<Block> {
+pub(crate) fn create_graph(tasks: &[TaskLog]) -> Vec<Block> {
     // graph is composed of sequential or parallel blocks
     let mut graph = vec![Block::Sequence(Vec::new())]; // start with a sequence
 
