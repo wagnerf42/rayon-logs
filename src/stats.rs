@@ -1,5 +1,6 @@
 //! `LoggedPool` structure for logging raw tasks events.
 
+use fork_join_graph::{create_graph, Block};
 use log::RunLog;
 use log::WorkInformation;
 use std::collections::HashMap;
@@ -35,6 +36,52 @@ impl<'l> Stats<'l> {
             })
     }
 
+    /// Return the number of succesfull steals (tasks which moved between threads).
+    pub fn succesfull_average_steals<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = usize> + 'a {
+        let temp = self.runs_number;
+        self.logs.iter().map(move |algorithm| {
+            algorithm
+                .iter()
+                .map(|run| {
+                    run.tasks_logs
+                        .iter()
+                        .filter(|&t| t.children.len() == 2)
+                        .map(|t| {
+                            t.children
+                                .iter()
+                                .filter(|&c| run.tasks_logs[*c].thread_id != t.thread_id)
+                                .count()
+                        })
+                        .sum::<usize>()
+                })
+                .sum::<usize>()
+                / temp as usize
+        })
+    }
+
+    /// Returns an iterator over the average number of tasks that were created for each algorithm
+    /// in the logs.
+    pub fn tasks_count<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = usize> + 'a {
+        self.logs.iter().map(move |algorithm| {
+            algorithm
+                .iter()
+                .map(|run| {
+                    create_graph(&run.tasks_logs)
+                        .iter()
+                        .filter(|&b| {
+                            if let Block::Sequence(_) = b {
+                                true
+                            } else {
+                                false
+                            }
+                        })
+                        .count()
+                })
+                .sum::<usize>()
+                / self.runs_number as usize
+        })
+    }
+
     /// This returns the idle time summed across all runs for all experiments.
     pub fn idle_times<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = f64> + 'a {
         let tasks_times = self
@@ -45,7 +92,8 @@ impl<'l> Stats<'l> {
                     .iter()
                     .map(move |run| run.tasks_logs.iter().map(|log| log.duration()).sum::<u64>())
                     .sum()
-            }).map(move |total_tasks_times: u64| {
+            })
+            .map(move |total_tasks_times: u64| {
                 total_tasks_times as f64 / (1e6 * self.runs_number as f64)
             });
         self.total_times()
@@ -115,7 +163,8 @@ impl<'l> Stats<'l> {
                     .iter()
                     .map(|log| log.duration() as f64)
                     .sum::<f64>()
-            }).zip(self.total_times_median())
+            })
+            .zip(self.total_times_median())
             .map(move |(compute_time, total_time)| {
                 (total_time * self.threads_number) - (compute_time / 1e6)
             })

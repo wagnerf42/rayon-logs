@@ -32,6 +32,7 @@ pub use stats::Stats;
 
 mod fork_join_graph;
 pub use fork_join_graph::visualisation;
+pub(crate) use fork_join_graph::{create_graph, Block};
 pub(crate) mod svg;
 pub use {svg::fill_svg_file, svg::write_svg_file, svg::Rectangle};
 mod log;
