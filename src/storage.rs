@@ -24,7 +24,7 @@ impl Block {
 
     /// Add given event to block.
     fn push(&mut self, event: RayonEvent) {
-        assert!(self.used != BLOCK_SIZE);
+        debug_assert!(self.used != BLOCK_SIZE);
         self.data[self.used] = event;
         self.used += 1;
     }
@@ -41,7 +41,7 @@ impl Block {
 }
 
 /// Store logs here (in each thread).
-pub(crate) struct Storage {
+pub struct Storage {
     data: UnsafeCell<LinkedList<Block>>,
 }
 
@@ -60,10 +60,10 @@ impl Storage {
 
     /// Destroy all logs.
     pub fn clear(&self) {
-        let first_block = Block::new();
         let list = unsafe { self.data.get().as_mut() }.unwrap();
-        list.clear();
-        list.push_front(first_block);
+        for block in list.iter_mut() {
+            block.used = 0;
+        }
     }
 
     /// Add given event to storage space.

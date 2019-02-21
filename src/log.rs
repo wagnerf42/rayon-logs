@@ -98,9 +98,6 @@ impl RunLog {
             })
             .collect();
 
-        let mut iterators_info: Vec<_> = (0..iterators_number).map(|_| Vec::new()).collect();
-        let mut iterators_fathers = Vec::new();
-
         let threads_number = tasks_logs.len();
         // remember the active task on each thread
         let mut all_active_tasks: Vec<Option<TaskId>> = repeat(None).take(threads_number).collect();
@@ -125,23 +122,6 @@ impl RunLog {
                     tasks_info[task].thread_id = thread_id;
                     tasks_info[task].start_time = time - start;
                     *active_tasks = Some(task);
-                }
-                RayonEvent::IteratorTask(task, iterator, part, continuing_task) => {
-                    let start = if let Some((start, _)) = part {
-                        start
-                    } else {
-                        0
-                    };
-                    tasks_info[task].children.push(continuing_task);
-                    tasks_info[task].work = part
-                        .map(|(s, e)| WorkInformation::IteratorWork((iterator, e - s)))
-                        .unwrap_or(WorkInformation::NoInformation);
-                    iterators_info[iterator].push((task, start));
-                }
-                RayonEvent::IteratorStart(iterator) => {
-                    if let Some(active_task) = active_tasks {
-                        iterators_fathers.push((iterator, *active_task));
-                    }
                 }
                 RayonEvent::SubgraphStart(work_type, _) | RayonEvent::SubgraphEnd(work_type) => {
                     if let Some(active_task) = active_tasks {
@@ -183,15 +163,6 @@ impl RunLog {
                     }
                 }
             }
-        }
-
-        // now parse iterator info to link iterator tasks to graph
-        for (iterator, father) in &iterators_fathers {
-            let mut children = &mut iterators_info[*iterator];
-            children.sort_unstable_by_key(|(_, start)| *start);
-            tasks_info[*father]
-                .children
-                .extend(children.iter().map(|(task, _)| task));
         }
 
         let duration = tasks_info.iter().map(|t| t.end_time).max().unwrap()

@@ -16,6 +16,7 @@ extern crate serde_json;
 mod iterator;
 mod storage;
 pub use iterator::Logged;
+pub use storage::Storage;
 mod pool;
 pub use pool::Comparator;
 pub use pool::{join, join_context, make_subgraph, sequential_task, ThreadPool};
@@ -43,17 +44,13 @@ type TimeStamp = u64;
 
 /// All types of events we can log.
 #[derive(Debug, Serialize, Deserialize)]
-enum RayonEvent {
+pub enum RayonEvent {
     /// A task starts.
     TaskStart(TaskId, TimeStamp),
     /// Active task ends.
     TaskEnd(TimeStamp),
     /// Direct link in the graph between two tasks (active one and given one).
     Child(TaskId),
-    /// Log additional informations for iterators tasks.
-    IteratorTask(TaskId, IteratorId, Option<(usize, usize)>, TaskId),
-    /// Who starts a new iterator.
-    IteratorStart(IteratorId),
     /// Tag a subgraph with work type, work amount.
     SubgraphStart(&'static str, usize),
     /// Tag the end of a subgraph.

@@ -12,6 +12,9 @@ exclude = [
     "TODO"
 ]
 
+[profile.release]
+debug = true
+
 [dependencies]
 rayon="*" #{path="../clone_rayon"}
 time="^0"
@@ -22,3 +25,10 @@ itertools="^0"
 rand="^0"
 hwloc="*"
 libc="*"
+
+[dev-dependencies]
+criterion="*"
+
+[[bench]]
+name = "storage"
+harness = false
