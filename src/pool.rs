@@ -1,11 +1,17 @@
 //! `LoggedPool` structure for logging raw tasks events.
 
-use fork_join_graph::compute_avg_speeds;
-use fork_join_graph::compute_speeds;
-use itertools::Itertools;
+use crate::fork_join_graph::compute_speeds;
+use crate::stats::Stats;
+use crate::storage::Storage;
+use crate::{fill_svg_file, visualisation};
+use crate::{scope, Scope, TaskId};
+use crate::{
+    svg::{histogram, HISTOGRAM_COLORS},
+    RayonEvent, RunLog,
+};
+use itertools::{izip, Itertools};
 use rayon;
 use rayon::FnContext;
-use stats::Stats;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::File;
@@ -15,14 +21,7 @@ use std::iter::repeat_with;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 use std::sync::{Arc, Mutex};
-use storage::Storage;
 use time::precise_time_ns;
-use {fill_svg_file, visualisation};
-use {scope, Scope, TaskId};
-use {
-    svg::{histogram, HISTOGRAM_COLORS},
-    RayonEvent, RunLog,
-};
 
 /// We use an atomic usize to generate unique ids for tasks.
 pub(crate) static NEXT_TASK_ID: AtomicUsize = ATOMIC_USIZE_INIT;
@@ -434,54 +433,33 @@ impl<'a> Comparator<'a> {
             )?;
         }
         write!(html_file, "</table>",)?;
-        write!(html_file, "<H2>Comparing median runs</H2>")?;
-        let median_index = (self.runs_number) / 2;
-        let speeds = compute_speeds(
-            self.logs
-                .iter()
-                .flat_map(|row| &row[median_index].tasks_logs),
-        );
-        for (pos, log) in self.logs.iter().enumerate() {
-            if self.display_preferences[pos] {
-                let scene = visualisation(&log[median_index], Some(&speeds));
-                fill_svg_file(&scene, &mut html_file)?;
-                writeln!(html_file, "<p>")?;
-            } else {
-                continue;
+        if self.display_preferences.iter().any(|b| *b) {
+            write!(html_file, "<H2>Comparing median runs</H2>")?;
+            let median_index = (self.runs_number) / 2;
+            let speeds = compute_speeds(
+                self.logs
+                    .iter()
+                    .flat_map(|row| &row[median_index].tasks_logs),
+            );
+            for (pos, log) in self.logs.iter().enumerate() {
+                if self.display_preferences[pos] {
+                    let scene = visualisation(&log[median_index], Some(&speeds));
+                    fill_svg_file(&scene, &mut html_file)?;
+                    writeln!(html_file, "<p>")?;
+                }
             }
+
+            write!(html_file, "<H2>Comparing best runs</H2>")?;
+            let speeds = compute_speeds(self.logs.iter().flat_map(|row| &row[0].tasks_logs));
+            for (pos, log) in self.logs.iter().enumerate() {
+                if self.display_preferences[pos] {
+                    let scene = visualisation(&log[0], Some(&speeds));
+                    fill_svg_file(&scene, &mut html_file)?;
+                    writeln!(html_file, "<p>")?;
+                }
+            }
+            write!(html_file, "</body></html>")?;
         }
-        self.logs
-            .iter()
-            .zip(self.labels.iter())
-            .for_each(|(algorithm, name)| {
-                write!(
-                    html_file,
-                    "The average speeds for median run of {} are {}<br>",
-                    name,
-                    compute_avg_speeds(&algorithm[median_index].tasks_logs, 0, &speeds)
-                )
-                .expect("avg speeds failed");
-            });
-        write!(html_file, "<H2>Comparing best runs</H2>")?;
-        let speeds = compute_speeds(self.logs.iter().flat_map(|row| &row[0].tasks_logs));
-        for log in &self.logs {
-            let scene = visualisation(&log[0], Some(&speeds));
-            fill_svg_file(&scene, &mut html_file)?;
-            writeln!(html_file, "<p>")?;
-        }
-        self.logs
-            .iter()
-            .zip(self.labels.iter())
-            .for_each(|(algorithm, name)| {
-                write!(
-                    html_file,
-                    "The average speeds for best run of {} are {}<br>",
-                    name,
-                    compute_avg_speeds(&algorithm[0].tasks_logs, 0, &speeds)
-                )
-                .expect("avg speeds failed");
-            });
-        write!(html_file, "</body></html>")?;
         Ok(())
     }
 }

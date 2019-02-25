@@ -1,7 +1,7 @@
 //! provides a `Storage` structure with O(1) WORST CASE very fast insertions.
 use std::cell::UnsafeCell;
 use std::collections::LinkedList;
-use RayonEvent;
+use crate::RayonEvent;
 
 const BLOCK_SIZE: usize = 10_000;
 

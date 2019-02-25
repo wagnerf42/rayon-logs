@@ -1,11 +1,11 @@
-use pool::LOGS;
+use crate::pool::LOGS;
 extern crate hwloc;
 extern crate libc;
 use self::hwloc::{CpuSet, ObjectType, Topology, CPUBIND_THREAD};
 use rayon::{self, ThreadPoolBuildError};
 use std::sync::{Arc, Mutex};
-use storage::Storage;
-use ThreadPool;
+use crate::storage::Storage;
+use crate::ThreadPool;
 
 /// We rewrite ThreadPoolBuilders since we need to overload the start handler
 /// in order to give each thread a place to write its logs.

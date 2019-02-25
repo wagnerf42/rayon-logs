@@ -1,6 +1,9 @@
 //! Provide structures holding all logged information for all tasks.
-use fork_join_graph::visualisation;
+use crate::fork_join_graph::visualisation;
+use crate::svg::write_svg_file;
+use crate::{storage::Storage, RayonEvent, TaskId, TimeStamp};
 use itertools::Itertools;
+use serde_derive::{Deserialize, Serialize};
 use serde_json;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -10,8 +13,6 @@ use std::io::ErrorKind;
 use std::iter::repeat;
 use std::path::Path;
 use std::sync::Arc;
-use svg::write_svg_file;
-use {storage::Storage, RayonEvent, TaskId, TimeStamp};
 
 /// The final information produced for log viewers.
 /// A 'task' here is not a rayon task but a subpart of one.
@@ -82,7 +83,7 @@ impl RunLog {
     /// Create a real log from logged events and reset the pool.
     pub(crate) fn new(
         tasks_number: usize,
-        iterators_number: usize,
+        _iterators_number: usize,
         tasks_logs: &[Arc<Storage>],
         start: TimeStamp,
     ) -> Self {

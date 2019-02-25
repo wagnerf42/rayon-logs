@@ -1,16 +1,16 @@
 //! Store a trace as a fork join graph (in a vector).
-use {svg::Scene, svg::COLORS, Rectangle, TaskId, TaskLog};
+use crate::{svg::Scene, svg::COLORS, Rectangle, TaskId, TaskLog};
 type BlockId = usize;
-use itertools::Itertools;
-use log::WorkInformation;
+use crate::log::WorkInformation;
+use crate::RunLog;
+use itertools::{iproduct, Itertools};
 use std::collections::HashMap;
 use std::iter::repeat;
-use RunLog;
 
 const VERTICAL_GAP: f64 = 0.2;
 
-use svg::Point;
-use TimeStamp;
+use crate::svg::Point;
+use crate::TimeStamp;
 
 trait BlockVector {
     fn push_block(&mut self, block: Block) -> BlockId;

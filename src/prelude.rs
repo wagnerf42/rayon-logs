@@ -2,7 +2,7 @@
 pub use rayon::prelude::ParallelIterator;
 use rayon::prelude::{IntoParallelIterator, IntoParallelRefIterator};
 
-use Logged;
+use crate::Logged;
 
 /// This trait extends `IntoParallelRefIterator`s by providing logging facilities.
 pub trait IntoLoggedParallelRefIterator<'data>: IntoParallelRefIterator<'data> {
@@ -24,4 +24,4 @@ pub trait IntoLoggedParallelIterator: IntoParallelIterator + Sized {
 
 impl<I: IntoParallelIterator> IntoLoggedParallelIterator for I {}
 
-pub use rayon_algorithms::slice::ParallelSliceMut;
+pub use crate::rayon_algorithms::slice::ParallelSliceMut;

@@ -1,8 +1,8 @@
 //! `LoggedPool` structure for logging raw tasks events.
 
-use fork_join_graph::{create_graph, Block};
-use log::RunLog;
-use log::WorkInformation;
+use crate::fork_join_graph::{create_graph, Block};
+use crate::log::RunLog;
+use crate::log::WorkInformation;
 use std::collections::HashMap;
 
 /// This struct mainly supplies the methods that can be used to get various statistics.
@@ -112,7 +112,7 @@ impl<'l> Stats<'l> {
                     .fold(HashMap::new(), |mut map: HashMap<usize, f64>, run| {
                         run.tasks_logs.iter().for_each(|task| {
                             if let WorkInformation::SequentialWork((id, _)) = task.work {
-                                let mut duration = map.entry(id).or_insert(0.0);
+                                let duration = map.entry(id).or_insert(0.0);
                                 *duration += task.duration() as f64;
                             }
                         });
@@ -144,7 +144,7 @@ impl<'l> Stats<'l> {
                 .clone()
                 .for_each(|task| {
                     if let WorkInformation::SequentialWork((id, _)) = task.work {
-                        let mut duration = map.entry(id).or_insert(0.0);
+                        let duration = map.entry(id).or_insert(0.0);
                         *duration += (task.duration()) as f64;
                     }
                 });

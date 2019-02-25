@@ -4,13 +4,13 @@
 //! The only difference from the original is that the sequential `mergesort` returns
 //! `MergesortResult` and leaves descending arrays intact.
 
-use join;
+use crate::join;
 use rayon::prelude::*;
 use std::mem;
 use std::mem::size_of;
 use std::ptr;
 use std::slice;
-use Logged;
+use crate::Logged;
 
 unsafe fn get_and_increment<T>(ptr: &mut *mut T) -> *mut T {
     let old = *ptr;

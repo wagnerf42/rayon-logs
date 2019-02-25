@@ -10,7 +10,7 @@ use std::path::Path;
 /// all svg colors names used for histograms displays
 pub const HISTOGRAM_COLORS: [&str; 6] = ["red", "blue", "green", "yellow", "purple", "brown"];
 
-use RunLog;
+use crate::RunLog;
 
 pub(crate) type Point = (f64, f64);
 

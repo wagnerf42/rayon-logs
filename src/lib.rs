@@ -3,40 +3,31 @@
 #![type_length_limit = "2097152"]
 #![deny(missing_docs)]
 #![warn(clippy::all)]
-extern crate rayon;
-extern crate time;
 
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate itertools;
-extern crate serde_json;
-
+use serde_derive::{Deserialize, Serialize};
 mod iterator;
 mod storage;
-pub use iterator::Logged;
-pub use storage::Storage;
+pub use crate::iterator::Logged;
+pub use crate::storage::Storage;
 mod pool;
-pub use pool::Comparator;
-pub use pool::{join, join_context, make_subgraph, sequential_task, ThreadPool};
+pub use crate::pool::Comparator;
+pub use crate::pool::{join, join_context, make_subgraph, sequential_task, ThreadPool};
 mod builder;
 pub mod prelude;
-pub use builder::ThreadPoolBuilder;
+pub use crate::builder::ThreadPoolBuilder;
 pub use rayon::current_num_threads;
 mod scope;
-pub use scope::{scope, Scope};
+pub use crate::scope::{scope, Scope};
 
 mod stats;
-pub use stats::Stats;
+pub use crate::stats::Stats;
 
 mod fork_join_graph;
-pub use fork_join_graph::visualisation;
-pub(crate) use fork_join_graph::{create_graph, Block};
+pub use crate::fork_join_graph::visualisation;
 pub(crate) mod svg;
-pub use {svg::fill_svg_file, svg::write_svg_file, svg::Rectangle};
+pub use crate::{svg::fill_svg_file, svg::write_svg_file, svg::Rectangle};
 mod log;
-pub use log::{RunLog, TaskLog};
+pub use crate::log::{RunLog, TaskLog};
 mod rayon_algorithms;
 
 type TaskId = usize;

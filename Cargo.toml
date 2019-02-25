@@ -1,6 +1,6 @@
 [package]
 name = "rayon_logs"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["frederic wagner <frederic.wagner@imag.fr>", "Quentin Guilloteau <quentin.guilloteau@grenoble-inp.org>"]
 description = "Traces for the rayon work-stealing library"
 license = "Apache-2.0/MIT"
@@ -8,9 +8,7 @@ repository = "https://github.com/wagnerf42/rayon-logs"
 readme = "README.md"
 keywords = ["parallel", "thread", "concurrency", "join", "performance"]
 categories = ["concurrency"]
-exclude = [
-    "TODO"
-]
+edition = "2018"
 
 [profile.release]
 debug = true

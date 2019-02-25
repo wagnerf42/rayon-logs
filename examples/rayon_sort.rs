@@ -1,5 +1,4 @@
 //! this example traces one of rayon's internal algorithm.
-extern crate rand;
 extern crate rayon_logs as rayon;
 use rand::{prelude::SliceRandom, thread_rng};
 use rayon::prelude::*;

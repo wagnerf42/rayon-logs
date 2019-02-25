@@ -31,7 +31,6 @@ impl<'scope> Scope<'scope> {
     /// # Examples
     ///
     /// ```rust
-    /// # use rayon_core as rayon;
     /// let mut value_a = None;
     /// let mut value_b = None;
     /// let mut value_c = None;
