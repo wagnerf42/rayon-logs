@@ -4,7 +4,6 @@
 #![deny(missing_docs)]
 #![warn(clippy::all)]
 
-use serde_derive::{Deserialize, Serialize};
 mod iterator;
 mod storage;
 pub use crate::iterator::Logged;
@@ -30,32 +29,4 @@ mod log;
 pub use crate::log::{RunLog, TaskLog};
 mod rayon_algorithms;
 
-type TaskId = usize;
-type IteratorId = usize;
-type TimeStamp = u64;
-
-/// All types of events we can log.
-#[derive(Debug, Serialize, Deserialize)]
-pub enum RayonEvent {
-    /// A task starts.
-    TaskStart(TaskId, TimeStamp),
-    /// Active task ends.
-    TaskEnd(TimeStamp),
-    /// Direct link in the graph between two tasks (active one and given one).
-    Child(TaskId),
-    /// Tag a subgraph with work type, work amount.
-    SubgraphStart(&'static str, usize),
-    /// Tag the end of a subgraph.
-    SubgraphEnd(&'static str),
-}
-
-impl RayonEvent {
-    /// return event time or 0 if none
-    fn time(&self) -> u64 {
-        match *self {
-            RayonEvent::TaskStart(_, t) => t,
-            RayonEvent::TaskEnd(t) => t,
-            _ => 0,
-        }
-    }
-}
+pub(crate) mod raw_events;

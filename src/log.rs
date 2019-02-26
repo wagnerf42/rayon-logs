@@ -1,7 +1,8 @@
 //! Provide structures holding all logged information for all tasks.
 use crate::fork_join_graph::visualisation;
+use crate::raw_events::{RayonEvent, TaskId, TimeStamp};
+use crate::storage::Storage;
 use crate::svg::write_svg_file;
-use crate::{storage::Storage, RayonEvent, TaskId, TimeStamp};
 use itertools::Itertools;
 use serde_derive::{Deserialize, Serialize};
 use serde_json;
@@ -84,7 +85,7 @@ impl RunLog {
     pub(crate) fn new(
         tasks_number: usize,
         _iterators_number: usize,
-        tasks_logs: &[Arc<Storage>],
+        tasks_logs: &[Arc<Storage<RayonEvent>>],
         start: TimeStamp,
     ) -> Self {
         let mut seen_tags = HashMap::new(); // associate each take to a usize index
@@ -106,7 +107,7 @@ impl RunLog {
         for (thread_id, event) in tasks_logs
             .iter()
             .enumerate()
-            .map(|(thread_id, thread_log)| thread_log.logs().map(move |log| (thread_id, log)))
+            .map(|(thread_id, thread_log)| thread_log.iter().map(move |log| (thread_id, log)))
             .kmerge_by(|a, b| a.1.time() < b.1.time())
         {
             let active_tasks = &mut all_active_tasks[thread_id];

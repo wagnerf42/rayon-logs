@@ -1,13 +1,14 @@
 //! `LoggedPool` structure for logging raw tasks events.
 
 use crate::fork_join_graph::compute_speeds;
+use crate::raw_events::{RayonEvent, TaskId};
 use crate::stats::Stats;
 use crate::storage::Storage;
 use crate::{fill_svg_file, visualisation};
-use crate::{scope, Scope, TaskId};
+use crate::{scope, Scope};
 use crate::{
     svg::{histogram, HISTOGRAM_COLORS},
-    RayonEvent, RunLog,
+    RunLog,
 };
 use itertools::{izip, Itertools};
 use rayon;
@@ -38,7 +39,7 @@ pub fn next_iterator_id() -> usize {
     NEXT_ITERATOR_ID.fetch_add(1, Ordering::SeqCst)
 }
 
-thread_local!(pub(crate) static LOGS: RefCell<Arc<Storage>> = RefCell::new(Arc::new(Storage::new())));
+thread_local!(pub(crate) static LOGS: RefCell<Arc<Storage<RayonEvent>>> = RefCell::new(Arc::new(Storage::new())));
 
 /// Add given event to logs of current thread.
 pub(crate) fn log(event: RayonEvent) {
@@ -177,7 +178,7 @@ static INSTALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 /// We wrap rayon's pool into our own struct to overload the install method.
 pub struct ThreadPool {
-    pub(crate) logs: Arc<Mutex<Vec<Arc<Storage>>>>,
+    pub(crate) logs: Arc<Mutex<Vec<Arc<Storage<RayonEvent>>>>>,
     pub(crate) pool: rayon::ThreadPool,
 }
 

@@ -1,9 +1,9 @@
 //! Provides logging for parallel iterators.
 use crate::pool::{log, next_iterator_id, next_task_id};
+use crate::raw_events::{IteratorId, RayonEvent, TaskId};
 use rayon::iter::plumbing::*;
 use rayon::iter::*;
 use time::precise_time_ns;
-use crate::{IteratorId, RayonEvent, TaskId};
 
 /// `Logged` is an iterator that logs all tasks created in a `LoggedPool`.
 ///
