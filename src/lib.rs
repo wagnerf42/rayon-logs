@@ -19,7 +19,6 @@ mod scope;
 pub use crate::scope::{scope, Scope};
 
 mod stats;
-pub use crate::stats::Stats;
 
 mod fork_join_graph;
 pub use crate::fork_join_graph::visualisation;

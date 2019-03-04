@@ -1,4 +1,6 @@
 //! Provide structures holding all logged information for all tasks.
+//! This structure provides intermediate level information.
+//! It is a dag of tasks stored in a vector (using indices as pointers).
 use crate::fork_join_graph::visualisation;
 use crate::raw_events::{RayonEvent, TaskId, TimeStamp};
 use crate::storage::Storage;
@@ -31,11 +33,9 @@ pub struct TaskLog {
     pub end_time: TimeStamp,
     /// id of thread who ran us
     pub thread_id: usize,
-    /// indices of children tasks (either when forking or joining).
+    /// indices of children tasks (either when forking or joining)
     pub children: Vec<TaskId>,
-    /// work field may identify the task to be of iterator type, sequential type or simply untagged
-    /// task. In case it is tagged to be either of the above, it will contain an ordered pair that
-    /// denotes the (id, amount of work done).
+    /// work field stores additional information on the task (or its subgraph)
     pub work: WorkInformation,
 }
 

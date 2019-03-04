@@ -12,7 +12,7 @@ const BLOCK_SIZE: usize = 10_000;
 /// We store elements in a list of blocks.
 /// Each `Block` is a contiguous memory block.
 struct Block<T> {
-    data: Box<[T]>,
+    data: [T; BLOCK_SIZE],
     used: usize,
 }
 
