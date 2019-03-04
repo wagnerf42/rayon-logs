@@ -13,15 +13,19 @@ edition = "2018"
 [profile.release]
 debug = true
 
+[features]
+# enable this to bind using thread_binder
+bind = ["thread_binder"]
+
 [dependencies]
-rayon="*" #{path="../clone_rayon"}
+thread_binder={optional=true, path="../thread_binder"}
+rayon="*"
 time="^0"
 serde="^1"
 serde_json="^1"
 serde_derive="^1"
 itertools="^0"
 rand="^0"
-hwloc="*"
 libc="*"
 
 [dev-dependencies]
