@@ -1,6 +1,6 @@
 //! Logging scope and Scope.
 use crate::raw_events::{RayonEvent, TaskId};
-use crate::{pool::log, pool::next_task_id};
+use crate::{logs, pool::log, pool::next_task_id};
 use std::mem::transmute;
 use time::precise_time_ns;
 
@@ -70,20 +70,23 @@ impl<'scope> Scope<'scope> {
     {
         let spawned_id = next_task_id();
         let seq_id = next_task_id();
-        log(RayonEvent::Child(spawned_id));
-        log(RayonEvent::Child(seq_id));
+        logs!(RayonEvent::Child(spawned_id), RayonEvent::Child(seq_id));
         // sorry I need to erase the borrow's lifetime.
         // it's ok though since the pointed self will survive all spawned tasks.
         let floating_self: &'scope Scope<'scope> = unsafe { transmute(self) };
         let logged_body = move |_: &rayon::Scope<'scope>| {
             log(RayonEvent::TaskStart(spawned_id, precise_time_ns()));
             body(floating_self);
-            log(RayonEvent::Child(floating_self.continuing_task_id));
-            log(RayonEvent::TaskEnd(precise_time_ns()));
+            logs!(
+                RayonEvent::Child(floating_self.continuing_task_id),
+                RayonEvent::TaskEnd(precise_time_ns())
+            );
         };
         self.rayon_scope.as_ref().unwrap().spawn(logged_body);
-        log(RayonEvent::TaskEnd(precise_time_ns()));
-        log(RayonEvent::TaskStart(seq_id, precise_time_ns()));
+        logs!(
+            RayonEvent::TaskEnd(precise_time_ns()),
+            RayonEvent::TaskStart(seq_id, precise_time_ns())
+        );
     }
 }
 
@@ -100,8 +103,10 @@ where
 {
     let scope_id = next_task_id();
     let continuing_task_id = next_task_id();
-    log(RayonEvent::Child(scope_id));
-    log(RayonEvent::TaskEnd(precise_time_ns()));
+    logs!(
+        RayonEvent::Child(scope_id),
+        RayonEvent::TaskEnd(precise_time_ns())
+    );
     // the Scope structure needs to survive the scope fn call
     // because tasks might be executed AFTER the op call completed
     let mut borrowed_scope: Scope<'scope> = Scope {
@@ -115,8 +120,10 @@ where
         // the API. Because I can only access a reference to the underlying rayon::Scope
         borrowed_scope_ref.rayon_scope = unsafe { transmute(Some(s)) };
         let r = op(borrowed_scope_ref);
-        log(RayonEvent::Child(continuing_task_id));
-        log(RayonEvent::TaskEnd(precise_time_ns()));
+        logs!(
+            RayonEvent::Child(continuing_task_id),
+            RayonEvent::TaskEnd(precise_time_ns())
+        );
         r
     });
     log(RayonEvent::TaskStart(continuing_task_id, precise_time_ns()));

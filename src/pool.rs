@@ -46,59 +46,52 @@ pub(crate) fn log(event: RayonEvent) {
     LOGS.with(|l| l.borrow().push(event))
 }
 
+/// Logs several events at once (with decreased cost).
+#[macro_export]
+macro_rules! logs {
+    ($($x:expr ), +) => {
+        $crate::pool::LOGS.with(|l| {let thread_logs = l.borrow();
+            $(
+                thread_logs.push($x);
+                )*
+        })
+    }
+}
+
 /// Launch a sequential task with tagged work.
-/// We expect `op` to be sequential.
 pub fn sequential_task<OP, R>(work_type: &'static str, work_amount: usize, op: OP) -> R
 where
     OP: FnOnce() -> R,
 {
-    let sequential_task_id = next_task_id();
-    let continuation_task_id = next_task_id();
-    // log child's work and dependencies.
-    log(RayonEvent::Child(sequential_task_id));
-    // end current task
-    log(RayonEvent::TaskEnd(precise_time_ns()));
-    // execute full sequential task
-    log(RayonEvent::TaskStart(sequential_task_id, precise_time_ns()));
-    log(RayonEvent::SubgraphStart(work_type, work_amount));
-    let r = op();
-    log(RayonEvent::SubgraphEnd(work_type));
-    log(RayonEvent::Child(continuation_task_id));
-    log(RayonEvent::TaskEnd(precise_time_ns()));
-
-    // start continuation task
-    log(RayonEvent::TaskStart(
-        continuation_task_id,
-        precise_time_ns(),
-    ));
-    r
+    make_subgraph(work_type, work_amount, op)
 }
 
 /// We tag all the tasks that op makes as one subgraph. Useful for speed and time computation, and
 /// will eventually be added to the SVG for display as well.
+/// Svg display is for now available only if `op` is sequential.
 pub fn make_subgraph<OP, R>(work_type: &'static str, work_amount: usize, op: OP) -> R
 where
     OP: FnOnce() -> R,
 {
-    let sequential_task_id = next_task_id();
+    let subgraph_start_task_id = next_task_id();
     let continuation_task_id = next_task_id();
-    // log child's work and dependencies.
-    log(RayonEvent::Child(sequential_task_id));
-    // end current task
-    log(RayonEvent::TaskEnd(precise_time_ns()));
-    // execute full sequential task
-    log(RayonEvent::TaskStart(sequential_task_id, precise_time_ns()));
-    log(RayonEvent::SubgraphStart(work_type, work_amount));
+    logs!(
+        // log child's work and dependencies.
+        RayonEvent::Child(subgraph_start_task_id),
+        // end current task
+        RayonEvent::TaskEnd(precise_time_ns()),
+        // execute full sequential task
+        RayonEvent::TaskStart(subgraph_start_task_id, precise_time_ns()),
+        RayonEvent::SubgraphStart(work_type, work_amount)
+    );
     let r = op();
-    log(RayonEvent::SubgraphEnd(work_type));
-    log(RayonEvent::Child(continuation_task_id));
-    log(RayonEvent::TaskEnd(precise_time_ns()));
-
-    // start continuation task
-    log(RayonEvent::TaskStart(
-        continuation_task_id,
-        precise_time_ns(),
-    ));
+    logs!(
+        RayonEvent::SubgraphEnd(work_type),
+        RayonEvent::Child(continuation_task_id),
+        RayonEvent::TaskEnd(precise_time_ns()),
+        // start continuation task
+        RayonEvent::TaskStart(continuation_task_id, precise_time_ns(),)
+    );
     r
 }
 
@@ -115,8 +108,10 @@ where
     let ca = |c| {
         log(RayonEvent::TaskStart(id_a, precise_time_ns()));
         let result = oper_a(c);
-        log(RayonEvent::Child(id_c));
-        log(RayonEvent::TaskEnd(precise_time_ns()));
+        logs!(
+            RayonEvent::Child(id_c),
+            RayonEvent::TaskEnd(precise_time_ns())
+        );
         result
     };
 
@@ -124,15 +119,18 @@ where
     let cb = |c| {
         log(RayonEvent::TaskStart(id_b, precise_time_ns()));
         let result = oper_b(c);
-        log(RayonEvent::Child(id_c));
-        log(RayonEvent::TaskEnd(precise_time_ns()));
+        logs!(
+            RayonEvent::Child(id_c),
+            RayonEvent::TaskEnd(precise_time_ns())
+        );
         result
     };
 
-    log(RayonEvent::Child(id_a));
-    log(RayonEvent::Child(id_b));
-
-    log(RayonEvent::TaskEnd(precise_time_ns()));
+    logs!(
+        RayonEvent::Child(id_a),
+        RayonEvent::Child(id_b),
+        RayonEvent::TaskEnd(precise_time_ns())
+    );
     let r = rayon::join_context(ca, cb);
     log(RayonEvent::TaskStart(id_c, precise_time_ns()));
     r
@@ -151,8 +149,10 @@ where
     let ca = || {
         log(RayonEvent::TaskStart(id_a, precise_time_ns()));
         let result = oper_a();
-        log(RayonEvent::Child(id_c));
-        log(RayonEvent::TaskEnd(precise_time_ns()));
+        logs!(
+            RayonEvent::Child(id_c),
+            RayonEvent::TaskEnd(precise_time_ns())
+        );
         result
     };
 
@@ -160,14 +160,18 @@ where
     let cb = || {
         log(RayonEvent::TaskStart(id_b, precise_time_ns()));
         let result = oper_b();
-        log(RayonEvent::Child(id_c));
-        log(RayonEvent::TaskEnd(precise_time_ns()));
+        logs!(
+            RayonEvent::Child(id_c),
+            RayonEvent::TaskEnd(precise_time_ns())
+        );
         result
     };
 
-    log(RayonEvent::Child(id_a));
-    log(RayonEvent::Child(id_b));
-    log(RayonEvent::TaskEnd(precise_time_ns()));
+    logs!(
+        RayonEvent::Child(id_a),
+        RayonEvent::Child(id_b),
+        RayonEvent::TaskEnd(precise_time_ns())
+    );
     let r = rayon::join(ca, cb);
     log(RayonEvent::TaskStart(id_c, precise_time_ns()));
     r

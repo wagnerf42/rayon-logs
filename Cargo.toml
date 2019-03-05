@@ -17,8 +17,10 @@ debug = true
 # enable this to bind using thread_binder
 bind = ["thread_binder"]
 
+[target.bind.dependencies]
+thread_binder={optional=true, git="https://github.com/wagnerf42/thread_binder"}
+
 [dependencies]
-thread_binder={optional=true, path="../thread_binder"}
 rayon="*"
 time="^0"
 serde="^1"

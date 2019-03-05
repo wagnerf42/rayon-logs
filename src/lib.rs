@@ -1,6 +1,7 @@
 //! This crate provides logging facilities to evaluate performances
 //! of code parallelized with the rayon parallel computing library.
-#![type_length_limit = "2097152"]
+//! It also doubles down as a debugging tool.
+#![type_length_limit = "2097152"] // it seems we have types with long names
 #![deny(missing_docs)]
 #![warn(clippy::all)]
 
