@@ -1,6 +1,6 @@
 //! just a small example of a complex operation using fold
 extern crate rayon_logs as rayon;
-use rayon::{prelude::*, sequential_task, ThreadPoolBuilder};
+use rayon::{prelude::*, subgraph, ThreadPoolBuilder};
 use std::collections::LinkedList;
 
 fn main() {
@@ -31,7 +31,7 @@ fn main() {
             .into_iter();
         let final_vec = vecs.next().unwrap();
         vecs.fold(final_vec, |mut f, v| {
-            sequential_task("extend", v.len(), || {
+            subgraph("extend", v.len(), || {
                 f.extend(v);
                 f
             })

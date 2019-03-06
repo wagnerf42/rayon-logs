@@ -5,11 +5,7 @@ use rayon::iter::plumbing::*;
 use rayon::iter::*;
 use time::precise_time_ns;
 
-/// `Logged` is an iterator that logs all tasks created in a `LoggedPool`.
-///
-/// This struct is created by the [`logged()`] method on [`ParallelIterator`]
-///
-/// [`ParallelIterator`]: trait.ParallelIterator.html
+/// `Logged` is an iterator that logs all tasks created.
 #[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
 pub struct Logged<I: ParallelIterator> {
     base: I,

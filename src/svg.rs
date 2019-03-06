@@ -90,13 +90,13 @@ impl Rectangle {
 
 /// saves a set of rectangles and edges as an animated svg file.
 /// 1 animated second is 1 milli second of run.
-pub fn write_svg_file<P: AsRef<Path>>(scene: &Scene, path: P) -> Result<(), Error> {
+pub(crate) fn write_svg_file<P: AsRef<Path>>(scene: &Scene, path: P) -> Result<(), Error> {
     let mut file = File::create(path)?;
     fill_svg_file(scene, &mut file)
 }
 
 /// fill given file with a set of rectangles and edges as an animated svg.
-pub fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
+pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
     let svg_width = 1920; // this is just an aspect ratio
     let svg_height = 1080;
 

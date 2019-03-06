@@ -49,8 +49,9 @@ impl<T> Block<T> {
     }
 }
 
-/// Store elements here (in each thread).
-pub struct Storage<T> {
+/// Fast structure (worst case O(1)) for pushing
+/// logs in a thread.
+pub(crate) struct Storage<T> {
     data: UnsafeCell<LinkedList<Block<T>>>,
 }
 

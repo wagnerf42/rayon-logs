@@ -54,8 +54,8 @@ impl TaskLog {
     }
 }
 
-/// For some tasks we know a work amount. We might know it from an iterator or from a user tag
-/// using `sequential_task`.
+/// For some subgraphs we know a work amount. We might know it from an iterator or from a user tag
+/// using the `subgraph` function.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum WorkInformation {
     IteratorWork((usize, usize)),

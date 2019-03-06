@@ -2,7 +2,7 @@ extern crate itertools;
 extern crate rayon;
 extern crate rayon_logs;
 
-use rayon::prelude::*;
+use rayon_logs::prelude::*;
 use rayon_logs::ThreadPoolBuilder;
 use std::collections::LinkedList;
 use std::iter::once;
@@ -17,18 +17,18 @@ fn main() {
         .build()
         .expect("building pool failed");
     pool.compare()
-        .attach_algorithm_nodisplay("map_reduce", || {
+        .attach_algorithm("map_reduce", || {
             let f = v
                 .par_iter()
                 .filter(|&e| *e % 2 == 1)
                 .map(|e| vec![*e])
                 .reduce(Vec::new, |mut v1, v2| {
-                    v1.par_extend(v2);
+                    v1.extend(v2);
                     v1
                 });
             assert_eq!(f.len() as u32, LAST / 2);
         })
-        .attach_algorithm_nodisplay("fold_reduce", || {
+        .attach_algorithm("fold_reduce", || {
             let f = v
                 .par_iter()
                 .filter(|&e| *e % 2 == 1)
@@ -37,12 +37,12 @@ fn main() {
                     v
                 })
                 .reduce(Vec::new, |mut v1, v2| {
-                    v1.par_extend(v2);
+                    v1.extend(v2);
                     v1
                 });
             assert_eq!(f.len() as u32, LAST / 2);
         })
-        .attach_algorithm_nodisplay("fold_map_reduce", || {
+        .attach_algorithm("fold_map_reduce", || {
             let l = v
                 .par_iter()
                 .filter(|&e| *e % 2 == 1)

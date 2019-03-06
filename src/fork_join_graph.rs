@@ -1,6 +1,9 @@
 //! Store a trace as a fork join graph (in a vector).
 use crate::raw_events::{TaskId, TimeStamp};
-use crate::{svg::Scene, svg::COLORS, Rectangle, TaskLog};
+use crate::{
+    svg::{Rectangle, Scene, COLORS},
+    TaskLog,
+};
 type BlockId = usize;
 use crate::log::WorkInformation;
 use crate::RunLog;
@@ -471,7 +474,7 @@ fn compute_idle_times(
     }
 }
 
-/// convert all tasks information into animated rectangles and edges.
+/// Computes a graphical view of a log. This is intended for the development of logs viewers.
 pub fn visualisation(log: &RunLog, speeds: Option<&HashMap<usize, f64>>) -> Scene {
     let mut scene = Scene::new();
 

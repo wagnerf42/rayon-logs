@@ -2,7 +2,7 @@
 use crate::fork_join_graph::compute_speeds;
 use crate::stats::Stats;
 use crate::ThreadPool;
-use crate::{fill_svg_file, visualisation};
+use crate::{svg::fill_svg_file, visualisation};
 use crate::{
     svg::{histogram, HISTOGRAM_COLORS},
     RunLog,
