@@ -1,6 +1,6 @@
 //! Logging scope and Scope.
 use crate::raw_events::{RayonEvent, TaskId};
-use crate::{logs, pool::log, pool::next_task_id};
+use crate::{pool::log, pool::next_task_id};
 use std::mem::transmute;
 use time::precise_time_ns;
 

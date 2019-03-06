@@ -8,16 +8,16 @@ use std::collections::HashMap;
 /// This struct mainly supplies the methods that can be used to get various statistics.
 pub struct Stats<'a> {
     logs: &'a [Vec<RunLog>],
-    threads_number: f64,
-    runs_number: f64,
+    threads_number: usize,
+    runs_number: usize,
 }
 
 impl<'l> Stats<'l> {
     /// This method returns a statistics object.
     pub fn get_statistics(
         logs: &'l Vec<Vec<RunLog>>,
-        threads_number: f64,
-        runs_number: f64,
+        threads_number: usize,
+        runs_number: usize,
     ) -> Self {
         Stats {
             logs,
@@ -31,14 +31,11 @@ impl<'l> Stats<'l> {
         self.logs
             .iter()
             .map(|algorithm| algorithm.iter().map(|run| run.duration as f64).sum())
-            .map(move |total_runs_duration: f64| {
-                total_runs_duration / (1e6 * self.runs_number as f64)
-            })
+            .map(move |total_runs_duration: f64| total_runs_duration / self.runs_number as f64)
     }
 
     /// Return the number of succesfull steals (tasks which moved between threads).
     pub fn succesfull_average_steals<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = usize> + 'a {
-        let temp = self.runs_number;
         self.logs.iter().map(move |algorithm| {
             algorithm
                 .iter()
@@ -55,7 +52,7 @@ impl<'l> Stats<'l> {
                         .sum::<usize>()
                 })
                 .sum::<usize>()
-                / temp as usize
+                / self.runs_number
         })
     }
 
@@ -78,7 +75,7 @@ impl<'l> Stats<'l> {
                         .count()
                 })
                 .sum::<usize>()
-                / self.runs_number as usize
+                / self.runs_number
         })
     }
 
@@ -93,12 +90,10 @@ impl<'l> Stats<'l> {
                     .map(move |run| run.tasks_logs.iter().map(|log| log.duration()).sum::<u64>())
                     .sum()
             })
-            .map(move |total_tasks_times: u64| {
-                total_tasks_times as f64 / (1e6 * self.runs_number as f64)
-            });
+            .map(move |total_tasks_times: u64| total_tasks_times as f64 / self.runs_number as f64);
         self.total_times()
             .zip(tasks_times)
-            .map(move |(duration, activity)| duration * self.threads_number - activity)
+            .map(move |(duration, activity)| duration * self.threads_number as f64 - activity)
     }
 
     /// This returns the time for various tagged tasks summed across all runs for all experiments.
@@ -120,7 +115,7 @@ impl<'l> Stats<'l> {
                     });
             sequential_times
                 .values_mut()
-                .for_each(|time| *time /= 1e6 * self.runs_number as f64);
+                .for_each(|time| *time /= self.runs_number as f64);
             sequential_times
         })
     }
@@ -129,7 +124,7 @@ impl<'l> Stats<'l> {
     pub fn total_times_median<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = f64> + 'a {
         self.logs
             .iter()
-            .map(move |algorithm| algorithm[self.runs_number as usize / 2].duration as f64 / 1e6)
+            .map(move |algorithm| algorithm[self.runs_number / 2].duration as f64)
     }
 
     /// This returns the time for various tagged tasks in the median run for all experiments.
@@ -138,7 +133,7 @@ impl<'l> Stats<'l> {
     ) -> impl Iterator<Item = HashMap<usize, f64>> + 'a {
         self.logs.iter().map(move |algorithm| {
             let mut map: HashMap<usize, f64> = HashMap::new();
-            algorithm[self.runs_number as usize / 2]
+            algorithm[self.runs_number / 2]
                 .tasks_logs
                 .iter()
                 .clone()
@@ -148,7 +143,6 @@ impl<'l> Stats<'l> {
                         *duration += (task.duration()) as f64;
                     }
                 });
-            map.values_mut().for_each(|time| *time /= 1e6);
             map
         })
     }
@@ -158,7 +152,7 @@ impl<'l> Stats<'l> {
         self.logs
             .iter()
             .map(move |algorithm| {
-                algorithm[self.runs_number as usize / 2]
+                algorithm[self.runs_number / 2]
                     .tasks_logs
                     .iter()
                     .map(|log| log.duration() as f64)
@@ -166,7 +160,7 @@ impl<'l> Stats<'l> {
             })
             .zip(self.total_times_median())
             .map(move |(compute_time, total_time)| {
-                (total_time * self.threads_number) - (compute_time / 1e6)
+                (total_time * self.threads_number as f64) - compute_time
             })
     }
 }

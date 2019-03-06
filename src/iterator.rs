@@ -47,8 +47,10 @@ where
             continuing_task_id,
         };
         //log(RayonEvent::IteratorStart(consumer1.iterator_id));
-        log(RayonEvent::Child(consumer_id));
-        log(RayonEvent::TaskEnd(precise_time_ns()));
+        logs!(
+            RayonEvent::Child(consumer_id),
+            RayonEvent::TaskEnd(precise_time_ns())
+        );
         let r = self.base.drive_unindexed(consumer1);
         log(RayonEvent::TaskStart(continuing_task_id, precise_time_ns()));
         r
@@ -80,8 +82,10 @@ where
             continuing_task_id,
         };
         //log(RayonEvent::IteratorStart(consumer1.iterator_id));
-        log(RayonEvent::Child(consumer_id));
-        log(RayonEvent::TaskEnd(precise_time_ns()));
+        logs!(
+            RayonEvent::Child(consumer_id),
+            RayonEvent::TaskEnd(precise_time_ns())
+        );
         let r = self.base.drive(consumer1);
         log(RayonEvent::TaskStart(continuing_task_id, precise_time_ns()));
         r
@@ -185,9 +189,11 @@ where
         let consumer_id_1 = next_task_id();
         let consumer_id_2 = next_task_id();
         let continuing_reducer_id = next_task_id();
-        log(RayonEvent::TaskStart(self.consumer_id, precise_time_ns()));
-        log(RayonEvent::Child(consumer_id_1));
-        log(RayonEvent::Child(consumer_id_2));
+        logs!(
+            RayonEvent::TaskStart(self.consumer_id, precise_time_ns()),
+            RayonEvent::Child(consumer_id_1),
+            RayonEvent::Child(consumer_id_2)
+        );
         let (left, right, reducer) = self.base.split_at(index);
         let left_part = self.part.map(|(s, _)| (s, s + index));
         let right_part = self.part.map(|(s, e)| (s + index, e));
@@ -246,7 +252,6 @@ where
         let continuing_task_id = next_task_id();
         log(RayonEvent::TaskStart(split_task_id, precise_time_ns()));
         let consumer_id = next_task_id();
-        //log(RayonEvent::Join(id, second_id, self.continuing_task_id));
         let r = LoggedConsumer {
             base: self.base.split_off_left(),
             part: None,
@@ -290,9 +295,12 @@ where
     }
 
     fn complete(self) -> F::Result {
+        let continuing_task_id = self.continuing_task_id;
         let result = self.base.complete();
-        log(RayonEvent::Child(self.continuing_task_id));
-        log(RayonEvent::TaskEnd(precise_time_ns()));
+        logs!(
+            RayonEvent::Child(continuing_task_id),
+            RayonEvent::TaskEnd(precise_time_ns())
+        );
         result
     }
 
@@ -317,8 +325,11 @@ where
     fn reduce(self, left: T, right: T) -> T {
         log(RayonEvent::TaskStart(self.id, precise_time_ns()));
         let r = self.rayon_reducer.reduce(left, right);
-        log(RayonEvent::Child(self.continuing_task_id));
-        log(RayonEvent::TaskEnd(precise_time_ns()));
+        let continuing_task_id = self.continuing_task_id;
+        logs!(
+            RayonEvent::Child(continuing_task_id),
+            RayonEvent::TaskEnd(precise_time_ns())
+        );
         r
     }
 }
