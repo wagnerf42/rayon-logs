@@ -65,9 +65,10 @@ pub enum WorkInformation {
     NoInformation,
 }
 
-/// Store information on all tasks and threads number.
-/// We also store threads number because sometimes all threads
-/// are not used.
+/// Logged information.
+///
+/// This stores tasks information, threads number and run duration.
+/// Obtained by `ThreadPool::install`.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RunLog {
     /// total number of threads (some might be unused).

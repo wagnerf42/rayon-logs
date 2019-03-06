@@ -2,11 +2,11 @@
 use crate::fork_join_graph::compute_speeds;
 use crate::stats::Stats;
 use crate::ThreadPool;
-use crate::{svg::fill_svg_file, visualisation};
 use crate::{
+    log::RunLog,
     svg::{histogram, HISTOGRAM_COLORS},
-    RunLog,
 };
+use crate::{svg::fill_svg_file, visualisation};
 use itertools::{izip, Itertools};
 use std::collections::HashMap;
 use std::fs::File;

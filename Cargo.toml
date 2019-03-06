@@ -32,7 +32,3 @@ libc="*"
 
 [dev-dependencies]
 criterion="*"
-
-[[bench]]
-name = "storage"
-harness = false

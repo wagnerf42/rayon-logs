@@ -1,12 +1,8 @@
 //! Store a trace as a fork join graph (in a vector).
 use crate::raw_events::{TaskId, TimeStamp};
-use crate::{
-    svg::{Rectangle, Scene, COLORS},
-    TaskLog,
-};
+use crate::svg::{Rectangle, Scene, COLORS};
 type BlockId = usize;
-use crate::log::WorkInformation;
-use crate::RunLog;
+use crate::log::{RunLog, TaskLog, WorkInformation};
 use itertools::{iproduct, Itertools};
 use std::collections::HashMap;
 use std::iter::repeat;

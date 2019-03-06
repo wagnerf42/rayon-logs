@@ -1,5 +1,6 @@
 //! Small module with display related functions.
 
+use crate::log::RunLog;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Error;
@@ -9,8 +10,6 @@ use std::path::Path;
 
 /// all svg colors names used for histograms displays
 pub const HISTOGRAM_COLORS: [&str; 6] = ["red", "blue", "green", "yellow", "purple", "brown"];
-
-use crate::RunLog;
 
 pub(crate) type Point = (f64, f64);
 
