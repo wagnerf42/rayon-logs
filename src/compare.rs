@@ -15,7 +15,11 @@ use std::io::Error;
 use std::iter::repeat_with;
 use std::path::Path;
 
-/// This struct implements a pseudo builder pattern for multi-way comparisons in a single file.
+/// The comparator structure enables you to easily compare performances of different algorithms.
+///
+/// It runs each algorithm several times before displaying some simple statistics and for each
+/// algorithm the median and best execution trace.
+/// See for example the `filter_collect` example.
 pub struct Comparator<'a> {
     labels: Vec<String>,
     logs: Vec<Vec<RunLog>>,
@@ -34,6 +38,7 @@ impl<'a> Comparator<'a> {
             display_preferences: Vec::new(),
         }
     }
+    /// Sets the number of runs for each algorithm.
     /// PRECONDITION: call that BEFORE attaching algorithms
     pub fn runs_number(self, runs_wanted: usize) -> Self {
         Comparator {
@@ -51,7 +56,8 @@ impl<'a> Comparator<'a> {
         experiments_logs.sort_unstable_by_key(|run| run.duration);
         experiments_logs
     }
-    /// A copy of the following method except that it does not generate an SVG.
+
+    /// Log an algorithm's performances but do not generate svg traces.
     pub fn attach_algorithm_nodisplay<A, STR>(mut self, label: STR, algorithm: A) -> Self
     where
         A: Fn() + Send + Sync,
@@ -63,8 +69,7 @@ impl<'a> Comparator<'a> {
         self.display_preferences.push(false);
         self
     }
-    /// Use this method for attaching an algorithm to the comparator. The algorithm will be taken
-    /// as a closure and run as is.
+    /// Log an algorithm's performances and generate svg traces.
     pub fn attach_algorithm<A, STR>(mut self, label: STR, algorithm: A) -> Self
     where
         A: Fn() + Send + Sync,
@@ -77,8 +82,8 @@ impl<'a> Comparator<'a> {
         self
     }
 
-    /// This will not create an SVG for the algorithm in the comparator.
-
+    /// Log an algorithm but prepare an input (un-timed) for each execution.
+    /// No svg traces.
     pub fn attach_algorithm_nodisplay_with_setup<A, I, S, T, STR>(
         mut self,
         label: STR,
@@ -102,9 +107,8 @@ impl<'a> Comparator<'a> {
         self
     }
 
-    /// This method lets you attach an algorithm with a setup function that will be run each time
-    /// the algorithm is run. The output of the setup function will be given to the algorithm as
-    /// the input.
+    /// Log an algorithm but prepare an input (un-timed) for each execution.
+    /// With svg traces.
     pub fn attach_algorithm_with_setup<A, I, S, T, STR>(
         mut self,
         label: STR,

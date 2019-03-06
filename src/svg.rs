@@ -319,7 +319,8 @@ pub(crate) fn histogram(
     )?;
     let max_count = bars.iter().flat_map(|b| b.iter()).max().unwrap();
     let unit_height = (height - 100) as f32 / *max_count as f32;
-    let unit_width = width as f32 / (bars_number as f32 * 1.5);
+    let unit_width = width as f32 / bars_number as f32;
+    let algorithms_number = logs.len() as f32;
     for (algorithm_index, (counts, color)) in
         bars.iter().zip(HISTOGRAM_COLORS.iter().cycle()).enumerate()
     {
@@ -328,9 +329,10 @@ pub(crate) fn histogram(
                 write!(
                     file,
                     "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\"/>",
-                    algorithm_index as f32 * unit_width / 2.0 + unit_width * 1.5 * index as f32,
+                    algorithm_index as f32 * unit_width / algorithms_number
+                        + unit_width * index as f32,
                     (height - 100) as f32 - (count as f32 * unit_height),
-                    unit_width / 2.0,
+                    unit_width / algorithms_number,
                     count as f32 * unit_height,
                     color
                 )?;
