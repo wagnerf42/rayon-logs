@@ -18,17 +18,17 @@ debug = true
 bind = ["thread_binder"]
 
 [target.bind.dependencies]
-thread_binder={optional=true, git="https://github.com/wagnerf42/thread_binder"}
+thread_binder={version="0.1", optional=true}
 
 [dependencies]
-rayon="*"
+rayon="^1"
 time="^0"
 serde="^1"
 serde_json="^1"
 serde_derive="^1"
 itertools="^0"
 rand="^0"
-libc="*"
+libc="^0.2"
 
 [dev-dependencies]
-criterion="*"
+criterion="^0.2"

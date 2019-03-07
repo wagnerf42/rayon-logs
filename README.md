@@ -11,7 +11,8 @@ Logs are performance oriented and should hopefully enable users to enhance appli
 It can generated animate svg traces of the dag of executed tasks.
 
 Github seems to filter out animated svgs so feel free to navigate my web page for some
-[eye candy](http://www-id.imag.fr/Laboratoire/Membres/Wagner_Frederic/rayon-logs.html).
+[eye](http://www-id.imag.fr/Laboratoire/Membres/Wagner_Frederic/rayon-adaptive.html).
+[candy](http://www-id.imag.fr/Laboratoire/Membres/Wagner_Frederic/rayon-logs.html).
 
 ## Use
 
