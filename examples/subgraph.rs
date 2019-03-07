@@ -1,3 +1,5 @@
+//! Let's try tagging whole subgraphs.
+//! Note that information is logged but only displayed graphically on leaves.
 use rayon_logs::{subgraph, ThreadPoolBuilder};
 
 fn invert(slice: &mut [u32]) {

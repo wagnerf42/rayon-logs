@@ -1,7 +1,4 @@
-extern crate itertools;
-extern crate rayon;
-extern crate rayon_logs;
-
+//! Compare several filter collect algorithms and generate an html comparison page.
 use rayon_logs::prelude::*;
 use rayon_logs::ThreadPoolBuilder;
 use std::collections::LinkedList;
@@ -69,4 +66,5 @@ fn main() {
         })
         .generate_logs("filter.html")
         .expect("failed saving logs");
+    println!("generated filter.html");
 }

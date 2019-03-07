@@ -1,4 +1,4 @@
-//! this is an example about how to work around current limitations.
+//! This is an example about how to work around current limitations.
 use rayon::prelude::*;
 use rayon_logs::Logged;
 use rayon_logs::ThreadPoolBuilder;

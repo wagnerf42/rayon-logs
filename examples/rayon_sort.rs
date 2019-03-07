@@ -1,8 +1,7 @@
-//! this example traces one of rayon's internal algorithm.
-extern crate rayon_logs as rayon;
+//! This example traces one of rayon's internal algorithm.
 use rand::{prelude::SliceRandom, thread_rng};
-use rayon::prelude::*;
-use rayon::ThreadPoolBuilder;
+use rayon_logs::prelude::*;
+use rayon_logs::ThreadPoolBuilder;
 
 fn main() {
     let mut ra = thread_rng();

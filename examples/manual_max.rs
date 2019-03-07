@@ -1,5 +1,5 @@
-extern crate rayon_logs as rayon;
-use rayon::{join, subgraph, ThreadPoolBuilder};
+//! Example for recursive max and tagging of leaves tasks.
+use rayon_logs::{join, subgraph, ThreadPoolBuilder};
 
 fn manual_max(slice: &[u32]) -> u32 {
     if slice.len() < 200_000 {
@@ -24,4 +24,6 @@ fn main() {
 
     log.save_svg("manual_max.svg")
         .expect("saving svg file failed");
+    println!("saved \"manual_max.svg\"");
+    println!("hover mouse over tasks to get logged information !");
 }

@@ -1,3 +1,4 @@
+//! This example exhibits logging overheads.
 extern crate rayon_logs;
 use rayon_logs::ThreadPoolBuilder;
 use std::iter::repeat_with;
