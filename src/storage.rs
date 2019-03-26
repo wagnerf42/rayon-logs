@@ -4,16 +4,13 @@
 //! from all storages. it thus requires an `UnsafeCell`.
 use std::cell::UnsafeCell;
 use std::collections::LinkedList;
-use std::mem;
-use std::ptr;
 
 const BLOCK_SIZE: usize = 10_000;
 
 /// We store elements in a list of blocks.
 /// Each `Block` is a contiguous memory block.
 struct Block<T> {
-    data: [T; BLOCK_SIZE],
-    used: usize,
+    data: Vec<T>,
 }
 
 impl<T> Default for Block<T> {
@@ -26,26 +23,24 @@ impl<T> Block<T> {
     /// Create a new block.
     fn new() -> Self {
         Block {
-            data: unsafe { mem::uninitialized() },
-            used: 0,
+            data: Vec::with_capacity(BLOCK_SIZE),
         }
     }
 
     /// Add given element to block.
     fn push(&mut self, element: T) {
-        debug_assert!(self.used != BLOCK_SIZE);
-        unsafe { ptr::write(self.data.get_unchecked_mut(self.used), element) };
-        self.used += 1;
+        debug_assert!(self.data.len() != BLOCK_SIZE);
+        self.data.push(element)
     }
 
     /// Is there some space left.
     fn is_full(&self) -> bool {
-        self.used == BLOCK_SIZE
+        self.data.len() == BLOCK_SIZE
     }
 
     /// Iterator on all elements.
     fn iter<'a>(&'a self) -> impl Iterator<Item = &'a T> + 'a {
-        (0..self.used).map(move |i| &self.data[i])
+        self.data.iter()
     }
 }
 
@@ -74,15 +69,12 @@ impl<T> Storage<T> {
         }
     }
 
-    /// Destroy all elements (does not free block memory but will drop all elements).
+    /// Destroy all elements (frees all block memory).
     pub fn clear(&self) {
         let list = unsafe { self.data.get().as_mut() }.unwrap();
-        for block in list.iter_mut() {
-            for index in 0..block.used {
-                unsafe { ptr::drop_in_place(block.data.get_unchecked_mut(index)) }
-            }
-            block.used = 0;
-        }
+        list.clear();
+        let first_block = Block::new();
+        list.push_front(first_block);
     }
 
     /// Add given element to storage space.

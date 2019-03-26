@@ -118,8 +118,11 @@ impl RunLog {
                     tasks_info[father].children.push(c);
                 }
                 RayonEvent::TaskEnd(time) => {
-                    let task = active_tasks.take().unwrap();
-                    tasks_info[task].end_time = time - start;
+                    if let Some(task) = active_tasks.take() {
+                        tasks_info[task].end_time = time - start;
+                    } else {
+                        panic!("ending a non started task. are you mixing logged and un-logged computations ?");
+                    }
                 }
                 RayonEvent::TaskStart(task, time) => {
                     tasks_info[task].thread_id = thread_id;
