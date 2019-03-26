@@ -300,7 +300,12 @@ pub(crate) fn histogram(
     let slot = (max_duration - min_duration) / bars_number as u64;
     for (algorithm, algorithm_logs) in logs.iter().enumerate() {
         for duration in algorithm_logs.iter().map(|l| l.duration) {
-            let mut index = ((duration - min_duration) / slot) as usize;
+            let mut index = if slot == 0 {
+                0 // if there is only one duration it's not really a histogram
+                  // but display it nonetheless
+            } else {
+                ((duration - min_duration) / slot) as usize
+            };
             if index == bars_number {
                 index -= 1;
             }
