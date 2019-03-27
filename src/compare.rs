@@ -152,7 +152,11 @@ impl<'a> Comparator<'a> {
             self.runs_number
         )?;
         for (label, color) in self.labels.iter().zip(HISTOGRAM_COLORS.iter().cycle()) {
-            write!(html_file, "{} is {}, ", color, label)?;
+            write!(
+                html_file,
+                "<text style=\"color:{0}\">{0}</text> is {1}, ",
+                color, label
+            )?;
         }
         write!(html_file, "</H2>")?;
         histogram(&mut html_file, &self.logs, 30)?;
