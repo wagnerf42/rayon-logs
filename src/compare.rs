@@ -139,12 +139,18 @@ impl<'a> Comparator<'a> {
         write!(html_file, "<!DOCTYPE html>")?;
         write!(html_file, "<html><body><center>")?;
         let (last_label, first_labels) = self.labels.split_last().expect("not enough experiments");
-        write!(
-            html_file,
-            "<H1> Comparing {} and {}</H1>",
-            first_labels.join(", "),
-            last_label
-        )?;
+        if first_labels.len() > 0 {
+            // If there are more than 1 algo to compare
+            write!(
+                html_file,
+                "<H1> Comparing {} and {}</H1>",
+                first_labels.join(", "),
+                last_label
+            )?;
+        } else {
+            // If there is a single algo
+            write!(html_file, "<H1> Comparing {}</H1>", last_label)?;
+        }
 
         write!(
             html_file,
