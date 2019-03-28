@@ -39,7 +39,8 @@ impl<'a> Comparator<'a> {
         }
     }
     /// Renumber all tags accross all logs such that tags number match.
-    fn fuse_tags(&mut self) {
+    /// Return vector of all tags.
+    fn fuse_tags(&mut self) -> Vec<String> {
         let mut global_tags = HashMap::new();
         for experiment in &self.logs {
             for log in experiment {
@@ -51,6 +52,11 @@ impl<'a> Comparator<'a> {
                 log.update_tags(&global_tags);
             }
         }
+        global_tags
+            .into_iter()
+            .sorted_by_key(|&(_, i)| i)
+            .map(|(t, _)| t)
+            .collect()
     }
     /// Sets the number of runs for each algorithm.
     /// PRECONDITION: call that BEFORE attaching algorithms
@@ -148,11 +154,22 @@ impl<'a> Comparator<'a> {
 
     /// This method should be called in the end to write the logs to a desired html file.
     pub fn generate_logs<P: AsRef<Path>>(mut self, filename: P) -> Result<(), Error> {
-        self.fuse_tags(); // have a consistent tags numbering accross all logs
+        let tags = self.fuse_tags(); // have a consistent tags numbering accross all logs
         let mut html_file = File::create(filename)?;
 
         write!(html_file, "<!DOCTYPE html>")?;
-        write!(html_file, "<html><body><center>")?;
+        write!(
+            html_file,
+            r#"
+<html><head><style>
+table, th, td {{
+  border: 1px solid black;
+  border-collapse: collapse;
+}}
+</style>
+</head>
+<body><center>"#,
+        )?;
         let (last_label, first_labels) = self.labels.split_last().expect("not enough experiments");
         write!(
             html_file,
@@ -176,7 +193,10 @@ impl<'a> Comparator<'a> {
         write!(html_file, "<H2> The Mean statistics are</H2>")?;
         write!(
             html_file,
-            "<table><tr><th>algorithm</th><th>net time</th><th>sequential times</th><th>idle time</th></tr>",
+            "<table><tr><th>algorithm</th><th>net time</th>{}<th>idle time</th></tr>",
+            tags.iter()
+                .map(|t| format!("<th>{}</th>", t))
+                .collect::<String>()
         )?;
         for (name, total_time, sequential_times, idle_time) in izip!(
             self.labels.iter(),
@@ -186,10 +206,13 @@ impl<'a> Comparator<'a> {
         ) {
             write!(
                 html_file,
-                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                "<tr><td>{}</td><td>{}</td>{}<td>{}</td></tr>",
                 name,
                 total_time,
-                compute_sequential_times_string(&sequential_times),
+                (0..tags.len())
+                    .map(|i| sequential_times.get(&i).unwrap_or(&0.0))
+                    .map(|t| format!("<td>{}</td>", t))
+                    .collect::<String>(),
                 idle_time
             )?;
         }
@@ -197,7 +220,10 @@ impl<'a> Comparator<'a> {
         write!(html_file, "<H2> The Median statistics are</H2>")?;
         write!(
             html_file,
-            "<table><tr><th>algorithm</th><th>net time</th><th>sequential times</th><th>idle time</th></tr>",
+            "<table><tr><th>algorithm</th><th>net time</th>{}<th>idle time</th></tr>",
+            tags.iter()
+                .map(|t| format!("<th>{}</th>", t))
+                .collect::<String>()
         )?;
         for (name, total_time, sequential_times, idle_time) in izip!(
             self.labels.iter(),
@@ -207,10 +233,13 @@ impl<'a> Comparator<'a> {
         ) {
             write!(
                 html_file,
-                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                "<tr><td>{}</td><td>{}</td>{}<td>{}</td></tr>",
                 name,
                 total_time,
-                compute_sequential_times_string(&sequential_times),
+                (0..tags.len())
+                    .map(|i| sequential_times.get(&i).unwrap_or(&0.0))
+                    .map(|t| format!("<td>{}</td>", t))
+                    .collect::<String>(),
                 idle_time
             )?;
         }
@@ -244,12 +273,4 @@ impl<'a> Comparator<'a> {
         }
         Ok(())
     }
-}
-
-fn compute_sequential_times_string(times: &HashMap<usize, f64>) -> String {
-    let mut keys: Vec<usize> = times.keys().cloned().collect();
-    keys.sort_unstable();
-    keys.iter()
-        .map(|key| format!("{}:{}", key, times[key]))
-        .join(", ")
 }
