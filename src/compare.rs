@@ -208,12 +208,12 @@ table, th, td {{
                 html_file,
                 "<tr><td>{}</td><td>{}</td>{}<td>{}</td></tr>",
                 name,
-                total_time,
+                time_string(total_time),
                 (0..tags.len())
-                    .map(|i| sequential_times.get(&i).unwrap_or(&0.0))
-                    .map(|t| format!("<td>{}</td>", t))
+                    .map(|i| sequential_times.get(&i).unwrap_or(&0))
+                    .map(|t| format!("<td>{}</td>", time_string(*t)))
                     .collect::<String>(),
-                idle_time
+                time_string(idle_time)
             )?;
         }
         write!(html_file, "</table>",)?;
@@ -235,12 +235,12 @@ table, th, td {{
                 html_file,
                 "<tr><td>{}</td><td>{}</td>{}<td>{}</td></tr>",
                 name,
-                total_time,
+                time_string(total_time),
                 (0..tags.len())
-                    .map(|i| sequential_times.get(&i).unwrap_or(&0.0))
-                    .map(|t| format!("<td>{}</td>", t))
+                    .map(|i| sequential_times.get(&i).unwrap_or(&0))
+                    .map(|t| format!("<td>{}</td>", time_string(*t)))
                     .collect::<String>(),
-                idle_time
+                time_string(idle_time)
             )?;
         }
         write!(html_file, "</table>",)?;
@@ -272,5 +272,15 @@ table, th, td {{
             write!(html_file, "</body></html>")?;
         }
         Ok(())
+    }
+}
+
+fn time_string(nano: u64) -> String {
+    match nano {
+        n if n < 1_000 => format!("{}ns", n),
+        n if n < 1_000_000 => format!("{}us", n / 1_000),
+        n if n < 1_000_000_000 => format!("{}ms", n / 1_000_000),
+        n if n < 60_000_000_000 => format!("{}s", n / 1_000_000_000),
+        n => format!("{}m{}s", n / 60_000_000_000, n % 60_000_000_000),
     }
 }

@@ -27,11 +27,11 @@ impl<'l> Stats<'l> {
     }
 
     /// This returns the total time summed across all runs for all experiments.
-    pub fn total_times<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = f64> + 'a {
+    pub fn total_times<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = u64> + 'a {
         self.logs
             .iter()
-            .map(|algorithm| algorithm.iter().map(|run| run.duration as f64).sum())
-            .map(move |total_runs_duration: f64| total_runs_duration / self.runs_number as f64)
+            .map(|algorithm| algorithm.iter().map(|run| run.duration).sum())
+            .map(move |total_runs_duration: u64| total_runs_duration / self.runs_number as u64)
     }
 
     /// Return the number of succesfull steals (tasks which moved between threads).
@@ -80,7 +80,7 @@ impl<'l> Stats<'l> {
     }
 
     /// This returns the idle time summed across all runs for all experiments.
-    pub fn idle_times<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = f64> + 'a {
+    pub fn idle_times<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = u64> + 'a {
         let tasks_times = self
             .logs
             .iter()
@@ -90,57 +90,57 @@ impl<'l> Stats<'l> {
                     .map(move |run| run.tasks_logs.iter().map(|log| log.duration()).sum::<u64>())
                     .sum()
             })
-            .map(move |total_tasks_times: u64| total_tasks_times as f64 / self.runs_number as f64);
+            .map(move |total_tasks_times: u64| total_tasks_times / self.runs_number as u64);
         self.total_times()
             .zip(tasks_times)
-            .map(move |(duration, activity)| duration * self.threads_number as f64 - activity)
+            .map(move |(duration, activity)| duration * self.threads_number as u64 - activity)
     }
 
     /// This returns the time for various tagged tasks summed across all runs for all experiments.
     pub fn sequential_times<'a, 'b: 'a>(
         &'b self,
-    ) -> impl Iterator<Item = HashMap<usize, f64>> + 'a {
+    ) -> impl Iterator<Item = HashMap<usize, u64>> + 'a {
         self.logs.iter().map(move |algorithm| {
             let mut sequential_times =
                 algorithm
                     .iter()
-                    .fold(HashMap::new(), |mut map: HashMap<usize, f64>, run| {
+                    .fold(HashMap::new(), |mut map: HashMap<usize, u64>, run| {
                         run.tasks_logs.iter().for_each(|task| {
                             if let WorkInformation::SequentialWork((id, _)) = task.work {
-                                let duration = map.entry(id).or_insert(0.0);
-                                *duration += task.duration() as f64;
+                                let duration = map.entry(id).or_insert(0);
+                                *duration += task.duration();
                             }
                         });
                         map
                     });
             sequential_times
                 .values_mut()
-                .for_each(|time| *time /= self.runs_number as f64);
+                .for_each(|time| *time /= self.runs_number as u64);
             sequential_times
         })
     }
 
     /// This returns the total time for the median runs for all experiments.
-    pub fn total_times_median<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = f64> + 'a {
+    pub fn total_times_median<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = u64> + 'a {
         self.logs
             .iter()
-            .map(move |algorithm| algorithm[self.runs_number / 2].duration as f64)
+            .map(move |algorithm| algorithm[self.runs_number / 2].duration as u64)
     }
 
     /// This returns the time for various tagged tasks in the median run for all experiments.
     pub fn sequential_times_median<'a, 'b: 'a>(
         &'b self,
-    ) -> impl Iterator<Item = HashMap<usize, f64>> + 'a {
+    ) -> impl Iterator<Item = HashMap<usize, u64>> + 'a {
         self.logs.iter().map(move |algorithm| {
-            let mut map: HashMap<usize, f64> = HashMap::new();
+            let mut map: HashMap<usize, u64> = HashMap::new();
             algorithm[self.runs_number / 2]
                 .tasks_logs
                 .iter()
                 .clone()
                 .for_each(|task| {
                     if let WorkInformation::SequentialWork((id, _)) = task.work {
-                        let duration = map.entry(id).or_insert(0.0);
-                        *duration += (task.duration()) as f64;
+                        let duration = map.entry(id).or_insert(0);
+                        *duration += (task.duration()) as u64;
                     }
                 });
             map
@@ -148,19 +148,19 @@ impl<'l> Stats<'l> {
     }
 
     /// This returns the idle time for the median run for all experiments.
-    pub fn idle_times_median<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = f64> + 'a {
+    pub fn idle_times_median<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = u64> + 'a {
         self.logs
             .iter()
             .map(move |algorithm| {
                 algorithm[self.runs_number / 2]
                     .tasks_logs
                     .iter()
-                    .map(|log| log.duration() as f64)
-                    .sum::<f64>()
+                    .map(|log| log.duration() as u64)
+                    .sum::<u64>()
             })
             .zip(self.total_times_median())
             .map(move |(compute_time, total_time)| {
-                (total_time * self.threads_number as f64) - compute_time
+                (total_time * self.threads_number as u64) - compute_time
             })
     }
 }
