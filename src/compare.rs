@@ -38,6 +38,20 @@ impl<'a> Comparator<'a> {
             display_preferences: Vec::new(),
         }
     }
+    /// Renumber all tags accross all logs such that tags number match.
+    fn fuse_tags(&mut self) {
+        let mut global_tags = HashMap::new();
+        for experiment in &self.logs {
+            for log in experiment {
+                log.scan_tags(&mut global_tags);
+            }
+        }
+        for experiment in &mut self.logs {
+            for log in experiment {
+                log.update_tags(&global_tags);
+            }
+        }
+    }
     /// Sets the number of runs for each algorithm.
     /// PRECONDITION: call that BEFORE attaching algorithms
     pub fn runs_number(self, runs_wanted: usize) -> Self {
@@ -133,7 +147,8 @@ impl<'a> Comparator<'a> {
     }
 
     /// This method should be called in the end to write the logs to a desired html file.
-    pub fn generate_logs<P: AsRef<Path>>(self, filename: P) -> Result<(), Error> {
+    pub fn generate_logs<P: AsRef<Path>>(mut self, filename: P) -> Result<(), Error> {
+        self.fuse_tags(); // have a consistent tags numbering accross all logs
         let mut html_file = File::create(filename)?;
 
         write!(html_file, "<!DOCTYPE html>")?;

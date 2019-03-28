@@ -182,6 +182,51 @@ impl RunLog {
         }
     }
 
+    /// Fuse our tags into given tags hash table.
+    pub(crate) fn scan_tags(&self, tags: &mut HashMap<String, usize>) {
+        for tag in &self.tags {
+            let next_index = tags.len();
+            match tags.entry(tag.clone()) {
+                Entry::Vacant(v) => {
+                    v.insert(next_index);
+                }
+                _ => (),
+            }
+        }
+    }
+
+    /// Re-number tags according to given renumbering.
+    /// This is useful for unifying tags accross several logs.
+    /// pre-condition: no "holes" in the hashmap's usizes :
+    /// they form a contiguous range starting at 0.
+    pub(crate) fn update_tags(&mut self, new_tags: &HashMap<String, usize>) {
+        let current_tags = &self.tags;
+        // adjust tags inside each task
+        for task in &mut self.tasks_logs {
+            match task.work {
+                WorkInformation::SequentialWork((old_index, s)) => {
+                    task.work =
+                        WorkInformation::SequentialWork((new_tags[&current_tags[old_index]], s))
+                }
+                WorkInformation::SubgraphStartWork((old_index, s)) => {
+                    task.work =
+                        WorkInformation::SubgraphStartWork((new_tags[&current_tags[old_index]], s))
+                }
+                WorkInformation::SubgraphEndWork(old_index) => {
+                    task.work = WorkInformation::SubgraphEndWork(new_tags[&current_tags[old_index]])
+                }
+                WorkInformation::IteratorWork(_) => unimplemented!(),
+                _ => (),
+            }
+        }
+        // adjust the tags themselves
+        self.tags = new_tags
+            .iter()
+            .sorted_by_key(|&(_, i)| i)
+            .map(|(t, _)| t.clone())
+            .collect();
+    }
+
     /// Load a rayon_logs log file and deserializes it into a `RunLog`.
     pub fn load<P: AsRef<Path>>(path: P) -> Result<RunLog, io::Error> {
         let file = File::open(path).unwrap();
