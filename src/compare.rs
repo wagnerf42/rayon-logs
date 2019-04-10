@@ -256,9 +256,10 @@ table, th, td {{
                     .iter()
                     .flat_map(|row| &row[median_index].tasks_logs),
             );
-            for (pos, log) in self.logs.iter().enumerate() {
+            for (pos, (log, name)) in self.logs.iter().zip(self.labels.iter()).enumerate() {
                 if self.display_preferences[pos] {
                     let scene = visualisation(&log[median_index], Some(&speeds));
+                    writeln!(html_file, "<H3 align=\"left\"><u>{}</u> :</H3>", name)?;
                     fill_svg_file(&scene, &mut html_file)?;
                     writeln!(html_file, "<p>")?;
                 }
@@ -266,9 +267,10 @@ table, th, td {{
 
             write!(html_file, "<H2>Comparing best runs</H2>")?;
             let speeds = compute_speeds(self.logs.iter().flat_map(|row| &row[0].tasks_logs));
-            for (pos, log) in self.logs.iter().enumerate() {
+            for (pos, (log, name)) in self.logs.iter().zip(self.labels.iter()).enumerate() {
                 if self.display_preferences[pos] {
                     let scene = visualisation(&log[0], Some(&speeds));
+                    writeln!(html_file, "<H3 align=\"left\"><u>{}</u> :</H3>", name)?;
                     fill_svg_file(&scene, &mut html_file)?;
                     writeln!(html_file, "<p>")?;
                 }
