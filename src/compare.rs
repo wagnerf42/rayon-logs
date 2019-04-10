@@ -197,20 +197,22 @@ table, th, td {{
         write!(html_file, "<H2> The Mean statistics are</H2>")?;
         write!(
             html_file,
-            "<table><tr><th>algorithm</th><th>net time</th>{}<th>idle time</th></tr>",
+            "<table><tr><th></th><th>algorithm</th><th>net time</th>{}<th>idle time</th></tr>",
             tags.iter()
                 .map(|t| format!("<th>{}</th>", t))
                 .collect::<String>()
         )?;
-        for (name, total_time, sequential_times, idle_time) in izip!(
+        for (name, total_time, sequential_times, idle_time, algo_color) in izip!(
             self.labels.iter(),
             statistics.total_times(),
             statistics.sequential_times(),
-            statistics.idle_times()
+            statistics.idle_times(),
+	    HISTOGRAM_COLORS.iter()
         ) {
             write!(
                 html_file,
-                "<tr><td>{}</td><td>{}</td>{}<td>{}</td></tr>",
+                "<tr><td>{}</td><td>{}</td><td>{}</td>{}<td>{}</td></tr>",
+		format!("<span style='color:{}'>&#9632;</span>", algo_color),
                 name,
                 time_string(total_time),
                 (0..tags.len())
@@ -224,20 +226,22 @@ table, th, td {{
         write!(html_file, "<H2> The Median statistics are</H2>")?;
         write!(
             html_file,
-            "<table><tr><th>algorithm</th><th>net time</th>{}<th>idle time</th></tr>",
+            "<table><tr><th></th><th>algorithm</th><th>net time</th>{}<th>idle time</th></tr>",
             tags.iter()
                 .map(|t| format!("<th>{}</th>", t))
                 .collect::<String>()
         )?;
-        for (name, total_time, sequential_times, idle_time) in izip!(
+        for (name, total_time, sequential_times, idle_time, algo_color) in izip!(
             self.labels.iter(),
             statistics.total_times_median(),
             statistics.sequential_times_median(),
-            statistics.idle_times_median()
+            statistics.idle_times_median(),
+	    HISTOGRAM_COLORS.iter()
         ) {
             write!(
                 html_file,
-                "<tr><td>{}</td><td>{}</td>{}<td>{}</td></tr>",
+                "<tr><td>{}</td><td>{}</td><td>{}</td>{}<td>{}</td></tr>",
+		format!("<span style='color:{}'>&#9632;</span>", algo_color),
                 name,
                 time_string(total_time),
                 (0..tags.len())
