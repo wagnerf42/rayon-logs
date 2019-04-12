@@ -18,8 +18,8 @@ debug = true
 bind = ["thread_binder"]
 
 [target.bind.dependencies]
-# thread_binder={path="../thread_binder", optional=true}
-thread_binder={version="*", optional=true}
+thread_binder={git="https://github.com/wagnerf42/thread_binder", optional=true}
+# thread_binder={version="*", optional=true}
 
 [dependencies]
 rayon="^1"
@@ -30,7 +30,8 @@ serde_derive="^1"
 itertools="^0"
 rand="^0"
 libc="^0.2"
-thread_binder={version="*", optional=true}
+# thread_binder={version="*", optional=true}
+thread_binder={git="https://github.com/wagnerf42/thread_binder", optional=true}
 
 [dev-dependencies]
 criterion="^0.2"

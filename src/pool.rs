@@ -9,14 +9,14 @@ use crate::{scope, Scope};
 use rayon;
 use rayon::FnContext;
 use std::cell::RefCell;
-use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use time::precise_time_ns;
 
 /// We use an atomic usize to generate unique ids for tasks.
-pub(crate) static NEXT_TASK_ID: AtomicUsize = ATOMIC_USIZE_INIT;
+pub(crate) static NEXT_TASK_ID: AtomicUsize = AtomicUsize::new(0);
 /// We use an atomic usize to generate unique ids for iterators.
-pub(crate) static NEXT_ITERATOR_ID: AtomicUsize = ATOMIC_USIZE_INIT;
+pub(crate) static NEXT_ITERATOR_ID: AtomicUsize = AtomicUsize::new(0);
 
 /// get an id for a new task and increment global tasks counter.
 pub fn next_task_id() -> TaskId {
