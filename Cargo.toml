@@ -30,6 +30,8 @@ serde_derive="^1"
 itertools="^0"
 rand="^0"
 libc="^0.2"
+x86="*"
+perfcnt="*"
 # thread_binder={version="*", optional=true}
 thread_binder={git="https://github.com/wagnerf42/thread_binder", optional=true}
 

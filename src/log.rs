@@ -62,6 +62,7 @@ pub enum WorkInformation {
     SequentialWork((usize, usize)),
     SubgraphStartWork((usize, usize)),
     SubgraphEndWork(usize),
+    SubgraphPerfWork((usize, usize, usize)),
     NoInformation,
 }
 
@@ -129,7 +130,10 @@ impl RunLog {
                     tasks_info[task].start_time = time - start;
                     *active_tasks = Some(task);
                 }
-                RayonEvent::SubgraphStart(work_type, _) | RayonEvent::SubgraphEnd(work_type) => {
+                RayonEvent::SubgraphStart(work_type, _)
+                | RayonEvent::SubgraphEnd(work_type)
+                | RayonEvent::SubgraphPerfStart(work_type)
+                | RayonEvent::SubgraphPerfEnd(work_type, _, _) => {
                     if let Some(active_task) = active_tasks {
                         let existing_tag = seen_tags.entry(work_type);
                         let tag_index = match existing_tag {
@@ -150,6 +154,23 @@ impl RunLog {
                                     RayonEvent::SubgraphEnd(_) => {
                                         WorkInformation::SubgraphEndWork(tag_index)
                                     }
+                                    RayonEvent::SubgraphPerfEnd(_, cache_misses, perf_type) => {
+                                        let perf_existing_tag = seen_tags.entry(perf_type);
+                                        let perf_tag_index = match perf_existing_tag {
+                                            Entry::Occupied(o) => *o.get(),
+                                            Entry::Vacant(v) => {
+                                                let index = tags.len();
+                                                v.insert(index);
+                                                tags.push(perf_type.to_string());
+                                                index
+                                            }
+                                        };
+                                        WorkInformation::SubgraphPerfWork((
+                                            tag_index,
+                                            cache_misses,
+                                            perf_tag_index
+                                        ))
+                                    }
                                     _ => WorkInformation::NoInformation,
                                 };
                             }
@@ -159,10 +180,11 @@ impl RunLog {
                                 tasks_info[*active_task].work =
                                     WorkInformation::SequentialWork((tag_index, work_amount));
                             }
-                            _ => panic!(
-                                "Tried to end subgraph for a task marked with {:?}",
-                                tasks_info[*active_task].work
-                            ),
+                            _ => {}
+                            // _ => panic!(
+                            //     "Tried to end subgraph for a task marked with {:?}",
+                            //     tasks_info[*active_task].work
+                            // ),
                         }
                     } else {
                         panic!("tagging a non existing task");

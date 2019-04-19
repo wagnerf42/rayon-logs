@@ -119,3 +119,5 @@ impl<'data, I: rayon::prelude::IntoParallelRefMutIterator<'data>> IntoParallelRe
 }
 
 pub use crate::rayon_algorithms::slice::ParallelSliceMut;
+// For the subgraph_perf function
+pub use perfcnt::linux::HardwareEventType;

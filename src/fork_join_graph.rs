@@ -366,6 +366,9 @@ fn generate_visualisation(
                 WorkInformation::SubgraphStartWork((_, work_amount)) => {
                     format!(" work: {},\n", work_amount)
                 }
+                WorkInformation::SubgraphPerfWork((_, cache_misses, perf_index)) => {
+                    format!(" {}: {},\n", tags[perf_index], cache_misses)
+                }
                 _ => String::new(),
             };
             let type_label = match t.work {

@@ -24,6 +24,10 @@ pub(crate) enum RayonEvent {
     SubgraphStart(&'static str, usize),
     /// Tag the end of a subgraph.
     SubgraphEnd(&'static str),
+    /// Tag a subgraph with work type, work amount.
+    SubgraphPerfStart(&'static str),
+    /// Tag the end of a subgraph.
+    SubgraphPerfEnd(&'static str, usize, &'static str),
 }
 
 impl RayonEvent {

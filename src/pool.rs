@@ -1,6 +1,13 @@
 //! `LoggedPool` structure for logging raw tasks events.
 #![macro_use]
 
+extern crate perfcnt;
+extern crate x86;
+
+use perfcnt::linux::HardwareEventType;
+use perfcnt::linux::PerfCounterBuilderLinux;
+use perfcnt::{AbstractPerfCounter, PerfCounter};
+
 use crate::log::RunLog;
 use crate::raw_events::{RayonEvent, TaskId};
 use crate::storage::Storage;
@@ -328,6 +335,66 @@ where
     r
 }
 
+/// Same as the subgraph function, but we can log a hardware event
+/// (from: https://github.com/gz/rust-perfcnt)
+/// Events:
+///     * HardwareEventType::CPUCycles
+///     * HardwareEventType::Instructions
+///     * HardwareEventType::CacheReferences
+///     * HardwareEventType::CacheMisses
+///     * HardwareEventType::BranchInstructions
+///     * HardwareEventType::BranchMisses
+///     * HardwareEventType::BusCycles
+///     * HardwareEventType::StalledCyclesFrontend
+///     * HardwareEventType::StalledCyclesBackend
+///     * HardwareEventType::RefCPUCycles
+///
+/// You will have to import the rayon_logs prelude to use these events
+/// and to use the nightly version of the compiler
+///
+/// You can give a label to the event you are logging
+pub fn subgraph_perf<OP, R>(
+    work_type: &'static str,
+    hardware_event: HardwareEventType,
+    perf_name: &'static str,
+    op: OP,
+) -> R
+where
+    OP: FnOnce() -> R,
+{
+    let subgraph_start_task_id = next_task_id();
+    let continuation_task_id = next_task_id();
+    let mut pc: PerfCounter = PerfCounterBuilderLinux::from_hardware_event(hardware_event)
+        .exclude_idle()
+        .exclude_kernel()
+        .finish()
+        .expect("Could not create counter");
+
+    logs!(
+        // log child's work and dependencies.
+        RayonEvent::Child(subgraph_start_task_id),
+        // end current task
+        RayonEvent::TaskEnd(precise_time_ns()),
+        // execute full sequential task
+        RayonEvent::TaskStart(subgraph_start_task_id, precise_time_ns()),
+        RayonEvent::SubgraphPerfStart(work_type)
+    );
+
+    pc.start().expect("Can not start the counter");
+    let r = op();
+    pc.stop().expect("Can not stop the counter");;
+    let cache_misses: usize = pc.read().unwrap() as usize;
+
+    logs!(
+        RayonEvent::SubgraphPerfEnd(work_type, cache_misses, perf_name),
+        RayonEvent::Child(continuation_task_id),
+        RayonEvent::TaskEnd(precise_time_ns()),
+        // start continuation task
+        RayonEvent::TaskStart(continuation_task_id, precise_time_ns(),)
+    );
+    pc.reset().expect("Can not reset the counter");
+    r
+}
 /// Identical to `join`, except that the closures have a parameter
 /// that provides context for the way the closure has been called,
 /// especially indicating whether they're executing on a different
