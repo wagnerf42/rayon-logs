@@ -336,18 +336,30 @@ where
 }
 
 /// Same as the subgraph function, but we can log a hardware event
+///
 /// (from: https://github.com/gz/rust-perfcnt)
+///
 /// Events:
-///     * HardwareEventType::CPUCycles
-///     * HardwareEventType::Instructions
-///     * HardwareEventType::CacheReferences
-///     * HardwareEventType::CacheMisses
-///     * HardwareEventType::BranchInstructions
-///     * HardwareEventType::BranchMisses
-///     * HardwareEventType::BusCycles
-///     * HardwareEventType::StalledCyclesFrontend
-///     * HardwareEventType::StalledCyclesBackend
-///     * HardwareEventType::RefCPUCycles
+///
+/// * ```HardwareEventType::CPUCycles```
+///
+/// * ```HardwareEventType::Instructions```
+///
+/// * ```HardwareEventType::CacheReferences```
+///
+/// * ```HardwareEventType::CacheMisses```
+///
+/// * ```HardwareEventType::BranchInstructions```
+///
+/// * ```HardwareEventType::BranchMisses```
+///
+/// * ```HardwareEventType::BusCycles```
+///
+/// * ```HardwareEventType::StalledCyclesFrontend```
+///
+/// * ```HardwareEventType::StalledCyclesBackend```
+///
+/// * ```HardwareEventType::RefCPUCycles```
 ///
 /// You will have to import the rayon_logs prelude to use these events
 /// and to use the nightly version of the compiler
