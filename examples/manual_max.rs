@@ -1,9 +1,15 @@
 //! Example for recursive max and tagging of leaves tasks.
-use rayon_logs::{join, subgraph, ThreadPoolBuilder};
+use rayon_logs::prelude::*;
+use rayon_logs::{join, subgraph_perf, ThreadPoolBuilder};
 
 fn manual_max(slice: &[u32]) -> u32 {
     if slice.len() < 200_000 {
-        subgraph("max", slice.len(), || slice.iter().max().cloned().unwrap())
+        subgraph_perf(
+            "max",
+            HardwareEventType::CacheMisses,
+            "Cache Misses",
+            || slice.iter().max().cloned().unwrap(),
+        )
     } else {
         let middle = slice.len() / 2;
         let (left, right) = slice.split_at(middle);

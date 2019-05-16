@@ -1,11 +1,15 @@
 //! `LoggedPool` structure for logging raw tasks events.
 #![macro_use]
 
+#[cfg(feature = "perf")]
 extern crate perfcnt;
+#[cfg(feature = "perf")]
 extern crate x86;
-
+#[cfg(feature = "perf")]
 use perfcnt::linux::HardwareEventType;
+#[cfg(feature = "perf")]
 use perfcnt::linux::PerfCounterBuilderLinux;
+#[cfg(feature = "perf")]
 use perfcnt::{AbstractPerfCounter, PerfCounter};
 
 use crate::log::RunLog;
@@ -365,6 +369,7 @@ where
 /// and to use the nightly version of the compiler
 ///
 /// You can give a label to the event you are logging
+#[cfg(feature = "perf")]
 pub fn subgraph_perf<OP, R>(
     work_type: &'static str,
     hardware_event: HardwareEventType,
