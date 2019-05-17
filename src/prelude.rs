@@ -121,4 +121,6 @@ impl<'data, I: rayon::prelude::IntoParallelRefMutIterator<'data>> IntoParallelRe
 pub use crate::rayon_algorithms::slice::ParallelSliceMut;
 // For the subgraph_perf function
 #[cfg(feature = "perf")]
-pub use perfcnt::linux::HardwareEventType;
+pub use perfcnt::linux::{
+    CacheId, CacheOpId, CacheOpResultId, HardwareEventType, SoftwareEventType,
+};

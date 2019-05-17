@@ -6,9 +6,9 @@ extern crate perfcnt;
 #[cfg(feature = "perf")]
 extern crate x86;
 #[cfg(feature = "perf")]
-use perfcnt::linux::HardwareEventType;
-#[cfg(feature = "perf")]
 use perfcnt::linux::PerfCounterBuilderLinux;
+#[cfg(feature = "perf")]
+use perfcnt::linux::{CacheId, CacheOpId, CacheOpResultId, HardwareEventType, SoftwareEventType};
 #[cfg(feature = "perf")]
 use perfcnt::{AbstractPerfCounter, PerfCounter};
 
@@ -370,7 +370,7 @@ where
 ///
 /// You can give a label to the event you are logging
 #[cfg(feature = "perf")]
-pub fn subgraph_perf<OP, R>(
+pub fn subgraph_perf_hw<OP, R>(
     work_type: &'static str,
     hardware_event: HardwareEventType,
     perf_name: &'static str,
@@ -386,6 +386,170 @@ where
         .exclude_kernel()
         .finish()
         .expect("Could not create counter");
+
+    logs!(
+        // log child's work and dependencies.
+        RayonEvent::Child(subgraph_start_task_id),
+        // end current task
+        RayonEvent::TaskEnd(precise_time_ns()),
+        // execute full sequential task
+        RayonEvent::TaskStart(subgraph_start_task_id, precise_time_ns()),
+        RayonEvent::SubgraphPerfStart(work_type)
+    );
+
+    pc.start().expect("Can not start the counter");
+    let r = op();
+    pc.stop().expect("Can not stop the counter");;
+    let cache_misses: usize = pc.read().unwrap() as usize;
+
+    logs!(
+        RayonEvent::SubgraphPerfEnd(work_type, cache_misses, perf_name),
+        RayonEvent::Child(continuation_task_id),
+        RayonEvent::TaskEnd(precise_time_ns()),
+        // start continuation task
+        RayonEvent::TaskStart(continuation_task_id, precise_time_ns(),)
+    );
+    pc.reset().expect("Can not reset the counter");
+    r
+}
+
+/// Same as the subgraph function, but we can log a software event
+///
+/// (from: https://github.com/gz/rust-perfcnt)
+///
+/// Events:
+///
+/// * ```SoftwareEventType::CpuClock```
+///
+/// * ```SoftwareEventType::TaskClock```
+///
+/// * ```SoftwareEventType::PageFaults```
+///
+/// * ```SoftwareEventType::CacheMisses```
+///
+/// * ```SoftwareEventType::ContextSwitches```
+///
+/// * ```SoftwareEventType::CpuMigrations```
+///
+/// * ```SoftwareEventType::PageFaultsMin```
+///
+/// * ```SoftwareEventType::PageFaultsMin```
+///
+/// * ```SoftwareEventType::PageFaultsMaj```
+///
+/// * ```SoftwareEventType::AlignmentFaults```
+///
+/// * ```SoftwareEventType::EmulationFaults```
+///
+/// You will have to import the rayon_logs prelude to use these events
+/// and to use the nightly version of the compiler
+///
+/// You can give a label to the event you are logging
+
+#[cfg(feature = "perf")]
+pub fn subgraph_perf_sw<OP, R>(
+    work_type: &'static str,
+    software_event: SoftwareEventType,
+    perf_name: &'static str,
+    op: OP,
+) -> R
+where
+    OP: FnOnce() -> R,
+{
+    let subgraph_start_task_id = next_task_id();
+    let continuation_task_id = next_task_id();
+    let mut pc: PerfCounter = PerfCounterBuilderLinux::from_software_event(software_event)
+        .exclude_idle()
+        .exclude_kernel()
+        .finish()
+        .expect("Could not create counter");
+
+    logs!(
+        // log child's work and dependencies.
+        RayonEvent::Child(subgraph_start_task_id),
+        // end current task
+        RayonEvent::TaskEnd(precise_time_ns()),
+        // execute full sequential task
+        RayonEvent::TaskStart(subgraph_start_task_id, precise_time_ns()),
+        RayonEvent::SubgraphPerfStart(work_type)
+    );
+
+    pc.start().expect("Can not start the counter");
+    let r = op();
+    pc.stop().expect("Can not stop the counter");;
+    let cache_misses: usize = pc.read().unwrap() as usize;
+
+    logs!(
+        RayonEvent::SubgraphPerfEnd(work_type, cache_misses, perf_name),
+        RayonEvent::Child(continuation_task_id),
+        RayonEvent::TaskEnd(precise_time_ns()),
+        // start continuation task
+        RayonEvent::TaskStart(continuation_task_id, precise_time_ns(),)
+    );
+    pc.reset().expect("Can not reset the counter");
+    r
+}
+
+/// Same as the subgraph function, but we can log a cache event
+///
+/// (from: https://github.com/gz/rust-perfcnt)
+///
+/// CacheId:
+///
+/// * ```CacheId::L1D```
+///
+/// * ```CacheId::L1I```
+///
+/// * ```CacheId::LL```
+///
+/// * ```CacheId::DTLB```
+///
+/// * ```CacheId::ITLB```
+///
+/// * ```CacheId::BPU```
+///
+/// * ```CacheId::Node```
+///
+/// CacheOpId:
+///
+/// * ```CacheOpId::Read```
+///
+/// * ```CacheOpId::Write```
+///
+/// * ```CacheOpId::Prefetch```
+///
+/// CacheOpResultId:
+///
+/// * ```CacheOpResultId::Access```
+///
+/// * ```CacheOpResultId::Miss```
+///
+///
+/// You will have to import the rayon_logs prelude to use these events
+/// and to use the nightly version of the compiler
+///
+/// You can give a label to the event you are logging
+
+#[cfg(feature = "perf")]
+pub fn subgraph_perf_cache<OP, R>(
+    work_type: &'static str,
+    cache_id: CacheId,
+    cache_op_id: CacheOpId,
+    cache_op_result_id: CacheOpResultId,
+    perf_name: &'static str,
+    op: OP,
+) -> R
+where
+    OP: FnOnce() -> R,
+{
+    let subgraph_start_task_id = next_task_id();
+    let continuation_task_id = next_task_id();
+    let mut pc: PerfCounter =
+        PerfCounterBuilderLinux::from_cache_event(cache_id, cache_op_id, cache_op_result_id)
+            .exclude_idle()
+            .exclude_kernel()
+            .finish()
+            .expect("Could not create counter");
 
     logs!(
         // log child's work and dependencies.

@@ -290,9 +290,9 @@ mod pool; // this comes first because it exports the logs macro
 mod iterator;
 mod storage;
 pub use crate::iterator::Logged;
-#[cfg(feature = "perf")]
-pub use crate::pool::subgraph_perf;
 pub use crate::pool::{join, join_context, subgraph, ThreadPool};
+#[cfg(feature = "perf")]
+pub use crate::pool::{subgraph_perf_cache, subgraph_perf_hw, subgraph_perf_sw};
 mod builder;
 pub mod prelude;
 pub use crate::builder::ThreadPoolBuilder;
