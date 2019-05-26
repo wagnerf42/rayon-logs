@@ -400,10 +400,10 @@ where
     pc.start().expect("Can not start the counter");
     let r = op();
     pc.stop().expect("Can not stop the counter");;
-    let cache_misses: usize = pc.read().unwrap() as usize;
+    let perf_counter_result: usize = pc.read().unwrap() as usize;
 
     logs!(
-        RayonEvent::SubgraphPerfEnd(work_type, cache_misses, perf_name),
+        RayonEvent::SubgraphPerfEnd(work_type, perf_counter_result, perf_name),
         RayonEvent::Child(continuation_task_id),
         RayonEvent::TaskEnd(precise_time_ns()),
         // start continuation task
@@ -477,10 +477,10 @@ where
     pc.start().expect("Can not start the counter");
     let r = op();
     pc.stop().expect("Can not stop the counter");;
-    let cache_misses: usize = pc.read().unwrap() as usize;
+    let perf_counter_result: usize = pc.read().unwrap() as usize;
 
     logs!(
-        RayonEvent::SubgraphPerfEnd(work_type, cache_misses, perf_name),
+        RayonEvent::SubgraphPerfEnd(work_type, perf_counter_result, perf_name),
         RayonEvent::Child(continuation_task_id),
         RayonEvent::TaskEnd(precise_time_ns()),
         // start continuation task
@@ -564,10 +564,10 @@ where
     pc.start().expect("Can not start the counter");
     let r = op();
     pc.stop().expect("Can not stop the counter");;
-    let cache_misses: usize = pc.read().unwrap() as usize;
+    let perf_counter_result: usize = pc.read().unwrap() as usize;
 
     logs!(
-        RayonEvent::SubgraphPerfEnd(work_type, cache_misses, perf_name),
+        RayonEvent::SubgraphPerfEnd(work_type, perf_counter_result, perf_name),
         RayonEvent::Child(continuation_task_id),
         RayonEvent::TaskEnd(precise_time_ns()),
         // start continuation task
