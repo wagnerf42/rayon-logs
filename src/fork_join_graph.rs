@@ -384,6 +384,9 @@ fn generate_visualisation(
                 WorkInformation::SubgraphEndWork(work_type) => {
                     format!(" end of a subgraph: {}\n", tags[work_type])
                 }
+                WorkInformation::SubgraphPerfWork((work_type, _, _)) => {
+                    format!(" type: {}\n", tags[work_type])
+                }
                 _ => String::new(),
             };
             scene.labels.push(format!(
