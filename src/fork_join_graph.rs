@@ -2,7 +2,7 @@
 use crate::raw_events::{TaskId, TimeStamp};
 use crate::svg::{Rectangle, Scene, COLORS};
 type BlockId = usize;
-use crate::log::{RunLog, TaskLog, WorkInformation};
+use crate::log::{RunLog, TaskLog};
 use itertools::{iproduct, Itertools};
 use std::collections::HashMap;
 use std::iter::repeat;
@@ -148,17 +148,7 @@ pub(crate) fn create_graph(tasks: &[TaskLog]) -> Vec<Block> {
             if tasks[father].children.len() == 1 {
                 // one father, no brothers, we go directly after him
                 // in his block
-                if let WorkInformation::SubgraphStartWork((_, _)) = tasks[*task_id].work {
-                    let sequential_block = graph.add_sequence();
-                    blocks_fathers.insert(sequential_block, blocks[&father]); // save where to go back
-                    graph.sequence(blocks[&father]).push(sequential_block);
-                    sequential_block
-                } else if let WorkInformation::SubgraphEndWork(_) = tasks[father].work {
-                    //daddy's not home
-                    blocks_fathers[&blocks[&father]] //go to grand daddy
-                } else {
-                    blocks[&father]
-                }
+                blocks[&father]
             } else {
                 // several brothers, we need to create a new sequence
                 let sequential_block = graph.add_sequence();
@@ -172,14 +162,9 @@ pub(crate) fn create_graph(tasks: &[TaskLog]) -> Vec<Block> {
             // we need to find the first (while going up) common ancestor block
             let mut direct_fathers_blocks = fathers[task_id].iter().map(|f| blocks[f]);
             let starting_block = direct_fathers_blocks.next().unwrap();
-            let common_ancestor = direct_fathers_blocks.fold(starting_block, |b1, b2| {
+            direct_fathers_blocks.fold(starting_block, |b1, b2| {
                 common_ancestor_block(&blocks_fathers, &[b1, b2]).expect("no common ancestor")
-            });
-            if let WorkInformation::SubgraphStartWork((_, _)) = tasks[*task_id].work {
-                panic!("not possible to have multiple fathers for a subgraph")
-            } else {
-                common_ancestor
-            }
+            })
         };
         let new_block = graph.add_task(*task_id, (*task).clone());
         graph.sequence(sequence_id).push(new_block);
@@ -272,20 +257,7 @@ where
     I: IntoIterator<Item = &'a TaskLog>,
 {
     let mut speeds: HashMap<usize, f64> = HashMap::new();
-    for task in tasks {
-        match task.work {
-            WorkInformation::IteratorWork((ref work_type, work_amount))
-            | WorkInformation::SequentialWork((ref work_type, work_amount)) => {
-                let speed = work_amount as f64 / (task.end_time as f64 - task.start_time as f64);
-                let existing_speed: f64 = speeds.get(work_type).cloned().unwrap_or(0.0);
-                if speed > existing_speed {
-                    speeds.insert(*work_type, speed);
-                }
-            }
-            _ => {}
-        }
-    }
-    speeds
+    speeds // TODO
 }
 
 /// Take a block ; fill its rectangles and edges and return a set of entry points for incoming edges
@@ -301,20 +273,6 @@ fn generate_visualisation(
 ) -> (Vec<Point>, Vec<Point>) {
     match graph[index] {
         Block::Sequence(ref s) => {
-            if graph
-                .read_sequence(index)
-                .first()
-                .map(|tb| graph.task(*tb).1.starts_subgraph())
-                .unwrap_or(false)
-            {
-                scene.rectangles.push(Rectangle::new(
-                    [0.2, 0.2, 0.2],
-                    0.3,
-                    positions[index],
-                    blocks_dimensions[index],
-                    None,
-                ));
-            }
             let points: Vec<(Vec<Point>, Vec<Point>)> = s
                 .iter()
                 .map(|b| {
@@ -355,34 +313,8 @@ fn generate_visualisation(
         }),
         Block::Task(task_id, ref t) => {
             let duration = (t.end_time - t.start_time) as f64;
-            let work_label = match t.work {
-                WorkInformation::SequentialWork((work_type, work_amount))
-                | WorkInformation::IteratorWork((work_type, work_amount)) => {
-                    let speed = work_amount as f64 / duration;
-                    let best_speed = speeds[&work_type];
-                    let ratio = speed / best_speed;
-                    format!(" work: {},\n speed: {},\n", work_amount, ratio)
-                }
-                WorkInformation::SubgraphStartWork((_, work_amount)) => {
-                    format!(" work: {},\n", work_amount)
-                }
-                _ => String::new(),
-            };
-            let type_label = match t.work {
-                WorkInformation::SequentialWork((work_type, _)) => {
-                    format!(" type: {}\n", tags[work_type])
-                }
-                WorkInformation::IteratorWork((iterator_id, _)) => {
-                    format!(" iterator: {}\n", iterator_id)
-                }
-                WorkInformation::SubgraphStartWork((work_type, _)) => {
-                    format!(" start of a subgraph: {}\n", tags[work_type])
-                }
-                WorkInformation::SubgraphEndWork(work_type) => {
-                    format!(" end of a subgraph: {}\n", tags[work_type])
-                }
-                _ => String::new(),
-            };
+            let work_label = String::new(); // TODO
+            let type_label = String::new(); // TODO
             scene.labels.push(format!(
                 "task: {}, thread: {},\n duration: {} (ms)\n{}{}",
                 task_id,
@@ -392,16 +324,7 @@ fn generate_visualisation(
                 type_label,
             ));
 
-            let opacity = match t.work {
-                WorkInformation::SequentialWork((ref work_type, work_amount))
-                | WorkInformation::IteratorWork((ref work_type, work_amount)) => {
-                    let speed = work_amount as f64 / duration;
-                    let best_speed = speeds[&work_type];
-                    let ratio = speed / best_speed;
-                    (ratio * 2.0 / 3.0) + 1.0 / 3.0 // not too dark. so we rescale between 0.33 and 1.0
-                }
-                _ => 1.0,
-            };
+            let opacity = 1.0; // TODO
             scene.rectangles.push(Rectangle::new(
                 COLORS[t.thread_id % COLORS.len()],
                 opacity as f32,

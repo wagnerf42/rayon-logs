@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::io::ErrorKind;
-use std::iter::repeat;
+use std::iter::{repeat, repeat_with};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -35,8 +35,6 @@ pub struct TaskLog {
     pub thread_id: usize,
     /// indices of children tasks (either when forking or joining)
     pub children: Vec<TaskId>,
-    /// work field stores additional information on the task (or its subgraph)
-    pub work: WorkInformation,
 }
 
 impl TaskLog {
@@ -44,25 +42,6 @@ impl TaskLog {
     pub fn duration(&self) -> u64 {
         self.end_time - self.start_time
     }
-    /// Return if we mark the start of a subgraph.
-    pub fn starts_subgraph(&self) -> bool {
-        if let WorkInformation::SubgraphStartWork((_, _)) = self.work {
-            true
-        } else {
-            false
-        }
-    }
-}
-
-/// For some subgraphs we know a work amount. We might know it from an iterator or from a user tag
-/// using the `subgraph` function.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum WorkInformation {
-    IteratorWork((usize, usize)),
-    SequentialWork((usize, usize)),
-    SubgraphStartWork((usize, usize)),
-    SubgraphEndWork(usize),
-    NoInformation,
 }
 
 /// Logged information.
@@ -79,6 +58,9 @@ pub struct RunLog {
     pub duration: u64,
     /// all strings used for tagging tasks.
     pub tags: Vec<String>,
+    /// subgraphs: some parts of the graph can be tagged with a tag and usize
+    /// values are: start task, ending task, tag_id, recorded size
+    pub subgraphs: Vec<(TaskId, TaskId, usize, usize)>,
 }
 
 impl RunLog {
@@ -97,13 +79,18 @@ impl RunLog {
                 end_time: 0,
                 thread_id: 0,
                 children: Vec::new(),
-                work: WorkInformation::NoInformation,
             })
             .collect();
 
         let threads_number = tasks_logs.len();
         // remember the active task on each thread
         let mut all_active_tasks: Vec<Option<TaskId>> = repeat(None).take(threads_number).collect();
+        // remember the active subgraph on each thread (they for a stack)
+        let mut all_active_subgraphs: Vec<Vec<usize>> =
+            repeat_with(Vec::new).take(threads_number).collect();
+
+        // store all subgraph related informations
+        let mut subgraphs = Vec::new();
 
         for (thread_id, event) in tasks_logs
             .iter()
@@ -112,6 +99,7 @@ impl RunLog {
             .kmerge_by(|a, b| a.1.time() < b.1.time())
         {
             let active_tasks = &mut all_active_tasks[thread_id];
+            let active_subgraphs = &mut all_active_subgraphs[thread_id];
             match *event {
                 RayonEvent::Child(c) => {
                     let father = active_tasks.expect("child with no active task as father");
@@ -141,28 +129,17 @@ impl RunLog {
                                 index
                             }
                         };
-                        match tasks_info[*active_task].work {
-                            WorkInformation::NoInformation => {
-                                tasks_info[*active_task].work = match *event {
-                                    RayonEvent::SubgraphStart(_, work_amount) => {
-                                        WorkInformation::SubgraphStartWork((tag_index, work_amount))
-                                    }
-                                    RayonEvent::SubgraphEnd(_) => {
-                                        WorkInformation::SubgraphEndWork(tag_index)
-                                    }
-                                    _ => WorkInformation::NoInformation,
-                                };
+                        match *event {
+                            RayonEvent::SubgraphStart(_, work_amount) => {
+                                active_subgraphs.push(subgraphs.len());
+                                subgraphs.push((*active_task, 0, tag_index, work_amount));
                             }
-                            WorkInformation::SubgraphStartWork((tag_index, work_amount)) => {
-                                // Handling the case where the subgraph is just one sequential
-                                // task.
-                                tasks_info[*active_task].work =
-                                    WorkInformation::SequentialWork((tag_index, work_amount));
+                            RayonEvent::SubgraphEnd(_) => {
+                                let graph_index =
+                                    active_subgraphs.pop().expect("ending a non started graph");
+                                subgraphs[graph_index].1 = *active_task;
                             }
-                            _ => panic!(
-                                "Tried to end subgraph for a task marked with {:?}",
-                                tasks_info[*active_task].work
-                            ),
+                            _ => unreachable!(),
                         }
                     } else {
                         panic!("tagging a non existing task");
@@ -179,6 +156,7 @@ impl RunLog {
             tasks_logs: tasks_info,
             duration,
             tags,
+            subgraphs,
         }
     }
 
@@ -186,11 +164,8 @@ impl RunLog {
     pub(crate) fn scan_tags(&self, tags: &mut HashMap<String, usize>) {
         for tag in &self.tags {
             let next_index = tags.len();
-            match tags.entry(tag.clone()) {
-                Entry::Vacant(v) => {
-                    v.insert(next_index);
-                }
-                _ => (),
+            if let Entry::Vacant(v) = tags.entry(tag.clone()) {
+                v.insert(next_index);
             }
         }
     }
@@ -201,23 +176,9 @@ impl RunLog {
     /// they form a contiguous range starting at 0.
     pub(crate) fn update_tags(&mut self, new_tags: &HashMap<String, usize>) {
         let current_tags = &self.tags;
-        // adjust tags inside each task
-        for task in &mut self.tasks_logs {
-            match task.work {
-                WorkInformation::SequentialWork((old_index, s)) => {
-                    task.work =
-                        WorkInformation::SequentialWork((new_tags[&current_tags[old_index]], s))
-                }
-                WorkInformation::SubgraphStartWork((old_index, s)) => {
-                    task.work =
-                        WorkInformation::SubgraphStartWork((new_tags[&current_tags[old_index]], s))
-                }
-                WorkInformation::SubgraphEndWork(old_index) => {
-                    task.work = WorkInformation::SubgraphEndWork(new_tags[&current_tags[old_index]])
-                }
-                WorkInformation::IteratorWork(_) => unimplemented!(),
-                _ => (),
-            }
+        // adjust tags inside each subraph
+        for subgraph in &mut self.subgraphs {
+            subgraph.2 = new_tags[&current_tags[subgraph.2]];
         }
         // adjust the tags themselves
         self.tags = new_tags
@@ -225,6 +186,7 @@ impl RunLog {
             .sorted_by_key(|&(_, i)| i)
             .map(|(t, _)| t.clone())
             .collect();
+        unimplemented!("please test me")
     }
 
     /// Load a rayon_logs log file and deserializes it into a `RunLog`.

@@ -2,8 +2,6 @@
 
 use crate::fork_join_graph::{create_graph, Block};
 use crate::log::RunLog;
-use crate::log::WorkInformation;
-use std::collections::HashMap;
 
 /// This struct mainly supplies the methods that can be used to get various statistics.
 pub struct Stats<'a> {
@@ -96,55 +94,11 @@ impl<'l> Stats<'l> {
             .map(move |(duration, activity)| duration * self.threads_number as u64 - activity)
     }
 
-    /// This returns the time for various tagged tasks summed across all runs for all experiments.
-    pub fn sequential_times<'a, 'b: 'a>(
-        &'b self,
-    ) -> impl Iterator<Item = HashMap<usize, u64>> + 'a {
-        self.logs.iter().map(move |algorithm| {
-            let mut sequential_times =
-                algorithm
-                    .iter()
-                    .fold(HashMap::new(), |mut map: HashMap<usize, u64>, run| {
-                        run.tasks_logs.iter().for_each(|task| {
-                            if let WorkInformation::SequentialWork((id, _)) = task.work {
-                                let duration = map.entry(id).or_insert(0);
-                                *duration += task.duration();
-                            }
-                        });
-                        map
-                    });
-            sequential_times
-                .values_mut()
-                .for_each(|time| *time /= self.runs_number as u64);
-            sequential_times
-        })
-    }
-
     /// This returns the total time for the median runs for all experiments.
     pub fn total_times_median<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = u64> + 'a {
         self.logs
             .iter()
             .map(move |algorithm| algorithm[self.runs_number / 2].duration as u64)
-    }
-
-    /// This returns the time for various tagged tasks in the median run for all experiments.
-    pub fn sequential_times_median<'a, 'b: 'a>(
-        &'b self,
-    ) -> impl Iterator<Item = HashMap<usize, u64>> + 'a {
-        self.logs.iter().map(move |algorithm| {
-            let mut map: HashMap<usize, u64> = HashMap::new();
-            algorithm[self.runs_number / 2]
-                .tasks_logs
-                .iter()
-                .clone()
-                .for_each(|task| {
-                    if let WorkInformation::SequentialWork((id, _)) = task.work {
-                        let duration = map.entry(id).or_insert(0);
-                        *duration += (task.duration()) as u64;
-                    }
-                });
-            map
-        })
     }
 
     /// This returns the idle time for the median run for all experiments.

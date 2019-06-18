@@ -202,23 +202,25 @@ table, th, td {{
                 .map(|t| format!("<th>{}</th>", t))
                 .collect::<String>()
         )?;
-        for (name, total_time, sequential_times, idle_time, algo_color) in izip!(
+        for (name, total_time, idle_time, algo_color) in izip!(
+            //for (name, total_time, sequential_times, idle_time, algo_color) in izip!(
             self.labels.iter(),
             statistics.total_times(),
-            statistics.sequential_times(),
+            //statistics.sequential_times(),
             statistics.idle_times(),
-	    HISTOGRAM_COLORS.iter()
+            HISTOGRAM_COLORS.iter()
         ) {
             write!(
                 html_file,
-                "<tr><td>{}</td><td>{}</td><td>{}</td>{}<td>{}</td></tr>",
-		format!("<span style='color:{}'>&#9632;</span>", algo_color),
+                "<tr><td>{}</td><td>{}</td>{}<td>{}</td></tr>",
+                // "<tr><td>{}</td><td>{}</td><td>{}</td>{}<td>{}</td></tr>",
+                format!("<span style='color:{}'>&#9632;</span>", algo_color),
                 name,
                 time_string(total_time),
-                (0..tags.len())
-                    .map(|i| sequential_times.get(&i).unwrap_or(&0))
-                    .map(|t| format!("<td>{}</td>", time_string(*t)))
-                    .collect::<String>(),
+                //(0..tags.len())
+                //    .map(|i| sequential_times.get(&i).unwrap_or(&0))
+                //    .map(|t| format!("<td>{}</td>", time_string(*t)))
+                //    .collect::<String>(),
                 time_string(idle_time)
             )?;
         }
@@ -231,23 +233,25 @@ table, th, td {{
                 .map(|t| format!("<th>{}</th>", t))
                 .collect::<String>()
         )?;
-        for (name, total_time, sequential_times, idle_time, algo_color) in izip!(
+        for (name, total_time, idle_time, algo_color) in izip!(
+            // for (name, total_time, sequential_times, idle_time, algo_color) in izip!(
             self.labels.iter(),
             statistics.total_times_median(),
-            statistics.sequential_times_median(),
+            // statistics.sequential_times_median(),
             statistics.idle_times_median(),
-	    HISTOGRAM_COLORS.iter()
+            HISTOGRAM_COLORS.iter()
         ) {
             write!(
                 html_file,
-                "<tr><td>{}</td><td>{}</td><td>{}</td>{}<td>{}</td></tr>",
-		format!("<span style='color:{}'>&#9632;</span>", algo_color),
+                //"<tr><td>{}</td><td>{}</td><td>{}</td>{}<td>{}</td></tr>",
+                "<tr><td>{}</td><td>{}</td>{}<td>{}</td></tr>",
+                format!("<span style='color:{}'>&#9632;</span>", algo_color),
                 name,
                 time_string(total_time),
-                (0..tags.len())
-                    .map(|i| sequential_times.get(&i).unwrap_or(&0))
-                    .map(|t| format!("<td>{}</td>", time_string(*t)))
-                    .collect::<String>(),
+                // (0..tags.len())
+                //     .map(|i| sequential_times.get(&i).unwrap_or(&0))
+                //     .map(|t| format!("<td>{}</td>", time_string(*t)))
+                //     .collect::<String>(),
                 time_string(idle_time)
             )?;
         }
