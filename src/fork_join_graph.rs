@@ -5,7 +5,7 @@ type BlockId = usize;
 use crate::log::{RunLog, TaskLog};
 use itertools::{iproduct, Itertools};
 use std::collections::HashMap;
-use std::iter::repeat;
+use std::iter::{once, repeat};
 
 const VERTICAL_GAP: f64 = 0.2;
 
@@ -256,6 +256,7 @@ fn generate_visualisation(
     graph: &Vec<Block>,
     positions: &[(f64, f64)],
     scene: &mut Scene,
+    tasks_information: &mut HashMap<TaskId, HashMap<String, (String, f64)>>,
     tags: &[String],
     blocks_dimensions: &[(f64, f64)],
 ) -> (Vec<Point>, Vec<Point>) {
@@ -264,7 +265,15 @@ fn generate_visualisation(
             let points: Vec<(Vec<Point>, Vec<Point>)> = s
                 .iter()
                 .map(|b| {
-                    generate_visualisation(*b, graph, positions, scene, tags, blocks_dimensions)
+                    generate_visualisation(
+                        *b,
+                        graph,
+                        positions,
+                        scene,
+                        tasks_information,
+                        tags,
+                        blocks_dimensions,
+                    )
                 })
                 .collect();
             scene.segments.extend(
@@ -278,19 +287,28 @@ fn generate_visualisation(
             )
         }
         Block::Parallel(ref p) => p.iter().fold((Vec::new(), Vec::new()), |mut acc, b| {
-            let (entry, exit) =
-                generate_visualisation(*b, graph, positions, scene, tags, blocks_dimensions);
+            let (entry, exit) = generate_visualisation(
+                *b,
+                graph,
+                positions,
+                scene,
+                tasks_information,
+                tags,
+                blocks_dimensions,
+            );
             acc.0.extend(entry);
             acc.1.extend(exit);
             acc
         }),
         Block::Task(task_id, ref t) => {
             let duration = (t.end_time - t.start_time) as f64;
+            let information = tasks_information.remove(&task_id).unwrap();
             scene.rectangles.push(Rectangle::new(
                 COLORS[t.thread_id % COLORS.len()],
                 positions[index],
                 (duration, 1.0),
-                Some((t.start_time, t.end_time)),
+                (t.start_time, t.end_time),
+                information,
             ));
             (
                 vec![(positions[index].0 + duration / 2.0, positions[index].1)],
@@ -344,7 +362,8 @@ fn compute_idle_times(
                     starting_position.1 + thread_id as f64 * (1.0 + VERTICAL_GAP),
                 ),
                 (inactivity, 1.0),
-                Some((previous_end, start)),
+                (previous_end, start),
+                once(("_NO_TAGS_".to_string(), ("idle".to_string(), 1.0))).collect(),
             ));
             current_x_positions[thread_id] += inactivity;
         }
@@ -370,7 +389,16 @@ pub fn visualisation(log: &RunLog) -> Scene {
     positions[0] = (0.0, 0.0);
     compute_positions(0, &g, &blocks_dimensions, &mut positions);
 
-    generate_visualisation(0, &g, &positions, &mut scene, &log.tags, &blocks_dimensions);
+    let mut tasks_information = log.compute_tasks_information();
+    generate_visualisation(
+        0,
+        &g,
+        &positions,
+        &mut scene,
+        &mut tasks_information,
+        &log.tags,
+        &blocks_dimensions,
+    );
 
     // compute position for idle times widget
     let height = positions

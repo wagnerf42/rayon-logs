@@ -2,6 +2,7 @@
 
 use crate::log::RunLog;
 use itertools::Itertools;
+use std::cmp::max;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
@@ -24,8 +25,6 @@ pub struct Scene {
     pub rectangles: Vec<Rectangle>,
     /// Dependencies are shown as segments.
     pub segments: Vec<(Point, Point)>,
-    /// Tagged information for each task.
-    pub tasks_information: HashMap<usize, HashMap<String, (String, f64)>>,
     /// All available tags
     pub tags: Vec<String>,
 }
@@ -35,7 +34,6 @@ impl Scene {
         Scene {
             rectangles: Vec::new(),
             segments: Vec::new(),
-            tasks_information: logs.compute_tasks_information(),
             tags: once("_NO_TAGS_".to_string())
                 .chain(logs.tags.iter().cloned())
                 .collect(),
@@ -67,8 +65,10 @@ pub struct Rectangle {
     pub width: f64,
     /// height
     pub height: f64,
-    /// when animation starts and ends (if any)
-    pub animation: Option<(u64, u64)>,
+    /// when animation starts and ends
+    pub animation: (u64, u64),
+    /// to each tag its label and opacity
+    pub information: HashMap<String, (String, f64)>,
 }
 
 impl Rectangle {
@@ -77,7 +77,8 @@ impl Rectangle {
         color: [f32; 3],
         position: (f64, f64),
         sizes: (f64, f64),
-        animation: Option<(u64, u64)>,
+        animation: (u64, u64),
+        information: HashMap<String, (String, f64)>,
     ) -> Rectangle {
         Rectangle {
             color,
@@ -86,6 +87,7 @@ impl Rectangle {
             width: sizes.0,
             height: sizes.1,
             animation,
+            information,
         }
     }
 }
@@ -99,8 +101,8 @@ pub(crate) fn write_svg_file<P: AsRef<Path>>(scene: &Scene, path: P) -> Result<(
 
 /// fill given file with a set of rectangles and edges as an animated svg.
 pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error> {
-    let svg_width = 1920; // this is just an aspect ratio
-    let svg_height = 1080;
+    let svg_width: u32 = 1920; // this is just an aspect ratio
+    let svg_height: u32 = 1080;
 
     let xmax = scene
         .rectangles
@@ -153,13 +155,13 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
     let min_time = scene
         .rectangles
         .iter()
-        .filter_map(|r| r.animation.map(|t| t.0))
+        .map(|r| r.animation.0)
         .min()
         .unwrap();
     let max_time = scene
         .rectangles
         .iter()
-        .filter_map(|r| r.animation.map(|t| t.1))
+        .map(|r| r.animation.1)
         .max()
         .unwrap();
     let total_time = max_time - min_time;
@@ -176,23 +178,19 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
         )?;
     }
 
-    for tag in &scene.tags {
+    for (tag_index, tag) in scene.tags.iter().enumerate() {
         writeln!(file, "<g id=\"tasks_colors_{}\">", tag)?;
         for (index, rectangle) in scene.rectangles.iter().enumerate() {
-            let opacity = scene
-                .tasks_information
-                .get(&index)
-                .and_then(|h| h.get(tag))
-                .map(|i| i.1)
-                .unwrap_or(1.0);
-            if let Some(animation) = rectangle.animation {
+            if let Some((label, opacity)) = rectangle.information.get(tag) {
                 // now the animated one
-                let (start_time, end_time) = animation;
+                let (start_time, end_time) = rectangle.animation;
                 writeln!(file,
-            "<rect class=\"task{}\" x=\"{}\" y=\"{}\" width=\"0\" height=\"{}\" fill=\"rgba({},{},{},{})\">
-<animate attributeType=\"XML\" attributeName=\"width\" from=\"0\" to=\"{}\" begin=\"{}s\" dur=\"{}s\" fill=\"freeze\"/>
+            "<rect class=\"task{}\" id=\"{}_{}\" x=\"{}\" y=\"{}\" width=\"0\" height=\"{}\" fill=\"rgba({},{},{},{})\">
+<animate attributeType=\"XML\" attributeName=\"width\" from=\"0\" to=\"{}\" begin=\"{}ms\" dur=\"{}ms\" fill=\"freeze\"/>
 </rect>",
         random_id,
+        index,
+        tag_index,
         (rectangle.x-xmin)*xscale,
         (rectangle.y-ymin)*yscale,
         rectangle.height*yscale,
@@ -201,58 +199,35 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
         (rectangle.color[2] * 255.0) as u32,
         opacity,
         rectangle.width*xscale,
-        ((start_time-min_time)*60) as f64 / total_time as f64,
-        ((end_time - start_time)*60) as f64 / total_time as f64,
+        max(((start_time-min_time)*60_000) / total_time, 1),
+        max(((end_time - start_time)*60_000) / total_time, 1),
         )?;
-            } else {
+
+                // the labels now
+                writeln!(file, "<g id=\"tip_{}_{}_{}\">", random_id, index, tag_index)?;
+                let x = svg_width - 400;
+                let height = label.lines().count() as u32 * 20;
+                let mut y = svg_height - height - 40;
                 writeln!(
-                    file,
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"rgba({},{},{},{})\"/>",
-                    (rectangle.x - xmin) * xscale,
-                    (rectangle.y - ymin) * yscale,
-                    rectangle.width * xscale,
-                    rectangle.height * yscale,
-                    (rectangle.color[0] * 255.0) as u32,
-                    (rectangle.color[1] * 255.0) as u32,
-                    (rectangle.color[2] * 255.0) as u32,
-                    opacity
-                )?;
+            file,
+            "<rect x=\"{}\" y=\"{}\" width=\"300\" height=\"{}\" fill=\"white\" stroke=\"black\"/>",
+            x,
+            y,
+            height + 10
+        )?;
+                for line in label.lines() {
+                    y += 20;
+                    writeln!(file, "<text x=\"{}\" y=\"{}\">{}</text>", x + 5, y, line)?;
+                }
+                writeln!(file, "</g>")?;
             }
         }
+
         writeln!(file, "</g>")?;
     }
 
-    //    for (index, (rectangle, label)) in scene
-    //        .rectangles
-    //        .iter()
-    //        .filter(|&r| r.animation.is_some())
-    //        .zip(scene.labels.iter())
-    //        .enumerate()
-    //    {
-    //        // now the box for the tooltip
-    //        writeln!(file, "<g id=\"tip_{}_{}\">", random_id, index)?;
-    //        let x = (rectangle.x - xmin) * xscale;
-    //        let mut y = (rectangle.y - ymin) * yscale + 40.0;
-    //        if y > (svg_height / 2) as f64 {
-    //            y -= 160.0; // so that label does end below image
-    //        }
-    //        let height = label.lines().count() as f64 * 20.0;
-    //        writeln!(
-    //            file,
-    //            "<rect x=\"{}\" y=\"{}\" width=\"300\" height=\"{}\" fill=\"white\" stroke=\"black\"/>",
-    //            x,
-    //            y,
-    //            height + 10.0
-    //        )?;
-    //        for line in label.lines() {
-    //            y += 20.0;
-    //            writeln!(file, "<text x=\"{}\" y=\"{}\">{}</text>", x + 5.0, y, line)?;
-    //        }
-    //        writeln!(file, "</g>")?;
-    //    }
-
     // this part will allow to get more info on tasks by hovering over them
-    write!(
+    writeln!(
         file,
         "
    <g id=\"tag_label\" transform=\"translate({}, {})\"></g>
@@ -267,7 +242,9 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
     var tasks = document.getElementsByClassName('task{}');
     var tags = [{}];
     var current_tag = 0;
+    displayTips();
     displayTags();
+
     document.addEventListener('keydown', (event) => {{
         if (event.key === 'ArrowDown') {{
             current_tag += 1;
@@ -276,15 +253,27 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
             }}
             displayTags();
         }}
+        if (event.key === 'ArrowUp') {{
+            if (current_tag == 0) {{
+                current_tag = tags.length -1;
+            }} else {{
+                current_tag -= 1;
+            }}
+            displayTags();
+        }}
     }});
 
-    // for (var i = 0; i < tasks.length; i++) {{
-    //   var tip = document.getElementById('tip_{}_'+i);
-    //   tip.style.display='none';
-    //   tasks[i].tip = tip;
-    //   tasks[i].addEventListener('mouseover', mouseOverEffect);
-    //   tasks[i].addEventListener('mouseout', mouseOutEffect);
-    // }}
+    function displayTips() {{
+        for (let i = 0; i < tasks.length ; i++) {{
+          let task = tasks[i];
+          let tip_id = task.id;
+          let tip = document.getElementById('tip_{}_'+tip_id);
+          tip.style.display='none';
+          tasks[i].tip = tip;
+          tasks[i].addEventListener('mouseover', mouseOverEffect);
+          tasks[i].addEventListener('mouseout', mouseOutEffect);
+        }}
+    }}
 
     function displayTags() {{
         tags.forEach(function(tag) {{
@@ -303,8 +292,7 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
       this.classList.remove(\"task-highlight\");
       this.tip.style.display='none';
     }}
-  ]]></script>
-",
+  ]]></script>",
         svg_width - 300,
         100,
         random_id,
