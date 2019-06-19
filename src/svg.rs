@@ -1,10 +1,12 @@
 //! Small module with display related functions.
 
 use crate::log::RunLog;
+use itertools::Itertools;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Error;
+use std::iter::once;
 use std::iter::repeat;
 use std::iter::repeat_with;
 use std::path::Path;
@@ -24,6 +26,8 @@ pub struct Scene {
     pub segments: Vec<(Point, Point)>,
     /// Tagged information for each task.
     pub tasks_information: HashMap<usize, HashMap<String, (String, f64)>>,
+    /// All available tags
+    pub tags: Vec<String>,
 }
 
 impl Scene {
@@ -32,6 +36,9 @@ impl Scene {
             rectangles: Vec::new(),
             segments: Vec::new(),
             tasks_information: logs.compute_tasks_information(),
+            tags: once("_NO_TAGS_".to_string())
+                .chain(logs.tags.iter().cloned())
+                .collect(),
         }
     }
 }
@@ -134,7 +141,7 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
     )?;
     // we start by edges so they will end up below tasks
     for (start, end) in &scene.segments {
-        write!(
+        writeln!(
             file,
             "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"black\" stroke-width=\"2.0\"/>",
             (start.0 - xmin) * xscale,
@@ -158,21 +165,31 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
     let total_time = max_time - min_time;
 
     for rectangle in &scene.rectangles {
-        if let Some(animation) = rectangle.animation {
-            // first a black rectangle
-            writeln!(
-                file,
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"black\"/>",
-                (rectangle.x - xmin) * xscale,
-                (rectangle.y - ymin) * yscale,
-                rectangle.width * xscale,
-                rectangle.height * yscale,
-            )?;
+        // first a black rectangle
+        writeln!(
+            file,
+            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"black\"/>",
+            (rectangle.x - xmin) * xscale,
+            (rectangle.y - ymin) * yscale,
+            rectangle.width * xscale,
+            rectangle.height * yscale,
+        )?;
+    }
 
-            // now the animated one
-            let (start_time, end_time) = animation;
-            writeln!(file,
-            "<rect class=\"task{}\" x=\"{}\" y=\"{}\" width=\"0\" height=\"{}\" fill=\"rgba({},{},{})\">
+    for tag in &scene.tags {
+        writeln!(file, "<g id=\"tasks_colors_{}\">", tag)?;
+        for (index, rectangle) in scene.rectangles.iter().enumerate() {
+            let opacity = scene
+                .tasks_information
+                .get(&index)
+                .and_then(|h| h.get(tag))
+                .map(|i| i.1)
+                .unwrap_or(1.0);
+            if let Some(animation) = rectangle.animation {
+                // now the animated one
+                let (start_time, end_time) = animation;
+                writeln!(file,
+            "<rect class=\"task{}\" x=\"{}\" y=\"{}\" width=\"0\" height=\"{}\" fill=\"rgba({},{},{},{})\">
 <animate attributeType=\"XML\" attributeName=\"width\" from=\"0\" to=\"{}\" begin=\"{}s\" dur=\"{}s\" fill=\"freeze\"/>
 </rect>",
         random_id,
@@ -182,23 +199,27 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
         (rectangle.color[0] * 255.0) as u32,
         (rectangle.color[1] * 255.0) as u32,
         (rectangle.color[2] * 255.0) as u32,
+        opacity,
         rectangle.width*xscale,
         ((start_time-min_time)*60) as f64 / total_time as f64,
         ((end_time - start_time)*60) as f64 / total_time as f64,
         )?;
-        } else {
-            writeln!(
-                file,
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"rgba({},{},{},)\"/>",
-                (rectangle.x - xmin) * xscale,
-                (rectangle.y - ymin) * yscale,
-                rectangle.width * xscale,
-                rectangle.height * yscale,
-                (rectangle.color[0] * 255.0) as u32,
-                (rectangle.color[1] * 255.0) as u32,
-                (rectangle.color[2] * 255.0) as u32,
-            )?;
+            } else {
+                writeln!(
+                    file,
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"rgba({},{},{},{})\"/>",
+                    (rectangle.x - xmin) * xscale,
+                    (rectangle.y - ymin) * yscale,
+                    rectangle.width * xscale,
+                    rectangle.height * yscale,
+                    (rectangle.color[0] * 255.0) as u32,
+                    (rectangle.color[1] * 255.0) as u32,
+                    (rectangle.color[2] * 255.0) as u32,
+                    opacity
+                )?;
+            }
         }
+        writeln!(file, "</g>")?;
     }
 
     //    for (index, (rectangle, label)) in scene
@@ -234,6 +255,7 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
     write!(
         file,
         "
+   <g id=\"tag_label\" transform=\"translate({}, {})\"></g>
    <style>
       .task-highlight {{
         fill: #ec008c;
@@ -243,13 +265,33 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
   <script><![CDATA[
 
     var tasks = document.getElementsByClassName('task{}');
+    var tags = [{}];
+    var current_tag = 0;
+    displayTags();
+    document.addEventListener('keydown', (event) => {{
+        if (event.key === 'ArrowDown') {{
+            current_tag += 1;
+            if (current_tag == tags.length) {{
+                current_tag = 0;
+            }}
+            displayTags();
+        }}
+    }});
 
-    for (var i = 0; i < tasks.length; i++) {{
-      var tip = document.getElementById('tip_{}_'+i);
-      tip.style.display='none';
-      tasks[i].tip = tip;
-      tasks[i].addEventListener('mouseover', mouseOverEffect);
-      tasks[i].addEventListener('mouseout', mouseOutEffect);
+    // for (var i = 0; i < tasks.length; i++) {{
+    //   var tip = document.getElementById('tip_{}_'+i);
+    //   tip.style.display='none';
+    //   tasks[i].tip = tip;
+    //   tasks[i].addEventListener('mouseover', mouseOverEffect);
+    //   tasks[i].addEventListener('mouseout', mouseOutEffect);
+    // }}
+
+    function displayTags() {{
+        tags.forEach(function(tag) {{
+            document.getElementById('tasks_colors_'+tag).style.display = 'none';
+        }});
+        document.getElementById('tasks_colors_'+tags[current_tag]).style.display = 'block';
+        document.getElementById('tag_label').innerHTML = \"<text>\"+tags[current_tag]+\"</text>\";
     }}
 
     function mouseOverEffect() {{
@@ -263,7 +305,11 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
     }}
   ]]></script>
 ",
-        random_id, random_id,
+        svg_width - 300,
+        100,
+        random_id,
+        scene.tags.iter().map(|s| format!("\"{}\"", s)).join(", "),
+        random_id,
     )?;
 
     write!(file, "</svg>")?;
