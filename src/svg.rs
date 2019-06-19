@@ -1,6 +1,7 @@
 //! Small module with display related functions.
 
 use crate::log::RunLog;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Error;
@@ -21,17 +22,16 @@ pub struct Scene {
     pub rectangles: Vec<Rectangle>,
     /// Dependencies are shown as segments.
     pub segments: Vec<(Point, Point)>,
-    /// We can hover on tasks to get more information.
-    /// rectangles[i] is associated to labels[i].
-    pub labels: Vec<String>,
+    /// Tagged information for each task.
+    pub tasks_information: HashMap<usize, HashMap<String, (String, f64)>>,
 }
 
 impl Scene {
-    pub fn new() -> Self {
+    pub fn new(logs: &RunLog) -> Self {
         Scene {
             rectangles: Vec::new(),
             segments: Vec::new(),
-            labels: Vec::new(),
+            tasks_information: logs.compute_tasks_information(),
         }
     }
 }
@@ -52,8 +52,6 @@ pub(crate) const COLORS: [[f32; 3]; 8] = [
 pub struct Rectangle {
     /// color (rgb+alpha)
     pub color: [f32; 3],
-    /// opacity
-    pub opacity: f32,
     /// x coordinate
     pub x: f64,
     /// y coordinate
@@ -70,14 +68,12 @@ impl Rectangle {
     /// Creates a new rectangle
     pub fn new(
         color: [f32; 3],
-        opacity: f32,
         position: (f64, f64),
         sizes: (f64, f64),
         animation: Option<(u64, u64)>,
     ) -> Rectangle {
         Rectangle {
             color,
-            opacity,
             x: position.0,
             y: position.1,
             width: sizes.0,
@@ -176,7 +172,7 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
             // now the animated one
             let (start_time, end_time) = animation;
             writeln!(file,
-            "<rect class=\"task{}\" x=\"{}\" y=\"{}\" width=\"0\" height=\"{}\" fill=\"rgba({},{},{},{})\">
+            "<rect class=\"task{}\" x=\"{}\" y=\"{}\" width=\"0\" height=\"{}\" fill=\"rgba({},{},{})\">
 <animate attributeType=\"XML\" attributeName=\"width\" from=\"0\" to=\"{}\" begin=\"{}s\" dur=\"{}s\" fill=\"freeze\"/>
 </rect>",
         random_id,
@@ -186,7 +182,6 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
         (rectangle.color[0] * 255.0) as u32,
         (rectangle.color[1] * 255.0) as u32,
         (rectangle.color[2] * 255.0) as u32,
-        rectangle.opacity,
         rectangle.width*xscale,
         ((start_time-min_time)*60) as f64 / total_time as f64,
         ((end_time - start_time)*60) as f64 / total_time as f64,
@@ -194,7 +189,7 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
         } else {
             writeln!(
                 file,
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"rgba({},{},{},{})\"/>",
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"rgba({},{},{},)\"/>",
                 (rectangle.x - xmin) * xscale,
                 (rectangle.y - ymin) * yscale,
                 rectangle.width * xscale,
@@ -202,39 +197,38 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
                 (rectangle.color[0] * 255.0) as u32,
                 (rectangle.color[1] * 255.0) as u32,
                 (rectangle.color[2] * 255.0) as u32,
-                rectangle.opacity,
             )?;
         }
     }
 
-    for (index, (rectangle, label)) in scene
-        .rectangles
-        .iter()
-        .filter(|&r| r.animation.is_some())
-        .zip(scene.labels.iter())
-        .enumerate()
-    {
-        // now the box for the tooltip
-        writeln!(file, "<g id=\"tip_{}_{}\">", random_id, index)?;
-        let x = (rectangle.x - xmin) * xscale;
-        let mut y = (rectangle.y - ymin) * yscale + 40.0;
-        if y > (svg_height / 2) as f64 {
-            y -= 160.0; // so that label does end below image
-        }
-        let height = label.lines().count() as f64 * 20.0;
-        writeln!(
-            file,
-            "<rect x=\"{}\" y=\"{}\" width=\"300\" height=\"{}\" fill=\"white\" stroke=\"black\"/>",
-            x,
-            y,
-            height + 10.0
-        )?;
-        for line in label.lines() {
-            y += 20.0;
-            writeln!(file, "<text x=\"{}\" y=\"{}\">{}</text>", x + 5.0, y, line)?;
-        }
-        writeln!(file, "</g>")?;
-    }
+    //    for (index, (rectangle, label)) in scene
+    //        .rectangles
+    //        .iter()
+    //        .filter(|&r| r.animation.is_some())
+    //        .zip(scene.labels.iter())
+    //        .enumerate()
+    //    {
+    //        // now the box for the tooltip
+    //        writeln!(file, "<g id=\"tip_{}_{}\">", random_id, index)?;
+    //        let x = (rectangle.x - xmin) * xscale;
+    //        let mut y = (rectangle.y - ymin) * yscale + 40.0;
+    //        if y > (svg_height / 2) as f64 {
+    //            y -= 160.0; // so that label does end below image
+    //        }
+    //        let height = label.lines().count() as f64 * 20.0;
+    //        writeln!(
+    //            file,
+    //            "<rect x=\"{}\" y=\"{}\" width=\"300\" height=\"{}\" fill=\"white\" stroke=\"black\"/>",
+    //            x,
+    //            y,
+    //            height + 10.0
+    //        )?;
+    //        for line in label.lines() {
+    //            y += 20.0;
+    //            writeln!(file, "<text x=\"{}\" y=\"{}\">{}</text>", x + 5.0, y, line)?;
+    //        }
+    //        writeln!(file, "</g>")?;
+    //    }
 
     // this part will allow to get more info on tasks by hovering over them
     write!(

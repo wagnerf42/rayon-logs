@@ -1,5 +1,4 @@
 //! `Comparator` Structure for easy comparisons of different algorithms.
-use crate::fork_join_graph::compute_speeds;
 use crate::stats::Stats;
 use crate::ThreadPool;
 use crate::{
@@ -259,14 +258,9 @@ table, th, td {{
         if self.display_preferences.iter().any(|b| *b) {
             write!(html_file, "<H2>Comparing median runs</H2>")?;
             let median_index = (self.runs_number) / 2;
-            let speeds = compute_speeds(
-                self.logs
-                    .iter()
-                    .flat_map(|row| &row[median_index].tasks_logs),
-            );
             for (pos, (log, name)) in self.logs.iter().zip(self.labels.iter()).enumerate() {
                 if self.display_preferences[pos] {
-                    let scene = visualisation(&log[median_index], Some(&speeds));
+                    let scene = visualisation(&log[median_index]);
                     writeln!(html_file, "<H3 align=\"left\"><u>{}</u> :</H3>", name)?;
                     fill_svg_file(&scene, &mut html_file)?;
                     writeln!(html_file, "<p>")?;
@@ -274,10 +268,9 @@ table, th, td {{
             }
 
             write!(html_file, "<H2>Comparing best runs</H2>")?;
-            let speeds = compute_speeds(self.logs.iter().flat_map(|row| &row[0].tasks_logs));
             for (pos, (log, name)) in self.logs.iter().zip(self.labels.iter()).enumerate() {
                 if self.display_preferences[pos] {
-                    let scene = visualisation(&log[0], Some(&speeds));
+                    let scene = visualisation(&log[0]);
                     writeln!(html_file, "<H3 align=\"left\"><u>{}</u> :</H3>", name)?;
                     fill_svg_file(&scene, &mut html_file)?;
                     writeln!(html_file, "<p>")?;

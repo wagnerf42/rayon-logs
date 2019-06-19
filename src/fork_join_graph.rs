@@ -249,24 +249,12 @@ fn compute_positions(
     }
 }
 
-/// For some tasks we know the type and work.
-/// We can therefore compute a speed of computation.
-/// We figure out what is the max speed for each task type.
-pub fn compute_speeds<'a, I>(tasks: I) -> HashMap<usize, f64>
-where
-    I: IntoIterator<Item = &'a TaskLog>,
-{
-    let mut speeds: HashMap<usize, f64> = HashMap::new();
-    speeds // TODO
-}
-
 /// Take a block ; fill its rectangles and edges and return a set of entry points for incoming edges
 /// and a set of exit points for outgoing edges.
 fn generate_visualisation(
     index: BlockId,
     graph: &Vec<Block>,
     positions: &[(f64, f64)],
-    speeds: &HashMap<usize, f64>,
     scene: &mut Scene,
     tags: &[String],
     blocks_dimensions: &[(f64, f64)],
@@ -276,15 +264,7 @@ fn generate_visualisation(
             let points: Vec<(Vec<Point>, Vec<Point>)> = s
                 .iter()
                 .map(|b| {
-                    generate_visualisation(
-                        *b,
-                        graph,
-                        positions,
-                        speeds,
-                        scene,
-                        tags,
-                        blocks_dimensions,
-                    )
+                    generate_visualisation(*b, graph, positions, scene, tags, blocks_dimensions)
                 })
                 .collect();
             scene.segments.extend(
@@ -298,36 +278,16 @@ fn generate_visualisation(
             )
         }
         Block::Parallel(ref p) => p.iter().fold((Vec::new(), Vec::new()), |mut acc, b| {
-            let (entry, exit) = generate_visualisation(
-                *b,
-                graph,
-                positions,
-                speeds,
-                scene,
-                tags,
-                blocks_dimensions,
-            );
+            let (entry, exit) =
+                generate_visualisation(*b, graph, positions, scene, tags, blocks_dimensions);
             acc.0.extend(entry);
             acc.1.extend(exit);
             acc
         }),
         Block::Task(task_id, ref t) => {
             let duration = (t.end_time - t.start_time) as f64;
-            let work_label = String::new(); // TODO
-            let type_label = String::new(); // TODO
-            scene.labels.push(format!(
-                "task: {}, thread: {},\n duration: {} (ms)\n{}{}",
-                task_id,
-                t.thread_id,
-                (t.end_time - t.start_time) as f64 / 1_000_000.0,
-                work_label,
-                type_label,
-            ));
-
-            let opacity = 1.0; // TODO
             scene.rectangles.push(Rectangle::new(
                 COLORS[t.thread_id % COLORS.len()],
-                opacity as f32,
                 positions[index],
                 (duration, 1.0),
                 Some((t.start_time, t.end_time)),
@@ -379,7 +339,6 @@ fn compute_idle_times(
             let inactivity = (start - previous_end) as f64;
             scene.rectangles.push(Rectangle::new(
                 COLORS[thread_id % COLORS.len()],
-                1.0,
                 (
                     current_x_positions[thread_id],
                     starting_position.1 + thread_id as f64 * (1.0 + VERTICAL_GAP),
@@ -394,8 +353,8 @@ fn compute_idle_times(
 }
 
 /// Computes a graphical view of a log. This is intended for the development of logs viewers.
-pub fn visualisation(log: &RunLog, speeds: Option<&HashMap<usize, f64>>) -> Scene {
-    let mut scene = Scene::new();
+pub fn visualisation(log: &RunLog) -> Scene {
+    let mut scene = Scene::new(log);
 
     let tasks = &log.tasks_logs;
     let g = create_graph(tasks);
@@ -411,28 +370,8 @@ pub fn visualisation(log: &RunLog, speeds: Option<&HashMap<usize, f64>>) -> Scen
     positions[0] = (0.0, 0.0);
     compute_positions(0, &g, &blocks_dimensions, &mut positions);
 
-    // adjust colors based on work
-    if speeds.is_none() {
-        generate_visualisation(
-            0,
-            &g,
-            &positions,
-            &(compute_speeds(&log.tasks_logs)),
-            &mut scene,
-            &log.tags,
-            &blocks_dimensions,
-        );
-    } else {
-        generate_visualisation(
-            0,
-            &g,
-            &positions,
-            &(speeds.unwrap()),
-            &mut scene,
-            &log.tags,
-            &blocks_dimensions,
-        );
-    }
+    generate_visualisation(0, &g, &positions, &mut scene, &log.tags, &blocks_dimensions);
+
     // compute position for idle times widget
     let height = positions
         .iter()

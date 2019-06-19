@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::io::ErrorKind;
+use std::iter::successors;
 use std::iter::{repeat, repeat_with};
 use std::path::Path;
 use std::sync::Arc;
@@ -160,6 +161,109 @@ impl RunLog {
         }
     }
 
+    /// Iterate on all tasks between (including) start and end.
+    /// pre-condition: start is ancestor of end and all descendants of start
+    /// are either ancestors of end or descendants of end.
+    fn tasks_between<'a>(
+        &'a self,
+        start: TaskId,
+        end: TaskId,
+    ) -> impl Iterator<Item = TaskId> + 'a {
+        let mut stack = Vec::new();
+        successors(Some(start), move |&n| {
+            if n != end {
+                stack.extend(self.tasks_logs[n].children.iter().cloned())
+            }
+            stack.pop()
+        })
+    }
+
+    /// Compute for each task/tag combination the label and opacity of the task.
+    /// We return a HashMap indexed by TaskId containing a HashMap indexed by Tag containing
+    /// a label and an opacity.
+    /// pre-condition: nested subgraphs of same tags will work if subgraphs are ordered topologically
+    /// (they should be).
+    pub(crate) fn compute_tasks_information(
+        &self,
+    ) -> HashMap<TaskId, HashMap<String, (String, f64)>> {
+        // we start by computing speeds for each subgraph
+        // we associate to each tag a hashmap (keys are subgraph) of all raw speeds (and subgraph duration).
+        let mut tags_information = HashMap::new();
+        for (subgraph_index, (start_task, end_task, tag_id, size)) in
+            self.subgraphs.iter().enumerate()
+        {
+            let total_duration: u64 = self
+                .tasks_between(*start_task, *end_task)
+                .map(|t| self.tasks_logs[t].duration())
+                .sum();
+            let speed = *size as f64 / (total_duration as f64);
+            tags_information
+                .entry(tag_id)
+                .or_insert_with(HashMap::new)
+                .insert(subgraph_index, (speed, total_duration));
+        }
+        // normalize speeds
+        for informations in tags_information.values_mut() {
+            let best_speed = informations
+                .values()
+                .map(|i| i.0)
+                .max_by(|s1, s2| s1.partial_cmp(s2).unwrap())
+                .unwrap();
+            for information in informations.values_mut() {
+                information.0 /= best_speed
+            }
+        }
+        // ok, we are now ready to compute tasks information
+        let mut tasks_information = HashMap::new();
+        for (subgraph_index, (start_task, end_task, tag_id, size)) in
+            self.subgraphs.iter().enumerate()
+        {
+            for task in self.tasks_between(*start_task, *end_task) {
+                let duration = self.tasks_logs[task].duration();
+                let (speed, total_duration) = tags_information[&tag_id][&subgraph_index];
+                let r = duration as f64 / (total_duration as f64);
+                let size_part = (*size as f64 * r).round() as usize; // the task's extrapolated part of the subgraph
+                tasks_information
+                    .entry(task)
+                    .or_insert_with(HashMap::new) // insert because of subgraphs topological ordering
+                    // this way we get the innermost recursive subgraph
+                    .insert(
+                        self.tags[*tag_id].clone(),
+                        (
+                            format!(
+                                "counted: {}/{}\nduration: {} (ms)\nspeed: {}\nthread: {}",
+                                size_part,
+                                size,
+                                duration / 1000,
+                                speed,
+                                self.tasks_logs[task].thread_id
+                            ),
+                            0.4 + speed * 0.6,
+                        ),
+                    );
+            }
+        }
+        // final step, add information for no tags
+        for (task_id, task) in self.tasks_logs.iter().enumerate() {
+            let duration = task.duration();
+            tasks_information
+                .entry(task_id)
+                .or_insert_with(HashMap::new)
+                .insert(
+                    "_NO_TAGS_".to_string(),
+                    (
+                        format!(
+                            "duration: {} (ms)\nthread: {}",
+                            duration / 1000,
+                            task.thread_id
+                        ),
+                        1.0,
+                    ),
+                );
+        }
+        tasks_information
+    }
+
     /// Fuse our tags into given tags hash table.
     pub(crate) fn scan_tags(&self, tags: &mut HashMap<String, usize>) {
         for tag in &self.tags {
@@ -197,7 +301,7 @@ impl RunLog {
 
     /// Save an svg file of all logged information.
     pub fn save_svg<P: AsRef<Path>>(&self, path: P) -> Result<(), io::Error> {
-        let scene = visualisation(self, None);
+        let scene = visualisation(self);
         write_svg_file(&scene, path)
     }
 
