@@ -303,6 +303,7 @@ where
 {
     let subgraph_start_task_id = next_task_id();
     let continuation_task_id = next_task_id();
+    let s = start();
     logs!(
         // log child's work and dependencies.
         RayonEvent::Child(subgraph_start_task_id),
@@ -312,7 +313,6 @@ where
         RayonEvent::TaskStart(subgraph_start_task_id, precise_time_ns()),
         RayonEvent::SubgraphStart(tag)
     );
-    let s = start();
     let r = op();
     let measured_value = end(s);
     logs!(
