@@ -20,10 +20,10 @@ pub(crate) enum RayonEvent {
     TaskEnd(TimeStamp),
     /// Direct link in the graph between two tasks (active one and given one).
     Child(TaskId),
-    /// Tag a subgraph with work type, work amount.
-    SubgraphStart(&'static str, usize),
-    /// Tag the end of a subgraph.
-    SubgraphEnd(&'static str),
+    /// Start a subgraph.
+    SubgraphStart(&'static str),
+    /// End a subgraph and register a work amount.
+    SubgraphEnd(&'static str, usize),
 }
 
 impl RayonEvent {

@@ -315,11 +315,11 @@ where
         RayonEvent::TaskEnd(precise_time_ns()),
         // execute full sequential task
         RayonEvent::TaskStart(subgraph_start_task_id, precise_time_ns()),
-        RayonEvent::SubgraphStart(work_type, work_amount)
+        RayonEvent::SubgraphStart(work_type)
     );
     let r = op();
     logs!(
-        RayonEvent::SubgraphEnd(work_type),
+        RayonEvent::SubgraphEnd(work_type, work_amount),
         RayonEvent::Child(continuation_task_id),
         RayonEvent::TaskEnd(precise_time_ns()),
         // start continuation task

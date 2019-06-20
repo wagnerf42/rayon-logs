@@ -118,7 +118,7 @@ impl RunLog {
                     tasks_info[task].start_time = time - start;
                     *active_tasks = Some(task);
                 }
-                RayonEvent::SubgraphStart(work_type, _) | RayonEvent::SubgraphEnd(work_type) => {
+                RayonEvent::SubgraphStart(work_type) | RayonEvent::SubgraphEnd(work_type, _) => {
                     if let Some(active_task) = active_tasks {
                         let existing_tag = seen_tags.entry(work_type);
                         let tag_index = match existing_tag {
@@ -131,14 +131,15 @@ impl RunLog {
                             }
                         };
                         match *event {
-                            RayonEvent::SubgraphStart(_, work_amount) => {
+                            RayonEvent::SubgraphStart(_) => {
                                 active_subgraphs.push(subgraphs.len());
-                                subgraphs.push((*active_task, 0, tag_index, work_amount));
+                                subgraphs.push((*active_task, 0, tag_index, 0));
                             }
-                            RayonEvent::SubgraphEnd(_) => {
+                            RayonEvent::SubgraphEnd(_, work_amount) => {
                                 let graph_index =
                                     active_subgraphs.pop().expect("ending a non started graph");
                                 subgraphs[graph_index].1 = *active_task;
+                                subgraphs[graph_index].3 = work_amount;
                             }
                             _ => unreachable!(),
                         }
