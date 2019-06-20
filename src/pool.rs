@@ -320,7 +320,7 @@ where
         RayonEvent::Child(continuation_task_id),
         RayonEvent::TaskEnd(precise_time_ns()),
         // start continuation task
-        RayonEvent::TaskStart(continuation_task_id, precise_time_ns(),)
+        RayonEvent::TaskStart(continuation_task_id, precise_time_ns())
     );
     r
 }

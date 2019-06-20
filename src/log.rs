@@ -232,7 +232,7 @@ impl RunLog {
                         self.tags[*tag_id].clone(),
                         (
                             format!(
-                                "counted: {}/{}\nduration: {} (ms)\nspeed: {}\nthread: {}",
+                                "counted: {}/{}\nduration: {} (micro sec)\nspeed: {}\nthread: {}",
                                 size_part,
                                 size,
                                 duration / 1000,
@@ -254,7 +254,7 @@ impl RunLog {
                     "_NO_TAGS_".to_string(),
                     (
                         format!(
-                            "duration: {} (ms)\nthread: {}",
+                            "duration: {} (micro sec)\nthread: {}",
                             duration / 1000,
                             task.thread_id
                         ),
