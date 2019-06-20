@@ -40,7 +40,7 @@
 //! The bars below the graph represent idle times.
 //!
 //! <div>
-//! <img src="http://www-id.imag.fr/Laboratoire/Membres/Wagner_Frederic/images/downgraded_iter_max.svg"/>
+//! <img src="http://www-id.imag.fr/Laboratoire/Membres/Wagner_Frederic/images/downgraded_iter_sum.svg"/>
 //! </div>
 #![type_length_limit = "2097152"] // it seems we have types with long names
 #![deny(missing_docs)]
@@ -51,7 +51,9 @@ mod pool; // this comes first because it exports the logs macro
 mod iterator;
 mod storage;
 pub use crate::iterator::Logged;
-pub use crate::pool::{join, join_context, subgraph, ThreadPool};
+pub use crate::pool::{custom_subgraph, join, join_context, subgraph, ThreadPool};
+#[cfg(feature = "perf")]
+pub use crate::pool::{subgraph_cache_event, subgraph_hardware_event, subgraph_software_event};
 mod builder;
 pub mod prelude;
 pub use crate::builder::ThreadPoolBuilder;
@@ -69,3 +71,9 @@ pub use crate::compare::Comparator;
 pub(crate) mod raw_events;
 /// We re-export rayon's `current_num_threads`.
 pub use rayon::current_num_threads;
+
+/// We reexport perf-related types here.
+#[cfg(feature = "perf")]
+pub use perfcnt::linux::{
+    CacheId, CacheOpId, CacheOpResultId, HardwareEventType, SoftwareEventType,
+};

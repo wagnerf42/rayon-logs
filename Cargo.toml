@@ -16,6 +16,8 @@ debug = true
 [features]
 # enable this to bind using thread_binder
 bind = ["thread_binder"]
+# enable this to log hardware events on x86. This is optional because it requires nightly.
+perf = ["perfcnt", "x86"]
 
 [target.bind.dependencies]
 thread_binder={git="https://github.com/wagnerf42/thread_binder", optional=true}
@@ -32,6 +34,8 @@ rand="^0"
 libc="^0.2"
 # thread_binder={version="*", optional=true}
 thread_binder={git="https://github.com/wagnerf42/thread_binder", optional=true}
+x86={version="*", optional=true}
+perfcnt={version="*", optional=true}
 
 [dev-dependencies]
 criterion="^0.2"
