@@ -81,7 +81,8 @@ macro_rules! logs {
 /// ```
 ///
 /// <div>
-/// <img src="https://raw.githubusercontent.com/wagnerf42/rayon-logs/master/downgraded_manual_max.svg"/>
+/// <img
+/// src="http://www-id.imag.fr/Laboratoire/Membres/Wagner_Frederic/images/downgraded_manual_max.svg"/>
 /// </div>
 ///
 /// Using it we obtain the graph below.
