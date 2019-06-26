@@ -51,7 +51,9 @@ mod pool; // this comes first because it exports the logs macro
 mod iterator;
 mod storage;
 pub use crate::iterator::Logged;
-pub use crate::pool::{custom_subgraph, join, join_context, subgraph, ThreadPool};
+pub use crate::pool::{
+    custom_subgraph, end_subgraph, join, join_context, start_subgraph, subgraph, ThreadPool,
+};
 #[cfg(feature = "perf")]
 pub use crate::pool::{subgraph_cache_event, subgraph_hardware_event, subgraph_software_event};
 mod builder;
