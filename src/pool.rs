@@ -301,8 +301,18 @@ where
     START: FnOnce() -> S,
     END: FnOnce(S) -> usize,
 {
+    start_subgraph(tag);
+    let s = start();
+    let r = op();
+    let measured_value = end(s);
+    end_subgraph(tag, measured_value);
+    r
+}
+
+/// Stop current task (virtually) and start a subgraph.
+/// You most likely don't need to call this function directly but `subgraph` instead.
+pub fn start_subgraph(tag: &'static str) {
     let subgraph_start_task_id = next_task_id();
-    let continuation_task_id = next_task_id();
     logs!(
         // log child's work and dependencies.
         RayonEvent::Child(subgraph_start_task_id),
@@ -312,9 +322,12 @@ where
         RayonEvent::TaskStart(subgraph_start_task_id, precise_time_ns()),
         RayonEvent::SubgraphStart(tag)
     );
-    let s = start();
-    let r = op();
-    let measured_value = end(s);
+}
+
+/// Stop current task (virtually) and end a subgraph.
+/// You most likely don't need to call this function directly but `subgraph` instead.
+pub fn end_subgraph(tag: &'static str, measured_value: usize) {
+    let continuation_task_id = next_task_id();
     logs!(
         RayonEvent::SubgraphEnd(tag, measured_value),
         RayonEvent::Child(continuation_task_id),
@@ -322,7 +335,6 @@ where
         // start continuation task
         RayonEvent::TaskStart(continuation_task_id, precise_time_ns())
     );
-    r
 }
 
 /// Identical to `join`, except that the closures have a parameter
