@@ -301,8 +301,8 @@ where
     START: FnOnce() -> S,
     END: FnOnce(S) -> usize,
 {
-    start_subgraph(tag);
     let s = start();
+    start_subgraph(tag);
     let r = op();
     let measured_value = end(s);
     end_subgraph(tag, measured_value);
