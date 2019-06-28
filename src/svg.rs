@@ -230,7 +230,7 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
     writeln!(
         file,
         "
-   <g id=\"tag_label_{}\" transform=\"translate({}, {})\"></g>
+   <g id=\"tag_label_{id}\" transform=\"translate({tag_x}, {tag_y})\"></g>
    <style>
       .task-highlight {{
         fill: #ec008c;
@@ -239,35 +239,35 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
     </style>
   <script><![CDATA[
 
-    var tasks = document.getElementsByClassName('task{}');
-    var tags = [{}];
-    var current_tag = 0;
+    var tags_{id} = [{tags}];
+    var current_tag_{id} = 0;
     displayTips();
     displayTags();
 
     document.addEventListener('keydown', (event) => {{
         if (event.key === 'ArrowDown') {{
-            current_tag += 1;
-            if (current_tag == tags.length) {{
-                current_tag = 0;
+            current_tag_{id} += 1;
+            if (current_tag_{id} == tags_{id}.length) {{
+                current_tag_{id} = 0;
             }}
             displayTags();
         }}
         if (event.key === 'ArrowUp') {{
-            if (current_tag == 0) {{
-                current_tag = tags.length -1;
+            if (current_tag_{id} == 0) {{
+                current_tag_{id} = tags_{id}.length -1;
             }} else {{
-                current_tag -= 1;
+                current_tag_{id} -= 1;
             }}
             displayTags();
         }}
     }});
 
     function displayTips() {{
+        let tasks = document.getElementsByClassName('task{id}');
         for (let i = 0; i < tasks.length ; i++) {{
           let task = tasks[i];
           let tip_id = task.id;
-          let tip = document.getElementById('tip_{}_'+tip_id);
+          let tip = document.getElementById('tip_{id}_'+tip_id);
           tip.style.display='none';
           tasks[i].tip = tip;
           tasks[i].addEventListener('mouseover', mouseOverEffect);
@@ -276,11 +276,11 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
     }}
 
     function displayTags() {{
-        tags.forEach(function(tag) {{
-            document.getElementById('tasks_colors_{}_'+tag).style.display = 'none';
+        tags_{id}.forEach(function(tag) {{
+            document.getElementById('tasks_colors_{id}_'+tag).style.display = 'none';
         }});
-        document.getElementById('tasks_colors_{}_'+tags[current_tag]).style.display = 'block';
-        document.getElementById('tag_label_{}').innerHTML = \"<text>\"+tags[current_tag]+\"</text>\";
+        document.getElementById('tasks_colors_{id}_'+tags_{id}[current_tag_{id}]).style.display = 'block';
+        document.getElementById('tag_label_{id}').innerHTML = \"<text>\"+tags_{id}[current_tag_{id}]+\"</text>\";
     }}
 
     function mouseOverEffect() {{
@@ -293,15 +293,10 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
       this.tip.style.display='none';
     }}
   ]]></script>",
-        random_id,
-        svg_width - 300,
-        100,
-        random_id,
-        scene.tags.iter().map(|s| format!("\"{}\"", s)).join(", "),
-        random_id,
-        random_id,
-        random_id,
-        random_id,
+        tag_x = svg_width - 300,
+        tag_y = 20,
+        tags = scene.tags.iter().map(|s| format!("\"{}\"", s)).join(", "),
+        id = random_id
     )?;
 
     write!(file, "</svg>")?;
