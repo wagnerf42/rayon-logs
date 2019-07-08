@@ -156,8 +156,8 @@ impl<'a> Comparator<'a> {
         let tags = self.fuse_tags(); // have a consistent tags numbering accross all logs
         let mut html_file = File::create(filename)?;
 
-        write!(html_file, "<!DOCTYPE html>")?;
-        write!(
+        writeln!(html_file, "<!DOCTYPE html>")?;
+        writeln!(
             html_file,
             r#"
 <html><head><style>
@@ -170,31 +170,31 @@ table, th, td {{
 <body><center>"#,
         )?;
         let (last_label, first_labels) = self.labels.split_last().expect("not enough experiments");
-        write!(
+        writeln!(
             html_file,
             "<H1> Comparing {} and {}</H1>",
             first_labels.join(", "),
             last_label
         )?;
 
-        write!(
+        writeln!(
             html_file,
             "<H2>Distribution of execution times over {} runs ",
             self.runs_number
         )?;
         for (label, color) in self.labels.iter().zip(HISTOGRAM_COLORS.iter().cycle()) {
-            write!(
+            writeln!(
                 html_file,
                 "<text style=\"color:{0}\">{0}</text> is {1}, ",
                 color, label
             )?;
         }
-        write!(html_file, "</H2>")?;
+        writeln!(html_file, "</H2>")?;
         histogram(&mut html_file, &self.logs, 30)?;
         let number_of_threads = self.logs[0][0].threads_number;
         let statistics = Stats::get_statistics(&self.logs, number_of_threads, self.runs_number);
-        write!(html_file, "<H2> The Mean statistics are</H2>")?;
-        write!(
+        writeln!(html_file, "<H2> The Mean statistics are</H2>")?;
+        writeln!(
             html_file,
             "<table><tr><th></th><th>algorithm</th><th>net time</th>{}<th>idle time</th></tr>",
             tags.iter()
@@ -207,11 +207,11 @@ table, th, td {{
             statistics.total_times(),
             //statistics.sequential_times(),
             statistics.idle_times(),
-            HISTOGRAM_COLORS.iter()
+            HISTOGRAM_COLORS.iter().cycle()
         ) {
-            write!(
+            writeln!(
                 html_file,
-                "<tr><td>{}</td><td>{}</td>{}<td>{}</td></tr>",
+                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
                 // "<tr><td>{}</td><td>{}</td><td>{}</td>{}<td>{}</td></tr>",
                 format!("<span style='color:{}'>&#9632;</span>", algo_color),
                 name,
@@ -223,9 +223,9 @@ table, th, td {{
                 time_string(idle_time)
             )?;
         }
-        write!(html_file, "</table>",)?;
-        write!(html_file, "<H2> The Median statistics are</H2>")?;
-        write!(
+        writeln!(html_file, "</table>",)?;
+        writeln!(html_file, "<H2> The Median statistics are</H2>")?;
+        writeln!(
             html_file,
             "<table><tr><th></th><th>algorithm</th><th>net time</th>{}<th>idle time</th></tr>",
             tags.iter()
@@ -238,12 +238,12 @@ table, th, td {{
             statistics.total_times_median(),
             // statistics.sequential_times_median(),
             statistics.idle_times_median(),
-            HISTOGRAM_COLORS.iter()
+            HISTOGRAM_COLORS.iter().cycle()
         ) {
-            write!(
+            writeln!(
                 html_file,
                 //"<tr><td>{}</td><td>{}</td><td>{}</td>{}<td>{}</td></tr>",
-                "<tr><td>{}</td><td>{}</td>{}<td>{}</td></tr>",
+                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
                 format!("<span style='color:{}'>&#9632;</span>", algo_color),
                 name,
                 time_string(total_time),
@@ -254,9 +254,9 @@ table, th, td {{
                 time_string(idle_time)
             )?;
         }
-        write!(html_file, "</table>",)?;
+        writeln!(html_file, "</table>",)?;
         if self.display_preferences.iter().any(|b| *b) {
-            write!(html_file, "<H2>Comparing median runs</H2>")?;
+            writeln!(html_file, "<H2>Comparing median runs</H2>")?;
             let median_index = (self.runs_number) / 2;
             for (pos, (log, name)) in self.logs.iter().zip(self.labels.iter()).enumerate() {
                 if self.display_preferences[pos] {
@@ -267,7 +267,7 @@ table, th, td {{
                 }
             }
 
-            write!(html_file, "<H2>Comparing best runs</H2>")?;
+            writeln!(html_file, "<H2>Comparing best runs</H2>")?;
             for (pos, (log, name)) in self.logs.iter().zip(self.labels.iter()).enumerate() {
                 if self.display_preferences[pos] {
                     let scene = visualisation(&log[0]);

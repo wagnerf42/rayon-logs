@@ -232,7 +232,8 @@ impl RunLog {
                         self.tags[*tag_id].clone(),
                         (
                             format!(
-                                "counted: {}/{}\nduration: {} (micro sec)\nspeed: {}\nthread: {}",
+                                "task: {}\ncounted: {}/{}\nduration: {} (micro sec)\nspeed: {}\nthread: {}",
+                                task,
                                 size_part,
                                 size,
                                 duration / 1000,
@@ -254,7 +255,8 @@ impl RunLog {
                     "_NO_TAGS_".to_string(),
                     (
                         format!(
-                            "duration: {} (micro sec)\nthread: {}",
+                            "task: {}\nduration: {} (micro sec)\nthread: {}",
+                            task_id,
                             duration / 1000,
                             task.thread_id
                         ),
@@ -291,7 +293,7 @@ impl RunLog {
             .sorted_by_key(|&(_, i)| i)
             .map(|(t, _)| t.clone())
             .collect();
-        unimplemented!("please test me")
+        // unimplemented!("please test me")
     }
 
     /// Load a rayon_logs log file and deserializes it into a `RunLog`.

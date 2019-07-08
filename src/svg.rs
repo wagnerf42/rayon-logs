@@ -13,7 +13,9 @@ use std::iter::repeat_with;
 use std::path::Path;
 
 /// all svg colors names used for histograms displays
-pub const HISTOGRAM_COLORS: [&str; 6] = ["red", "blue", "green", "yellow", "purple", "brown"];
+pub const HISTOGRAM_COLORS: [&str; 7] = [
+    "red", "blue", "green", "yellow", "purple", "brown", "orange",
+];
 
 pub(crate) type Point = (f64, f64);
 
