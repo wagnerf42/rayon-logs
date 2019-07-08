@@ -396,7 +396,6 @@ pub fn visualisation(log: &RunLog) -> Scene {
         .map(|b| blocks_dimensions[*b].0)
         .max_by(|a, b| a.partial_cmp(&b).unwrap())
         .unwrap_or(0.0);
-    eprintln!("width is {}", width);
 
     // compute recursively the position of each block
     let mut positions = Vec::with_capacity(g.len());
