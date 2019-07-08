@@ -62,6 +62,7 @@ impl<'l> Stats<'l> {
                 .iter()
                 .map(|run| {
                     create_graph(&run.tasks_logs)
+                        .0
                         .iter()
                         .filter(|&b| {
                             if let Block::Sequence(_) = b {

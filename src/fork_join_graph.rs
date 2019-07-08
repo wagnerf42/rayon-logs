@@ -106,9 +106,11 @@ fn common_ancestor_block(
 
 /// Create a fork join graph (stored in a vec). This is used to convert the logs into
 /// a graphical display of animated rectangles.
-pub(crate) fn create_graph(tasks: &[TaskLog]) -> Vec<Block> {
+/// Returns the fork join graph and a vector containing all root blocks, sorted by starting times.
+pub(crate) fn create_graph(tasks: &[TaskLog]) -> (Vec<Block>, Vec<BlockId>) {
     // graph is composed of sequential or parallel blocks
-    let mut graph = vec![Block::Sequence(Vec::new())]; // start with a sequence
+    let mut graph = Vec::with_capacity(tasks.len());
+    let mut root_nodes = Vec::new();
 
     // we need a quick way to find all fathers for a given node
     let mut fathers: HashMap<TaskId, Vec<TaskId>> = HashMap::new();
@@ -139,9 +141,11 @@ pub(crate) fn create_graph(tasks: &[TaskLog]) -> Vec<Block> {
     for task_id in &sorted_tasks {
         let task = &tasks[*task_id];
         let sequence_id = if !fathers.contains_key(task_id) {
-            // we are the root
-            assert_eq!(*task_id, 0);
-            0
+            // we are one of the roots
+            let block_id = graph.len();
+            graph.push(Block::Sequence(Vec::new()));
+            root_nodes.push((task_id, block_id));
+            block_id
         } else if fathers[task_id].len() == 1 {
             // check if we have brothers
             let father = fathers[task_id][0];
@@ -179,7 +183,8 @@ pub(crate) fn create_graph(tasks: &[TaskLog]) -> Vec<Block> {
             parallel_blocks.insert(*task_id, parallel_block);
         }
     }
-    graph
+    root_nodes.sort_by_key(|(t, _)| tasks[**t].start_time);
+    (graph, root_nodes.into_iter().map(|(_, b)| b).collect())
 }
 
 /// recursively compute widths and heights of block at given index and all its sub-blocks.
@@ -376,44 +381,44 @@ pub fn visualisation(log: &RunLog) -> Scene {
     let mut scene = Scene::new(log);
 
     let tasks = &log.tasks_logs;
-    let g = create_graph(tasks);
+    let (g, root_blocks) = create_graph(tasks);
 
     // compute recursively the width and height of each block
     let mut blocks_dimensions = Vec::with_capacity(g.len());
     unsafe { blocks_dimensions.set_len(g.len()) }
-    compute_blocks_dimensions(0, &g, &mut blocks_dimensions);
+    for root in &root_blocks {
+        compute_blocks_dimensions(*root, &g, &mut blocks_dimensions);
+    }
+
+    // compute the width to center everyone
+    let width = root_blocks
+        .iter()
+        .map(|b| blocks_dimensions[*b].0)
+        .max_by(|a, b| a.partial_cmp(&b).unwrap())
+        .unwrap_or(0.0);
+    eprintln!("width is {}", width);
 
     // compute recursively the position of each block
     let mut positions = Vec::with_capacity(g.len());
     unsafe { positions.set_len(g.len()) }
-    positions[0] = (0.0, 0.0);
-    compute_positions(0, &g, &blocks_dimensions, &mut positions);
+    let height = root_blocks.iter().fold(0.0, |previous_h, root| {
+        positions[*root] = ((width - blocks_dimensions[*root].0) / 2.0, previous_h);
+        compute_positions(*root, &g, &blocks_dimensions, &mut positions);
+        previous_h + blocks_dimensions[*root].1 + 1.0
+    });
 
     let mut tasks_information = log.compute_tasks_information();
-    generate_visualisation(
-        0,
-        &g,
-        &positions,
-        &mut scene,
-        &mut tasks_information,
-        &log.tags,
-        &blocks_dimensions,
-    );
-
-    // compute position for idle times widget
-    let height = positions
-        .iter()
-        .map(|(_, y)| y)
-        .max_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap()
-        + 1.0;
-
-    let width = positions
-        .iter()
-        .zip(blocks_dimensions.iter())
-        .map(|((x, _), (w, _))| *x + *w)
-        .max_by(|a, b| a.partial_cmp(&b).unwrap())
-        .unwrap();
+    for root in &root_blocks {
+        generate_visualisation(
+            *root,
+            &g,
+            &positions,
+            &mut scene,
+            &mut tasks_information,
+            &log.tags,
+            &blocks_dimensions,
+        );
+    }
 
     let starting_position = (width as f64 * 0.1, height + 1.0);
 
