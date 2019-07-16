@@ -244,15 +244,16 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
     var tags_{id} = [{tags}];
     var current_tag_{id} = 0;
     displayTips();
-    displayTags();
+    displayTags_{id}();
 
-    document.addEventListener('keydown', (event) => {{
+    window.addEventListener('keydown', (event) => {{
+      
         if (event.key === 'ArrowDown') {{
             current_tag_{id} += 1;
             if (current_tag_{id} == tags_{id}.length) {{
                 current_tag_{id} = 0;
             }}
-            displayTags();
+            displayTags_{id}();
         }}
         if (event.key === 'ArrowUp') {{
             if (current_tag_{id} == 0) {{
@@ -260,7 +261,7 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
             }} else {{
                 current_tag_{id} -= 1;
             }}
-            displayTags();
+            displayTags_{id}();
         }}
     }});
 
@@ -277,7 +278,7 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
         }}
     }}
 
-    function displayTags() {{
+    function displayTags_{id}() {{
         tags_{id}.forEach(function(tag) {{
             document.getElementById('tasks_colors_{id}_'+tag).style.display = 'none';
         }});
