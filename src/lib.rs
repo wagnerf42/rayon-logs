@@ -73,6 +73,7 @@ pub use crate::compare::Comparator;
 pub(crate) mod raw_events;
 /// We re-export rayon's `current_num_threads`.
 pub use rayon::current_num_threads;
+pub use rayon::current_thread_index;
 
 /// We reexport perf-related types here.
 #[cfg(feature = "perf")]
