@@ -3,9 +3,6 @@ use crate::storage::Storage;
 use crate::ThreadPool;
 use rayon::{self, ThreadPoolBuildError};
 use std::sync::{Arc, Mutex};
-#[cfg(feature = "bind")]
-type Builder = thread_binder::ThreadPoolBuilder;
-#[cfg(not(feature = "bind"))]
 type Builder = rayon::ThreadPoolBuilder;
 
 /// We rewrite ThreadPoolBuilders since we need to overload the start handler
@@ -28,13 +25,6 @@ impl ThreadPoolBuilder {
         ThreadPoolBuilder {
             builder: self.builder.num_threads(threads_number),
         }
-    }
-
-    #[cfg(feature = "bind")]
-    /// Set threads binding policy.
-    pub fn bind(mut self, bind_policy: thread_binder::Policy) -> Self {
-        self.builder = self.builder.bind(bind_policy);
-        self
     }
 
     /// Build the `ThreadPool`.
