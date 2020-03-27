@@ -1,6 +1,6 @@
 //! `LoggedPool` structure for logging raw tasks events.
 
-use crate::fork_join_graph::{create_graph, Block};
+// use crate::fork_join_graph::{create_graph, Block};
 use crate::log::RunLog;
 
 /// This struct mainly supplies the methods that can be used to get various statistics.
@@ -32,51 +32,51 @@ impl<'l> Stats<'l> {
             .map(move |total_runs_duration: u64| total_runs_duration / self.runs_number as u64)
     }
 
-    /// Return the number of succesfull steals (tasks which moved between threads).
-    pub fn succesfull_average_steals<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = usize> + 'a {
-        self.logs.iter().map(move |algorithm| {
-            algorithm
-                .iter()
-                .map(|run| {
-                    run.tasks_logs
-                        .iter()
-                        .filter(|&t| t.children.len() == 2)
-                        .map(|t| {
-                            t.children
-                                .iter()
-                                .filter(|&c| run.tasks_logs[*c].thread_id != t.thread_id)
-                                .count()
-                        })
-                        .sum::<usize>()
-                })
-                .sum::<usize>()
-                / self.runs_number
-        })
-    }
-
-    /// Returns an iterator over the average number of tasks that were created for each algorithm
-    /// in the logs.
-    pub fn tasks_count<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = usize> + 'a {
-        self.logs.iter().map(move |algorithm| {
-            algorithm
-                .iter()
-                .map(|run| {
-                    create_graph(&run.tasks_logs)
-                        .0
-                        .iter()
-                        .filter(|&b| {
-                            if let Block::Sequence(_) = b {
-                                true
-                            } else {
-                                false
-                            }
-                        })
-                        .count()
-                })
-                .sum::<usize>()
-                / self.runs_number
-        })
-    }
+    //    /// Return the number of succesfull steals (tasks which moved between threads).
+    //    pub fn succesfull_average_steals<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = usize> + 'a {
+    //        self.logs.iter().map(move |algorithm| {
+    //            algorithm
+    //                .iter()
+    //                .map(|run| {
+    //                    run.tasks_logs
+    //                        .iter()
+    //                        .filter(|&t| t.children.len() == 2)
+    //                        .map(|t| {
+    //                            t.children
+    //                                .iter()
+    //                                .filter(|&c| run.tasks_logs[*c].thread_id != t.thread_id)
+    //                                .count()
+    //                        })
+    //                        .sum::<usize>()
+    //                })
+    //                .sum::<usize>()
+    //                / self.runs_number
+    //        })
+    //    }
+    //
+    //    /// Returns an iterator over the average number of tasks that were created for each algorithm
+    //    /// in the logs.
+    //    pub fn tasks_count<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = usize> + 'a {
+    //        self.logs.iter().map(move |algorithm| {
+    //            algorithm
+    //                .iter()
+    //                .map(|run| {
+    //                    create_graph(&run.tasks_logs)
+    //                        .0
+    //                        .iter()
+    //                        .filter(|&b| {
+    //                            if let Block::Sequence(_) = b {
+    //                                true
+    //                            } else {
+    //                                false
+    //                            }
+    //                        })
+    //                        .count()
+    //                })
+    //                .sum::<usize>()
+    //                / self.runs_number
+    //        })
+    //    }
 
     /// This returns the idle time summed across all runs for all experiments.
     pub fn idle_times<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = u64> + 'a {
