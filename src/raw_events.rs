@@ -11,6 +11,16 @@ pub(crate) type IteratorId = usize;
 /// at which time (in nanoseconds) does the event happen
 pub(crate) type TimeStamp = u64;
 
+use lazy_static::lazy_static;
+lazy_static! {
+    static ref START_TIME: std::time::Instant = std::time::Instant::now();
+}
+
+/// Return number of nano seconds since start.
+pub(crate) fn now() -> TimeStamp {
+    START_TIME.elapsed().as_nanos() as TimeStamp
+}
+
 /// All types of raw events we can log.
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum RayonEvent {
@@ -28,7 +38,7 @@ pub(crate) enum RayonEvent {
 
 impl RayonEvent {
     /// return event time or 0 if none
-    pub(crate) fn time(&self) -> u64 {
+    pub(crate) fn time(&self) -> TimeStamp {
         match *self {
             RayonEvent::TaskStart(_, t) => t,
             RayonEvent::TaskEnd(t) => t,

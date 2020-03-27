@@ -10,7 +10,7 @@ use perfcnt::linux::{CacheId, CacheOpId, CacheOpResultId, HardwareEventType, Sof
 use perfcnt::{AbstractPerfCounter, PerfCounter};
 
 use crate::log::RunLog;
-use crate::raw_events::{RayonEvent, TaskId};
+use crate::raw_events::{now, RayonEvent, TaskId};
 use crate::storage::Storage;
 use crate::Comparator;
 use crate::{scope, Scope};
@@ -19,7 +19,6 @@ use rayon::FnContext;
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use time::precise_time_ns;
 
 /// We use an atomic usize to generate unique ids for tasks.
 pub(crate) static NEXT_TASK_ID: AtomicUsize = AtomicUsize::new(0);
@@ -150,7 +149,7 @@ where
             pc
         },
         |mut pc| {
-            pc.stop().expect("Can not stop the counter");;
+            pc.stop().expect("Can not stop the counter");
             let counted_value = pc.read().unwrap() as usize;
             pc.reset().expect("Can not reset the counter");
             counted_value
@@ -207,7 +206,7 @@ where
             pc
         },
         |mut pc| {
-            pc.stop().expect("Can not stop the counter");;
+            pc.stop().expect("Can not stop the counter");
             let counted_value = pc.read().unwrap() as usize;
             pc.reset().expect("Can not reset the counter");
             counted_value
@@ -282,7 +281,7 @@ where
             pc
         },
         |mut pc| {
-            pc.stop().expect("Can not stop the counter");;
+            pc.stop().expect("Can not stop the counter");
             let counted_value = pc.read().unwrap() as usize;
             pc.reset().expect("Can not reset the counter");
             counted_value
@@ -317,9 +316,9 @@ pub fn start_subgraph(tag: &'static str) {
         // log child's work and dependencies.
         RayonEvent::Child(subgraph_start_task_id),
         // end current task
-        RayonEvent::TaskEnd(precise_time_ns()),
+        RayonEvent::TaskEnd(now()),
         // execute full sequential task
-        RayonEvent::TaskStart(subgraph_start_task_id, precise_time_ns()),
+        RayonEvent::TaskStart(subgraph_start_task_id, now()),
         RayonEvent::SubgraphStart(tag)
     );
 }
@@ -331,9 +330,9 @@ pub fn end_subgraph(tag: &'static str, measured_value: usize) {
     logs!(
         RayonEvent::SubgraphEnd(tag, measured_value),
         RayonEvent::Child(continuation_task_id),
-        RayonEvent::TaskEnd(precise_time_ns()),
+        RayonEvent::TaskEnd(now()),
         // start continuation task
-        RayonEvent::TaskStart(continuation_task_id, precise_time_ns())
+        RayonEvent::TaskStart(continuation_task_id, now())
     );
 }
 
@@ -354,33 +353,27 @@ where
     let id_c = next_task_id();
     let id_a = next_task_id();
     let ca = |c| {
-        log(RayonEvent::TaskStart(id_a, precise_time_ns()));
+        log(RayonEvent::TaskStart(id_a, now()));
         let result = oper_a(c);
-        logs!(
-            RayonEvent::Child(id_c),
-            RayonEvent::TaskEnd(precise_time_ns())
-        );
+        logs!(RayonEvent::Child(id_c), RayonEvent::TaskEnd(now()));
         result
     };
 
     let id_b = next_task_id();
     let cb = |c| {
-        log(RayonEvent::TaskStart(id_b, precise_time_ns()));
+        log(RayonEvent::TaskStart(id_b, now()));
         let result = oper_b(c);
-        logs!(
-            RayonEvent::Child(id_c),
-            RayonEvent::TaskEnd(precise_time_ns())
-        );
+        logs!(RayonEvent::Child(id_c), RayonEvent::TaskEnd(now()));
         result
     };
 
     logs!(
         RayonEvent::Child(id_a),
         RayonEvent::Child(id_b),
-        RayonEvent::TaskEnd(precise_time_ns())
+        RayonEvent::TaskEnd(now())
     );
     let r = rayon::join_context(ca, cb);
-    log(RayonEvent::TaskStart(id_c, precise_time_ns()));
+    log(RayonEvent::TaskStart(id_c, now()));
     r
 }
 
@@ -474,33 +467,27 @@ where
     let id_c = next_task_id();
     let id_a = next_task_id();
     let ca = || {
-        log(RayonEvent::TaskStart(id_a, precise_time_ns()));
+        log(RayonEvent::TaskStart(id_a, now()));
         let result = oper_a();
-        logs!(
-            RayonEvent::Child(id_c),
-            RayonEvent::TaskEnd(precise_time_ns())
-        );
+        logs!(RayonEvent::Child(id_c), RayonEvent::TaskEnd(now()));
         result
     };
 
     let id_b = next_task_id();
     let cb = || {
-        log(RayonEvent::TaskStart(id_b, precise_time_ns()));
+        log(RayonEvent::TaskStart(id_b, now()));
         let result = oper_b();
-        logs!(
-            RayonEvent::Child(id_c),
-            RayonEvent::TaskEnd(precise_time_ns())
-        );
+        logs!(RayonEvent::Child(id_c), RayonEvent::TaskEnd(now()));
         result
     };
 
     logs!(
         RayonEvent::Child(id_a),
         RayonEvent::Child(id_b),
-        RayonEvent::TaskEnd(precise_time_ns())
+        RayonEvent::TaskEnd(now())
     );
     let r = rayon::join(ca, cb);
-    log(RayonEvent::TaskStart(id_c, precise_time_ns()));
+    log(RayonEvent::TaskStart(id_c, now()));
     r
 }
 
@@ -535,12 +522,12 @@ impl ThreadPool {
         self.reset();
         let id = next_task_id();
         let c = || {
-            log(RayonEvent::TaskStart(id, precise_time_ns()));
+            log(RayonEvent::TaskStart(id, now()));
             let result = op();
-            log(RayonEvent::TaskEnd(precise_time_ns()));
+            log(RayonEvent::TaskEnd(now()));
             result
         };
-        let start = precise_time_ns();
+        let start = now();
         let r = self.pool.install(c);
         let log = RunLog::new(
             NEXT_TASK_ID.load(Ordering::Relaxed),

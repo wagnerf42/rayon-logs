@@ -40,7 +40,7 @@ pub struct TaskLog {
 
 impl TaskLog {
     /// Return how much time it took to run this task.
-    pub fn duration(&self) -> u64 {
+    pub fn duration(&self) -> TimeStamp {
         self.end_time - self.start_time
     }
 }
@@ -56,7 +56,7 @@ pub struct RunLog {
     /// fork-join tasks.
     pub tasks_logs: Vec<TaskLog>,
     /// total run time in nanoseconds.
-    pub duration: u64,
+    pub duration: TimeStamp,
     /// all strings used for tagging tasks.
     pub tags: Vec<String>,
     /// subgraphs: some parts of the graph can be tagged with a tag and usize
@@ -193,7 +193,7 @@ impl RunLog {
         for (subgraph_index, (start_task, end_task, tag_id, size)) in
             self.subgraphs.iter().enumerate()
         {
-            let total_duration: u64 = self
+            let total_duration: TimeStamp = self
                 .tasks_between(*start_task, *end_task)
                 .map(|t| self.tasks_logs[t].duration())
                 .sum();

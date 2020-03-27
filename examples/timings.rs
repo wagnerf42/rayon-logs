@@ -2,7 +2,6 @@
 extern crate rayon_logs;
 use rayon_logs::ThreadPoolBuilder;
 use std::iter::repeat_with;
-use time::precise_time_ns;
 
 fn fibo(n: u32) -> u32 {
     if n <= 1 {
@@ -20,11 +19,10 @@ fn main() {
 
     let t: Vec<(u64, u64)> = repeat_with(|| {
         let (t, d) = pool.logging_install(|| {
-            let start = precise_time_ns();
+            let start = std::time::Instant::now();
             let x = fibo(10);
             assert!(x > 0);
-            let end = precise_time_ns();
-            (end - start) as u64
+            start.elapsed().as_nanos() as u64
         });
         (t, d.duration)
     })
