@@ -9,7 +9,7 @@ use itertools::Itertools;
 use serde_derive::{Deserialize, Serialize};
 use serde_json;
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io;
 use std::io::ErrorKind;
@@ -171,9 +171,17 @@ impl RunLog {
         end: TaskId,
     ) -> impl Iterator<Item = TaskId> + 'a {
         let mut stack = Vec::new();
+        let mut seen = HashSet::new();
         successors(Some(start), move |&n| {
+            seen.insert(n);
             if n != end {
-                stack.extend(self.tasks_logs[n].children.iter().cloned())
+                stack.extend(
+                    self.tasks_logs[n]
+                        .children
+                        .iter()
+                        .filter(|&c| !seen.contains(c))
+                        .cloned(),
+                )
             }
             stack.pop()
         })
