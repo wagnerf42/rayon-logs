@@ -1,4 +1,5 @@
 //! `LoggedPool` structure for logging raw tasks events.
+use std::collections::HashMap;
 
 // use crate::fork_join_graph::{create_graph, Block};
 use crate::log::RunLog;
@@ -8,6 +9,8 @@ pub struct Stats<'a> {
     logs: &'a [Vec<RunLog>],
     threads_number: usize,
     runs_number: usize,
+    /// for each algorithm associate to each tag a vec of times per run
+    tagged_times: Vec<HashMap<String, Vec<u64>>>,
 }
 
 impl<'l> Stats<'l> {
@@ -17,10 +20,26 @@ impl<'l> Stats<'l> {
         threads_number: usize,
         runs_number: usize,
     ) -> Self {
+        let tagged_times = logs
+            .iter()
+            .map(|algorithm| {
+                let mut hashmap: HashMap<String, Vec<u64>> = HashMap::new();
+                for run in algorithm {
+                    let stats = run.stats();
+                    for (key, value) in stats {
+                        hashmap.entry(key).or_default().push(value.1)
+                    }
+                }
+                // we pre-sort for median
+                hashmap.values_mut().for_each(|v| v.sort());
+                hashmap
+            })
+            .collect();
         Stats {
             logs,
             threads_number,
             runs_number,
+            tagged_times,
         }
     }
 
@@ -30,6 +49,42 @@ impl<'l> Stats<'l> {
             .iter()
             .map(|algorithm| algorithm.iter().map(|run| run.duration).sum())
             .map(move |total_runs_duration: u64| total_runs_duration / self.runs_number as u64)
+    }
+
+    /// This iterates on strings for html table in compare.
+    pub fn average_tagged_times<'a>(
+        &'a self,
+        tags: &'a [String],
+    ) -> impl Iterator<Item = String> + 'a {
+        self.tagged_times.iter().map(move |algorithm| {
+            tags.iter()
+                .map(|t| {
+                    algorithm
+                        .get(t)
+                        .map(|times| times.iter().sum::<u64>() / self.runs_number as u64)
+                        .unwrap_or(0)
+                })
+                .map(|t| format!("<td>{}</td>", crate::compare::time_string(t)))
+                .collect::<String>()
+        })
+    }
+
+    /// This iterates on strings for html table in compare.
+    pub fn median_tagged_times<'a>(
+        &'a self,
+        tags: &'a [String],
+    ) -> impl Iterator<Item = String> + 'a {
+        self.tagged_times.iter().map(move |algorithm| {
+            tags.iter()
+                .map(|t| {
+                    algorithm
+                        .get(t)
+                        .map(|times| times[self.runs_number / 2])
+                        .unwrap_or(0)
+                })
+                .map(|t| format!("<td>{}</td>", crate::compare::time_string(t)))
+                .collect::<String>()
+        })
     }
 
     //    /// Return the number of succesfull steals (tasks which moved between threads).

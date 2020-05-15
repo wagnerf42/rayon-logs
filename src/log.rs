@@ -304,6 +304,23 @@ impl RunLog {
         // unimplemented!("please test me")
     }
 
+    /// Compute for each tag, the total work and total duration.
+    pub fn stats(&self) -> HashMap<String, (usize, u64)> {
+        let mut hash = HashMap::new();
+        self.subgraphs
+            .iter()
+            .for_each(|&(start_task, end_task, tag_id, work)| {
+                let subgraph_duration = self
+                    .tasks_between(start_task, end_task)
+                    .map(|t| self.tasks_logs[t].duration())
+                    .sum::<u64>();
+                let stat = hash.entry(self.tags[tag_id].clone()).or_insert((0, 0));
+                stat.0 += work;
+                stat.1 += subgraph_duration;
+            });
+        hash
+    }
+
     /// Load a rayon_logs log file and deserializes it into a `RunLog`.
     pub fn load<P: AsRef<Path>>(path: P) -> Result<RunLog, io::Error> {
         let file = File::open(path).unwrap();
