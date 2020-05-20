@@ -60,7 +60,7 @@ mod builder;
 pub mod prelude;
 pub use crate::builder::ThreadPoolBuilder;
 mod scope;
-pub use crate::scope::{scope, Scope};
+pub use crate::scope::{scope, scope_fifo, Scope, ScopeFifo};
 mod fork_join_graph;
 mod stats;
 pub use crate::fork_join_graph::visualisation;

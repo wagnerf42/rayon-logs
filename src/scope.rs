@@ -125,3 +125,69 @@ where
     log(RayonEvent::TaskStart(continuing_task_id, now()));
     r
 }
+
+/// Obtained from `scope_fifo`.
+pub struct ScopeFifo<'scope> {
+    rayon_scope: Option<&'scope rayon::ScopeFifo<'scope>>,
+    continuing_task_id: TaskId,
+}
+
+impl<'scope> ScopeFifo<'scope> {
+    /// Spawn a task.
+    pub fn spawn_fifo<BODY>(&self, body: BODY)
+    where
+        BODY: FnOnce(&ScopeFifo<'scope>) + Send + 'scope,
+    {
+        let spawned_id = next_task_id();
+        let seq_id = next_task_id();
+        logs!(RayonEvent::Child(spawned_id), RayonEvent::Child(seq_id));
+        // sorry I need to erase the borrow's lifetime.
+        // it's ok though since the pointed self will survive all spawned tasks.
+        let floating_self: &'scope ScopeFifo<'scope> = unsafe { transmute(self) };
+        let logged_body = move |_: &rayon::ScopeFifo<'scope>| {
+            log(RayonEvent::TaskStart(spawned_id, now()));
+            body(floating_self);
+            logs!(
+                RayonEvent::Child(floating_self.continuing_task_id),
+                RayonEvent::TaskEnd(now())
+            );
+        };
+        self.rayon_scope.as_ref().unwrap().spawn_fifo(logged_body);
+        logs!(
+            RayonEvent::TaskEnd(now()),
+            RayonEvent::TaskStart(seq_id, now())
+        );
+    }
+}
+
+/// Like `scope` but fifo.
+pub fn scope_fifo<'scope, OP, R>(op: OP) -> R
+where
+    OP: for<'s> FnOnce(&'s ScopeFifo<'scope>) -> R + 'scope + Send,
+    R: Send,
+{
+    let scope_id = next_task_id();
+    let continuing_task_id = next_task_id();
+    logs!(RayonEvent::Child(scope_id), RayonEvent::TaskEnd(now()));
+    // the Scope structure needs to survive the scope fn call
+    // because tasks might be executed AFTER the op call completed
+    let mut borrowed_scope: ScopeFifo<'scope> = ScopeFifo {
+        rayon_scope: None, // we cannot know now so we use a None
+        continuing_task_id,
+    };
+    let borrowed_scope_ref = &mut borrowed_scope;
+    let r = rayon::scope_fifo(move |s| {
+        log(RayonEvent::TaskStart(scope_id, now()));
+        // I'm sorry, there is no other way to do it without changing
+        // the API. Because I can only access a reference to the underlying rayon::Scope
+        borrowed_scope_ref.rayon_scope = unsafe { transmute(Some(s)) };
+        let r = op(borrowed_scope_ref);
+        logs!(
+            RayonEvent::Child(continuing_task_id),
+            RayonEvent::TaskEnd(now())
+        );
+        r
+    });
+    log(RayonEvent::TaskStart(continuing_task_id, now()));
+    r
+}

@@ -13,7 +13,7 @@ use crate::log::RunLog;
 use crate::raw_events::{now, RayonEvent, TaskId};
 use crate::storage::Storage;
 use crate::Comparator;
-use crate::{scope, Scope};
+use crate::{scope, scope_fifo, Scope, ScopeFifo};
 use rayon;
 use rayon::FnContext;
 use std::cell::RefCell;
@@ -550,6 +550,15 @@ impl ThreadPool {
         R: Send,
     {
         self.install(|| scope(op))
+    }
+
+    /// Like `scope` but fifo.
+    pub fn scope_fifo<'scope, OP, R>(&self, op: OP) -> R
+    where
+        OP: for<'s> FnOnce(&'s ScopeFifo<'scope>) -> R + 'scope + Send,
+        R: Send,
+    {
+        self.install(|| scope_fifo(op))
     }
 
     /// Execute given closure in the thread pool, logging it's task as the initial one.
