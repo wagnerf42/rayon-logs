@@ -16,7 +16,7 @@ use std::io::ErrorKind;
 use std::iter::successors;
 use std::iter::{repeat, repeat_with};
 use std::path::Path;
-use std::sync::Arc;
+use std::{cmp::Ordering, sync::Arc};
 
 /// The final information produced for log viewers.
 /// A 'task' here is not a rayon task but a subpart of one.
@@ -304,8 +304,8 @@ impl RunLog {
         // unimplemented!("please test me")
     }
 
-    /// Compute for each tag, the total work and total duration.
-    pub fn stats(&self) -> HashMap<String, (usize, u64)> {
+    /// Compute for each tag, the (total work, total duration, normalised speed).
+    pub fn stats(&self) -> HashMap<String, (usize, u64, f64)> {
         let mut hash = HashMap::new();
         self.subgraphs
             .iter()
@@ -314,10 +314,20 @@ impl RunLog {
                     .tasks_between(start_task, end_task)
                     .map(|t| self.tasks_logs[t].duration())
                     .sum::<u64>();
-                let stat = hash.entry(self.tags[tag_id].clone()).or_insert((0, 0));
+                let stat = hash.entry(self.tags[tag_id].clone()).or_insert((0, 0, 0.0));
                 stat.0 += work;
                 stat.1 += subgraph_duration;
+                stat.2 = stat.0 as f64 / stat.1 as f64;
             });
+        let max_speed = hash
+            .values()
+            .map(|(_, _, s)| *s)
+            .max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Less))
+            .unwrap_or(1.0);
+        //Normalise the speeds across tags
+        hash.values_mut().for_each(|(_, _, speed)| {
+            *speed = *speed / max_speed;
+        });
         hash
     }
 

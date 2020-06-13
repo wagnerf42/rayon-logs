@@ -221,6 +221,7 @@ table, th, td {{
         }
         writeln!(html_file, "</table>",)?;
         writeln!(html_file, "<H2> The Median statistics are</H2>")?;
+        writeln!(html_file, "<H4> you may see tagged statistics for your tags in the form (count, duration, speed)</H4>")?;
         writeln!(
             html_file,
             "<table><tr><th></th><th>algorithm</th><th>net time</th>{}<th>idle time</th></tr>",
@@ -231,7 +232,7 @@ table, th, td {{
         for (name, total_time, tagged_columns, idle_time, algo_color) in izip!(
             self.labels.iter(),
             statistics.total_times_median(),
-            statistics.median_tagged_times(&tags),
+            statistics.median_tagged_allstats(&tags),
             statistics.idle_times_median(),
             HISTOGRAM_COLORS.iter().cycle()
         ) {

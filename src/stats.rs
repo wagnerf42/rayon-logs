@@ -9,8 +9,9 @@ pub struct Stats<'a> {
     logs: &'a [Vec<RunLog>],
     threads_number: usize,
     runs_number: usize,
-    /// for each algorithm associate to each tag a vec of times per run
-    tagged_times: Vec<HashMap<String, Vec<u64>>>,
+    /// for each algorithm associate to each tag a vec of stats per run.
+    /// This is an n-tuple (count, duration, normalised_speed)
+    tagged_stats: Vec<HashMap<String, Vec<(usize, u64, f64)>>>,
 }
 
 impl<'l> Stats<'l> {
@@ -20,26 +21,28 @@ impl<'l> Stats<'l> {
         threads_number: usize,
         runs_number: usize,
     ) -> Self {
-        let tagged_times = logs
+        let tagged_stats = logs
             .iter()
             .map(|algorithm| {
-                let mut hashmap: HashMap<String, Vec<u64>> = HashMap::new();
+                let mut tag_stats: HashMap<String, Vec<(usize, u64, f64)>> = HashMap::new();
                 for run in algorithm {
                     let stats = run.stats();
                     for (key, value) in stats {
-                        hashmap.entry(key).or_default().push(value.1)
+                        tag_stats.entry(key).or_default().push(value)
                     }
                 }
                 // we pre-sort for median
-                hashmap.values_mut().for_each(|v| v.sort());
-                hashmap
+                tag_stats
+                    .values_mut()
+                    .for_each(|v| v.sort_by_key(|nple| nple.1));
+                tag_stats
             })
             .collect();
         Stats {
             logs,
             threads_number,
             runs_number,
-            tagged_times,
+            tagged_stats,
         }
     }
 
@@ -56,12 +59,14 @@ impl<'l> Stats<'l> {
         &'a self,
         tags: &'a [String],
     ) -> impl Iterator<Item = String> + 'a {
-        self.tagged_times.iter().map(move |algorithm| {
+        self.tagged_stats.iter().map(move |algorithm| {
             tags.iter()
                 .map(|t| {
                     algorithm
                         .get(t)
-                        .map(|times| times.iter().sum::<u64>() / self.runs_number as u64)
+                        .map(|times| {
+                            times.iter().map(|nple| nple.1).sum::<u64>() / self.runs_number as u64
+                        })
                         .unwrap_or(0)
                 })
                 .map(|t| format!("<td>{}</td>", crate::compare::time_string(t)))
@@ -74,12 +79,12 @@ impl<'l> Stats<'l> {
         &'a self,
         tags: &'a [String],
     ) -> impl Iterator<Item = String> + 'a {
-        self.tagged_times.iter().map(move |algorithm| {
+        self.tagged_stats.iter().map(move |algorithm| {
             tags.iter()
                 .map(|t| {
                     algorithm
                         .get(t)
-                        .map(|times| times[self.runs_number / 2])
+                        .map(|times| times[self.runs_number / 2].1)
                         .unwrap_or(0)
                 })
                 .map(|t| format!("<td>{}</td>", crate::compare::time_string(t)))
@@ -87,6 +92,66 @@ impl<'l> Stats<'l> {
         })
     }
 
+    pub fn median_tagged_counts<'a>(
+        &'a self,
+        tags: &'a [String],
+    ) -> impl Iterator<Item = String> + 'a {
+        self.tagged_stats.iter().map(move |algorithm| {
+            tags.iter()
+                .map(|t| {
+                    algorithm
+                        .get(t)
+                        .map(|times| times[self.runs_number / 2].0)
+                        .unwrap_or(0)
+                })
+                .map(|t| format!("<td>{}</td>", t))
+                .collect::<String>()
+        })
+    }
+
+    /// Normalised speeds of each tag for median the run of each algorithm.
+    /// Normalisation happens across tags for the same algorithm.
+    pub fn median_tagged_speeds<'a>(
+        &'a self,
+        tags: &'a [String],
+    ) -> impl Iterator<Item = String> + 'a {
+        self.tagged_stats.iter().map(move |algorithm| {
+            tags.iter()
+                .map(|t| {
+                    algorithm
+                        .get(t)
+                        .map(|times| times[self.runs_number / 2].2)
+                        .unwrap_or(0.0)
+                })
+                .map(|t| format!("<td>{}</td>", t))
+                .collect::<String>()
+        })
+    }
+
+    /// Splits a table cell into three, to print all stats
+    pub fn median_tagged_allstats<'a>(
+        &'a self,
+        tags: &'a [String],
+    ) -> impl Iterator<Item = String> + 'a {
+        self.tagged_stats.iter().map(move |algorithm| {
+            tags.iter()
+                .map(|t| {
+                    algorithm
+                        .get(t)
+                        .map(|times| times[self.runs_number / 2])
+                        .unwrap_or((0, 0, 0.0))
+                })
+                .map(|t| {
+                    format!(
+                        "<td><table><tr><td>{}</td><td>{}</td><td>{}</td></tr></table></td>",
+                        t.0,
+                        crate::compare::time_string(t.1),
+                        t.2
+                    )
+                })
+                .collect::<String>()
+        })
+    }
     //    /// Return the number of succesfull steals (tasks which moved between threads).
     //    pub fn succesfull_average_steals<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = usize> + 'a {
     //        self.logs.iter().map(move |algorithm| {
