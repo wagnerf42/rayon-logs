@@ -247,6 +247,31 @@ table, th, td {{
             )?;
         }
         writeln!(html_file, "</table>",)?;
+
+        writeln!(html_file, "<H2> The Median task counts are</H2>")?;
+        writeln!(
+            html_file,
+            "<table><tr><th></th><th>algorithm</th><th>total count</th>{}</tr>",
+            tags.iter()
+                .map(|t| format!("<th>{}</th>", t))
+                .collect::<String>()
+        )?;
+        for (name, total_count, tagged_counts, algo_color) in izip!(
+            self.labels.iter(),
+            statistics.get_median_task_counts(),
+            statistics.tasks_split_median(&tags),
+            HISTOGRAM_COLORS.iter().cycle()
+        ) {
+            writeln!(
+                html_file,
+                "<tr><td>{}</td><td>{}</td><td>{}</td>{}</tr>",
+                format!("<span style='color:{}'>&#9632;</span>", algo_color),
+                name,
+                total_count,
+                tagged_counts,
+            )?;
+        }
+        writeln!(html_file, "</table>",)?;
         if self.display_preferences.iter().any(|b| *b) {
             writeln!(html_file, "<H2>Comparing median runs</H2>")?;
             let median_index = (self.runs_number) / 2;

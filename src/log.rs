@@ -187,6 +187,17 @@ impl RunLog {
         })
     }
 
+    /// This returns a HashMap that maps each tag to the number of tasks it has created in the run.
+    pub(crate) fn count_tasks(&self) -> HashMap<String, usize> {
+        let mut task_profile = HashMap::new();
+        for (start_task, end_task, tag_id, _) in self.subgraphs.iter() {
+            let current_count = self.tasks_between(*start_task, *end_task).count();
+            let old_count = task_profile.entry(self.tags[*tag_id].clone()).or_insert(0);
+            *old_count += current_count;
+        }
+        task_profile
+    }
+
     /// Compute for each task/tag combination the label and opacity of the task.
     /// We return a HashMap indexed by TaskId containing a HashMap indexed by Tag containing
     /// a label and an opacity.

@@ -182,29 +182,25 @@ impl<'l> Stats<'l> {
     //        })
     //    }
     //
-    //    /// Returns an iterator over the average number of tasks that were created for each algorithm
-    //    /// in the logs.
-    //    pub fn tasks_count<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = usize> + 'a {
-    //        self.logs.iter().map(move |algorithm| {
-    //            algorithm
-    //                .iter()
-    //                .map(|run| {
-    //                    create_graph(&run.tasks_logs)
-    //                        .0
-    //                        .iter()
-    //                        .filter(|&b| {
-    //                            if let Block::Sequence(_) = b {
-    //                                true
-    //                            } else {
-    //                                false
-    //                            }
-    //                        })
-    //                        .count()
-    //                })
-    //                .sum::<usize>()
-    //                / self.runs_number
-    //        })
-    //    }
+    pub fn tasks_split_median<'a, 'b: 'a>(
+        &'b self,
+        tags: &'a [String],
+    ) -> impl Iterator<Item = String> + 'a {
+        self.logs.iter().map(move |algorithm| {
+            algorithm[self.runs_number / 2]
+                .count_tasks()
+                .into_iter()
+                .filter(|(k, _)| tags.contains(k))
+                .map(|(_, v)| format!("<td>{}</td>", v))
+                .collect::<String>()
+        })
+    }
+
+    pub fn get_median_task_counts<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = usize> + 'a {
+        self.logs
+            .iter()
+            .map(move |alg| alg[self.runs_number / 2].tasks_logs.iter().count())
+    }
 
     /// This returns the idle time summed across all runs for all experiments.
     pub fn idle_times<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = u64> + 'a {
