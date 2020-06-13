@@ -224,14 +224,14 @@ table, th, td {{
         writeln!(html_file, "<H4> you may see tagged statistics for your tags in the form (count, duration, speed)</H4>")?;
         writeln!(
             html_file,
-            "<table><tr><th></th><th>algorithm</th><th>net time</th>{}<th>idle time</th></tr>",
+            "<table><tr><th></th><th>algorithm</th><th>unrolled time</th>{}<th>idle time</th></tr>",
             tags.iter()
                 .map(|t| format!("<th>{}</th>", t))
                 .collect::<String>()
         )?;
         for (name, total_time, tagged_columns, idle_time, algo_color) in izip!(
             self.labels.iter(),
-            statistics.total_times_median(),
+            statistics.unrolled_times_median(),
             statistics.median_tagged_allstats(&tags),
             statistics.idle_times_median(),
             HISTOGRAM_COLORS.iter().cycle()

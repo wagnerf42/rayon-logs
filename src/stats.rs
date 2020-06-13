@@ -1,11 +1,14 @@
 //! `LoggedPool` structure for logging raw tasks events.
-use std::collections::HashMap;
+use std::{collections::HashMap, iter::repeat};
 
 // use crate::fork_join_graph::{create_graph, Block};
-use crate::log::RunLog;
+use crate::{log::RunLog, raw_events::TimeStamp};
 
 /// This struct mainly supplies the methods that can be used to get various statistics.
 pub struct Stats<'a> {
+    /// This is a slice of algorithms, for each algorithm, there is a vector of RunLogs.
+    /// The vector contains one RunLog for each run of the algorithm, as per runs_number in the
+    /// pool.
     logs: &'a [Vec<RunLog>],
     threads_number: usize,
     runs_number: usize,
@@ -16,6 +19,7 @@ pub struct Stats<'a> {
 
 impl<'l> Stats<'l> {
     /// This method returns a statistics object.
+    // logs given to this function are already sorted as per wall-time.
     pub fn get_statistics(
         logs: &'l Vec<Vec<RunLog>>,
         threads_number: usize,
@@ -32,9 +36,13 @@ impl<'l> Stats<'l> {
                     }
                 }
                 // we pre-sort for median
-                tag_stats
-                    .values_mut()
-                    .for_each(|v| v.sort_by_key(|nple| nple.1));
+                // [BUGFIX]: This sorting is wrong, we already get the logs sorted in the order of
+                // walltime. This ordering is not disturbed until now in this function, and should
+                // stay that way.
+                //
+                //tag_stats
+                //    .values_mut()
+                //    .for_each(|v| v.sort_by_key(|nple| nple.1));
                 tag_stats
             })
             .collect();
@@ -222,20 +230,50 @@ impl<'l> Stats<'l> {
             .map(move |algorithm| algorithm[self.runs_number / 2].duration as u64)
     }
 
+    /// This is the area of the Gantt chart of the median run of each algorithm.
+    /// Ideally this should be exactly equal to sum of all task log durations over all threads, and
+    /// the idle times. However, there may be some logging overheads in task log creation and the
+    /// thread local variable update, which will cause a difference. Should be an interesting
+    /// measure.
+    pub fn unrolled_times_median<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = u64> + 'a {
+        self.total_times_median()
+            .map(move |algorithm_time| algorithm_time * self.threads_number as u64)
+    }
+
     /// This returns the idle time for the median run for all experiments.
+    /// Goes deep inside the execution trace and computes the regions of inactivity for each
+    /// thread, then sums it up
     pub fn idle_times_median<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = u64> + 'a {
-        self.logs
-            .iter()
-            .map(move |algorithm| {
-                algorithm[self.runs_number / 2]
-                    .tasks_logs
-                    .iter()
-                    .map(|log| log.duration() as u64)
-                    .sum::<u64>()
-            })
-            .zip(self.total_times_median())
-            .map(move |(compute_time, total_time)| {
-                (total_time * self.threads_number as u64) - compute_time
-            })
+        self.logs.iter().map(move |algorithm| {
+            let tasks = algorithm[self.runs_number / 2].tasks_logs.clone();
+            // do one pass to figure out the last recorded time.
+            // we need it to figure out who is idle at the end.
+            let last_time = tasks.iter().map(|t| t.end_time).max().unwrap();
+            let first_time = tasks.iter().map(|t| t.start_time).min().unwrap();
+
+            // sort everyone by time (yes i know, again).
+            // we add fake tasks at the end for last idle periods.
+            let mut sorted_tasks: Vec<(usize, TimeStamp, TimeStamp)> = tasks
+                .iter()
+                .map(|t| (t.thread_id, t.start_time, t.end_time))
+                .chain((0..self.threads_number).map(|i| (i, last_time, last_time + 1)))
+                .collect();
+
+            sorted_tasks.sort_by(|t1, t2| t1.1.partial_cmp(&t2.1).unwrap());
+
+            let mut previous_activities: Vec<TimeStamp> =
+                repeat(first_time).take(self.threads_number).collect();
+            let mut inactivities = 0;
+
+            // replay execution, figuring out idle times
+            for (thread_id, start, end) in sorted_tasks {
+                let previous_end = previous_activities[thread_id];
+                if start > previous_end {
+                    inactivities += start - previous_end;
+                }
+                previous_activities[thread_id] = end;
+            }
+            inactivities
+        })
     }
 }
