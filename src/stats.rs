@@ -187,11 +187,10 @@ impl<'l> Stats<'l> {
         tags: &'a [String],
     ) -> impl Iterator<Item = String> + 'a {
         self.logs.iter().map(move |algorithm| {
-            algorithm[self.runs_number / 2]
-                .count_tasks()
-                .into_iter()
-                .filter(|(k, _)| tags.contains(k))
-                .map(|(_, v)| format!("<td>{}</td>", v))
+            let count = algorithm[self.runs_number / 2].count_tasks();
+            tags.iter()
+                .map(|tag| count.get(tag.as_str()).copied().unwrap_or(0))
+                .map(|v| format!("<td>{}</td>", v))
                 .collect::<String>()
         })
     }
