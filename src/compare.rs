@@ -302,9 +302,9 @@ table, th, td {{
 pub(crate) fn time_string(nano: u64) -> String {
     match nano {
         n if n < 1_000 => format!("{}ns", n),
-        n if n < 1_000_000 => format!("{}us", n / 1_000),
-        n if n < 1_000_000_000 => format!("{}ms", n / 1_000_000),
-        n if n < 60_000_000_000 => format!("{}s", n / 1_000_000_000),
+        n if n < 1_000_000 => format!("{:.2}us", (n as f64 / 1_000.0)),
+        n if n < 1_000_000_000 => format!("{:.2}ms", (n as f64 / 1_000_000.0)),
+        n if n < 60_000_000_000 => format!("{:.2}s", (n as f64 / 1_000_000_000.0)),
         n => format!("{}m{}s", n / 60_000_000_000, n % 60_000_000_000),
     }
 }
