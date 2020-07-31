@@ -247,15 +247,15 @@ pub(crate) fn fill_svg_file(scene: &Scene, file: &mut File) -> Result<(), Error>
     displayTags_{id}();
 
     window.addEventListener('keydown', (event) => {{
-      
-        if (event.key === 'ArrowDown') {{
+
+        if (event.key === 'ArrowLeft') {{
             current_tag_{id} += 1;
             if (current_tag_{id} == tags_{id}.length) {{
                 current_tag_{id} = 0;
             }}
             displayTags_{id}();
         }}
-        if (event.key === 'ArrowUp') {{
+        if (event.key === 'ArrowRight') {{
             if (current_tag_{id} == 0) {{
                 current_tag_{id} = tags_{id}.length -1;
             }} else {{
