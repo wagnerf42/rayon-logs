@@ -46,10 +46,14 @@
 #![deny(missing_docs)]
 #![warn(clippy::all)]
 
+pub(crate) mod list;
+pub(crate) mod raw_events;
+pub(crate) mod raw_logs;
+pub(crate) mod storage;
+
 mod pool; // this comes first because it exports the logs macro
 
 mod iterator;
-mod storage;
 pub use crate::iterator::Logged;
 pub use crate::pool::{
     custom_subgraph, end_subgraph, join, join_context, start_subgraph, subgraph, ThreadPool,
@@ -62,15 +66,15 @@ pub use crate::builder::ThreadPoolBuilder;
 mod scope;
 pub use crate::scope::{scope, scope_fifo, Scope, ScopeFifo};
 mod fork_join_graph;
+mod log;
+pub use log::save_svg;
 mod stats;
 pub use crate::fork_join_graph::visualisation;
 pub(crate) mod compare;
-mod log;
 pub use crate::log::RunLog;
 mod rayon_algorithms;
 pub(crate) mod svg;
 pub use crate::compare::Comparator;
-pub(crate) mod raw_events;
 /// We re-export rayon's `current_num_threads`.
 pub use rayon::current_num_threads;
 pub use rayon::current_thread_index;

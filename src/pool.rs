@@ -9,16 +9,12 @@ use perfcnt::linux::{CacheId, CacheOpId, CacheOpResultId, HardwareEventType, Sof
 #[cfg(feature = "perf")]
 use perfcnt::{AbstractPerfCounter, PerfCounter};
 
-use crate::log::RunLog;
 use crate::raw_events::{now, RayonEvent, TaskId};
-use crate::storage::Storage;
 use crate::Comparator;
 use crate::{scope, scope_fifo, Scope, ScopeFifo};
 use rayon;
 use rayon::FnContext;
-use std::cell::RefCell;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
 
 /// We use an atomic usize to generate unique ids for tasks.
 pub(crate) static NEXT_TASK_ID: AtomicUsize = AtomicUsize::new(0);
@@ -35,20 +31,18 @@ pub fn next_iterator_id() -> usize {
     NEXT_ITERATOR_ID.fetch_add(1, Ordering::SeqCst)
 }
 
-thread_local!(pub(crate) static LOGS: RefCell<Arc<Storage<RayonEvent>>> = RefCell::new(Arc::new(Storage::new())));
-
 /// Add given event to logs of current thread.
 pub(crate) fn log(event: RayonEvent) {
-    LOGS.with(|l| l.borrow().push(event))
+    crate::raw_logs::THREAD_LOGS.with(|l| l.push(event))
 }
 
 /// Logs several events at once (with decreased cost).
 macro_rules! logs {
     ($($x:expr ), +) => {
-        $crate::pool::LOGS.with(|l| {let thread_logs = l.borrow();
+        $crate::raw_logs::THREAD_LOGS.with(|l| {
             $(
-                thread_logs.push($x);
-                )*
+                l.push($x);
+              )*
         })
     }
 }
@@ -491,35 +485,18 @@ where
     r
 }
 
-// small global counter to increment file names
-static INSTALL_COUNT: AtomicUsize = AtomicUsize::new(0);
-
 /// We wrap rayon's pool into our own struct to overload the install method.
 pub struct ThreadPool {
-    pub(crate) logs: Arc<Mutex<Vec<Arc<Storage<RayonEvent>>>>>,
     pub(crate) pool: rayon::ThreadPool,
 }
 
 impl ThreadPool {
-    /// Reset all logs and counters to initial condition.
-    fn reset(&self) {
-        NEXT_TASK_ID.store(0, Ordering::SeqCst);
-        NEXT_ITERATOR_ID.store(0, Ordering::SeqCst);
-        let logs = &*self.logs.lock().unwrap(); // oh yeah baby
-        for log in logs {
-            log.clear();
-        }
-    }
-
-    /// Execute given closure in the thread pool, logging it's task as the initial one.
-    /// After running, we post-process the logs and return a `RunLog` together with the closure's
-    /// result.
-    pub fn logging_install<OP, R>(&self, op: OP) -> (R, RunLog)
+    /// Execute given closure in the thread pool.
+    pub fn install<OP, R>(&self, op: OP) -> R
     where
         OP: FnOnce() -> R + Send,
         R: Send,
     {
-        self.reset();
         let id = next_task_id();
         let c = || {
             log(RayonEvent::TaskStart(id, now()));
@@ -527,15 +504,7 @@ impl ThreadPool {
             log(RayonEvent::TaskEnd(now()));
             result
         };
-        let start = now();
-        let r = self.pool.install(c);
-        let log = RunLog::new(
-            NEXT_TASK_ID.load(Ordering::Relaxed),
-            NEXT_ITERATOR_ID.load(Ordering::Relaxed),
-            &*self.logs.lock().unwrap(),
-            start,
-        );
-        (r, log)
+        self.pool.install(c)
     }
 
     /// Creates a scope that executes within this thread-pool.
@@ -559,22 +528,6 @@ impl ThreadPool {
         R: Send,
     {
         self.install(|| scope_fifo(op))
-    }
-
-    /// Execute given closure in the thread pool, logging it's task as the initial one.
-    /// After running, we save a json file with filename being an incremental counter.
-    pub fn install<OP, R>(&self, op: OP) -> R
-    where
-        OP: FnOnce() -> R + Send,
-        R: Send,
-    {
-        let (r, log) = self.logging_install(op);
-        log.save(format!(
-            "log_{}.json",
-            INSTALL_COUNT.fetch_add(1, Ordering::SeqCst)
-        ))
-        .expect("saving json failed");
-        r
     }
 
     ///This function simply returns a comparator that allows us to add algorithms for comparison.

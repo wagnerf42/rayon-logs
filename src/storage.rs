@@ -1,9 +1,6 @@
 //! provides a `Storage` structure with O(1) WORST CASE very fast insertions.
 //! every thread has its own storage and will be the only one to write in it.
-//! however after computations end, a master thread will extract all elements
-//! from all storages. it thus requires an `UnsafeCell`.
-use std::cell::UnsafeCell;
-use std::collections::LinkedList;
+use crate::list::AtomicLinkedList;
 
 const BLOCK_SIZE: usize = 10_000;
 
@@ -46,55 +43,46 @@ impl<T> Block<T> {
 
 /// Fast structure (worst case O(1)) for pushing
 /// logs in a thread.
-pub(crate) struct Storage<T> {
-    data: UnsafeCell<LinkedList<Block<T>>>,
+pub struct Storage<T> {
+    data: AtomicLinkedList<Block<T>>,
 }
 
 unsafe impl<T: Sync> Sync for Storage<T> {}
 
-impl<T> Default for Storage<T> {
+impl<T: 'static> Default for Storage<T> {
     fn default() -> Self {
         Storage::new()
     }
 }
 
-impl<T> Storage<T> {
+impl<T: 'static> Storage<T> {
     /// Create a new storage space.
     pub fn new() -> Self {
         let first_block = Block::new();
-        let mut list = LinkedList::new();
+        let list = AtomicLinkedList::new();
         list.push_front(first_block);
-        Storage {
-            data: UnsafeCell::new(list),
-        }
-    }
-
-    /// Destroy all elements (frees all block memory).
-    pub fn clear(&self) {
-        let list = unsafe { self.data.get().as_mut() }.unwrap();
-        list.clear();
-        let first_block = Block::new();
-        list.push_front(first_block);
+        Storage { data: list }
     }
 
     /// Add given element to storage space.
     pub fn push(&self, element: T) {
-        let list = unsafe { self.data.get().as_mut() }.unwrap();
-        let space_needed = list.front().unwrap().is_full();
+        let space_needed = self.data.front().unwrap().is_full();
         if space_needed {
-            list.push_front(Block::new());
+            self.data.push_front(Block::new());
         }
-        list.front_mut().unwrap().push(element)
+        self.data.front_mut().unwrap().push(element)
+    }
+    pub fn reset(&self) {
+        self.data.reset();
+        let first_block = Block::new();
+        self.data.push_front(first_block);
     }
 }
 
-impl<'a, T: 'a> Storage<T> {
+impl<T: 'static> Storage<T> {
     /// Iterate on all elements inside us.
-    pub fn iter(&self) -> impl Iterator<Item = &'a T> + 'a {
-        unsafe { self.data.get().as_ref() }
-            .unwrap()
-            .iter()
-            .rev() // blocks are stored from newest to oldest
-            .flat_map(|b| b.iter())
+    pub fn iter(&self) -> impl Iterator<Item = &'static T> + 'static {
+        let blocks = self.data.iter().collect::<Vec<_>>();
+        blocks.into_iter().rev().flat_map(|b| b.iter())
     }
 }

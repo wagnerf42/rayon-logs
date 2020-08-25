@@ -1,6 +1,7 @@
 //! This example traces one of rayon's internal algorithm.
 use rand::{prelude::SliceRandom, thread_rng};
 use rayon_logs::prelude::*;
+use rayon_logs::save_svg;
 use rayon_logs::ThreadPoolBuilder;
 
 fn main() {
@@ -10,8 +11,7 @@ fn main() {
     v.shuffle(&mut ra);
 
     let p = ThreadPoolBuilder::new().build().expect("builder failed");
-    let log = p.logging_install(|| v.par_sort()).1;
+    p.install(|| v.par_sort());
     assert_eq!(v, answer);
-    log.save_svg("rayon_sort.svg")
-        .expect("saving svg file failed");
+    save_svg("rayon_sort.svg").expect("saving svg file failed");
 }

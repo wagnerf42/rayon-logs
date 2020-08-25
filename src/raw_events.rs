@@ -4,6 +4,10 @@
 //! a tasks graph.
 use serde_derive::{Deserialize, Serialize};
 
+/// unique thread identifier
+pub(crate) type ThreadId = usize;
+/// unique subgraph identifier
+pub(crate) type SubGraphId = usize;
 /// unique task identifier
 pub(crate) type TaskId = usize;
 /// unique iterator identifier (currently unused, will come back later)

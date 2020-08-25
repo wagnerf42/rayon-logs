@@ -2,21 +2,19 @@
 //! This structure provides intermediate level information.
 //! It is a dag of tasks stored in a vector (using indices as pointers).
 use crate::fork_join_graph::visualisation;
-use crate::raw_events::{RayonEvent, TaskId, TimeStamp};
-use crate::storage::Storage;
+use crate::raw_events::{RayonEvent, SubGraphId, TaskId, ThreadId, TimeStamp};
 use crate::svg::write_svg_file;
 use itertools::Itertools;
 use serde_derive::{Deserialize, Serialize};
 use serde_json;
+use std::cmp::Ordering;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io;
 use std::io::ErrorKind;
 use std::iter::successors;
-use std::iter::{repeat, repeat_with};
 use std::path::Path;
-use std::{cmp::Ordering, sync::Arc};
 
 /// The final information produced for log viewers.
 /// A 'task' here is not a rayon task but a subpart of one.
@@ -33,9 +31,20 @@ pub struct TaskLog {
     /// ending time (in ns after pool creation)
     pub end_time: TimeStamp,
     /// id of thread who ran us
-    pub thread_id: usize,
+    pub thread_id: ThreadId,
     /// indices of children tasks (either when forking or joining)
     pub children: Vec<TaskId>,
+}
+
+impl Default for TaskLog {
+    fn default() -> Self {
+        TaskLog {
+            start_time: 0,
+            end_time: 0,
+            thread_id: 0,
+            children: Vec::new(),
+        }
+    }
 }
 
 impl TaskLog {
@@ -61,65 +70,70 @@ pub struct RunLog {
     pub tags: Vec<String>,
     /// subgraphs: some parts of the graph can be tagged with a tag and usize
     /// values are: start task, ending task, tag_id, recorded size
-    pub subgraphs: Vec<(TaskId, TaskId, usize, usize)>,
+    pub subgraphs: Vec<(TaskId, TaskId, SubGraphId, usize)>,
+}
+
+/// Re-number tasks to only have contiguous integers as ids (starting from 0).
+/// At the same time we switch from a hashmap to a vec.
+fn renumber_tasks(
+    tasks: HashMap<TaskId, TaskLog>,
+    subgraphs: &mut Vec<(TaskId, TaskId, SubGraphId, usize)>,
+) -> Vec<TaskLog> {
+    let ids_changes: HashMap<TaskId, TaskId> = tasks.keys().sorted().copied().enumerate().collect();
+    subgraphs.iter_mut().for_each(|s| {
+        s.0 = ids_changes[&s.0];
+        s.1 = ids_changes[&s.1];
+    });
+    tasks
+        .into_iter()
+        .sorted_by_key(|&(id, _)| id)
+        .map(|(_, mut t)| {
+            t.children.iter_mut().for_each(|c| *c = ids_changes[c]);
+            t
+        })
+        .collect()
 }
 
 impl RunLog {
     /// Create a real log from logged events and reset the pool.
-    pub(crate) fn new(
-        tasks_number: usize,
-        _iterators_number: usize,
-        tasks_logs: &[Arc<Storage<RayonEvent>>],
-        start: TimeStamp,
-    ) -> Self {
-        let mut seen_tags = HashMap::new(); // associate each take to a usize index
+    pub(crate) fn new() -> Self {
+        let mut seen_tags = HashMap::new(); // associate each tag to a usize index
         let mut tags = Vec::new(); // vector containing all tags strings
-        let mut tasks_info: Vec<_> = (0..tasks_number)
-            .map(|_| TaskLog {
-                start_time: 0, // will be filled later
-                end_time: 0,
-                thread_id: 0,
-                children: Vec::new(),
-            })
-            .collect();
+        let mut tasks_info: HashMap<TaskId, TaskLog> = HashMap::new();
 
-        let threads_number = tasks_logs.len();
         // remember the active task on each thread
-        let mut all_active_tasks: Vec<Option<TaskId>> = repeat(None).take(threads_number).collect();
-        // remember the active subgraph on each thread (they for a stack)
-        let mut all_active_subgraphs: Vec<Vec<usize>> =
-            repeat_with(Vec::new).take(threads_number).collect();
+        let mut all_active_tasks: HashMap<ThreadId, TaskId> = HashMap::new();
+        // remember the active subgraphs on each thread (they form a stack)
+        let mut all_active_subgraphs: HashMap<ThreadId, Vec<SubGraphId>> = HashMap::new();
 
         // store all subgraph related informations
         let mut subgraphs = Vec::new();
+        let mut threads_number = 0;
 
-        for (thread_id, event) in tasks_logs
-            .iter()
-            .enumerate()
-            .map(|(thread_id, thread_log)| thread_log.iter().map(move |log| (thread_id, log)))
-            .kmerge_by(|a, b| a.1.time() < b.1.time())
-        {
-            let active_tasks = &mut all_active_tasks[thread_id];
-            let active_subgraphs = &mut all_active_subgraphs[thread_id];
+        for (thread_id, event) in crate::raw_logs::recorded_events() {
+            threads_number = threads_number.max(thread_id + 1);
             match *event {
                 RayonEvent::Child(c) => {
-                    let father = active_tasks.expect("child with no active task as father");
-                    tasks_info[father].children.push(c);
+                    let father = all_active_tasks
+                        .get(&thread_id)
+                        .expect("child with no active task as father");
+                    tasks_info.entry(*father).or_default().children.push(c);
                 }
                 RayonEvent::TaskEnd(time) => {
-                    if let Some(task) = active_tasks.take() {
-                        tasks_info[task].end_time = time - start;
+                    if let Some(task) = all_active_tasks.remove(&thread_id) {
+                        tasks_info.entry(task).or_default().end_time = time;
                     } else {
                         panic!("ending a non started task. are you mixing logged and un-logged computations ?");
                     }
                 }
                 RayonEvent::TaskStart(task, time) => {
-                    tasks_info[task].thread_id = thread_id;
-                    tasks_info[task].start_time = time - start;
-                    *active_tasks = Some(task);
+                    let entry = tasks_info.entry(task).or_default();
+                    entry.thread_id = thread_id;
+                    entry.start_time = time;
+                    all_active_tasks.insert(thread_id, task);
                 }
                 RayonEvent::SubgraphStart(work_type) | RayonEvent::SubgraphEnd(work_type, _) => {
-                    if let Some(active_task) = active_tasks {
+                    if let Some(active_task) = all_active_tasks.get(&thread_id) {
                         let existing_tag = seen_tags.entry(work_type);
                         let tag_index = match existing_tag {
                             Entry::Occupied(o) => *o.get(),
@@ -132,12 +146,18 @@ impl RunLog {
                         };
                         match *event {
                             RayonEvent::SubgraphStart(_) => {
-                                active_subgraphs.push(subgraphs.len());
+                                all_active_subgraphs
+                                    .entry(thread_id)
+                                    .or_insert_with(Vec::new)
+                                    .push(subgraphs.len());
                                 subgraphs.push((*active_task, 0, tag_index, 0));
                             }
                             RayonEvent::SubgraphEnd(_, work_amount) => {
-                                let graph_index =
-                                    active_subgraphs.pop().expect("ending a non started graph");
+                                let graph_index = all_active_subgraphs
+                                    .get_mut(&thread_id)
+                                    .expect("ending a non started graph")
+                                    .pop()
+                                    .expect("ending a non started graph");
                                 subgraphs[graph_index].1 = *active_task;
                                 subgraphs[graph_index].3 = work_amount;
                             }
@@ -150,12 +170,20 @@ impl RunLog {
             }
         }
 
-        let duration = tasks_info.iter().map(|t| t.end_time).max().unwrap()
-            - tasks_info.iter().map(|t| t.start_time).min().unwrap();
+        let min_time = tasks_info.values().map(|t| t.start_time).min().unwrap();
+        // let's start time at 0
+        tasks_info.values_mut().for_each(|t| {
+            t.start_time -= min_time;
+            t.end_time -= min_time;
+        });
+
+        let duration = tasks_info.values().map(|t| t.end_time).max().unwrap() - min_time;
+
+        crate::raw_logs::reset();
 
         RunLog {
             threads_number,
-            tasks_logs: tasks_info,
+            tasks_logs: renumber_tasks(tasks_info, &mut subgraphs),
             duration,
             tags,
             subgraphs,
@@ -360,4 +388,10 @@ impl RunLog {
         serde_json::to_writer(file, &self).expect("failed serializing");
         Ok(())
     }
+}
+
+/// Save an svg file of all logged information.
+pub fn save_svg<P: AsRef<Path>>(path: P) -> Result<(), io::Error> {
+    let log = RunLog::new();
+    log.save_svg(path)
 }

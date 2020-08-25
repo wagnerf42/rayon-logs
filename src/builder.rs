@@ -1,8 +1,5 @@
-use crate::pool::LOGS;
-use crate::storage::Storage;
 use crate::ThreadPool;
 use rayon::{self, ThreadPoolBuildError};
-use std::sync::{Arc, Mutex};
 type Builder = rayon::ThreadPoolBuilder;
 
 /// We rewrite ThreadPoolBuilders since we need to overload the start handler
@@ -29,19 +26,8 @@ impl ThreadPoolBuilder {
 
     /// Build the `ThreadPool`.
     pub fn build(self) -> Result<ThreadPool, ThreadPoolBuildError> {
-        let logs = Arc::new(Mutex::new(Vec::new()));
-        let shared_logs = logs.clone();
-        let pool = self
-            .builder
-            .start_handler(move |_| {
-                LOGS.with(|l| {
-                    let thread_storage = Arc::new(Storage::new());
-                    shared_logs.lock().unwrap().push(thread_storage.clone());
-                    *l.borrow_mut() = thread_storage;
-                });
-            })
-            .build();
+        let pool = self.builder.build();
 
-        pool.map(|p| ThreadPool { pool: p, logs })
+        pool.map(|p| ThreadPool { pool: p })
     }
 }

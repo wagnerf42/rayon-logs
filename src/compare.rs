@@ -82,7 +82,10 @@ impl<'a> Comparator<'a> {
         A: Fn() + Send + Sync,
         STR: Into<String>,
     {
-        let logs = self.record_experiments(|| self.pool.logging_install(&algorithm).1);
+        let logs = self.record_experiments(|| {
+            self.pool.install(&algorithm);
+            RunLog::new()
+        });
         self.logs.push(logs);
         self.labels.push(label.into());
         self.display_preferences.push(false);
@@ -94,7 +97,10 @@ impl<'a> Comparator<'a> {
         A: Fn() + Send + Sync,
         STR: Into<String>,
     {
-        let logs = self.record_experiments(|| self.pool.logging_install(&algorithm).1);
+        let logs = self.record_experiments(|| {
+            self.pool.install(&algorithm);
+            RunLog::new()
+        });
         self.logs.push(logs);
         self.labels.push(label.into());
         self.display_preferences.push(true);
@@ -118,7 +124,8 @@ impl<'a> Comparator<'a> {
     {
         let logs = self.record_experiments(|| {
             let input = setup_function();
-            self.pool.logging_install(|| algorithm(input)).1
+            self.pool.install(|| algorithm(input));
+            RunLog::new()
         });
         self.logs.push(logs);
         self.labels.push(label.into());
@@ -143,7 +150,8 @@ impl<'a> Comparator<'a> {
     {
         let logs = self.record_experiments(|| {
             let input = setup_function();
-            self.pool.logging_install(|| algorithm(input)).1
+            self.pool.install(|| algorithm(input));
+            RunLog::new()
         });
         self.logs.push(logs);
         self.labels.push(label.into());
