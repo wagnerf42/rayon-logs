@@ -9,6 +9,8 @@ use std::sync::Arc;
 
 // each thread will get a unique id and increment this counter
 static THREADS_COUNT: AtomicUsize = AtomicUsize::new(0);
+// we need to serialize insertions in the list of storages.
+static REGISTERED_THREADS_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 lazy_static! {
     // we store a list of all logs together with their threads ids
@@ -22,7 +24,13 @@ thread_local! {
     pub(crate) static THREAD_LOGS: Arc<Storage<RayonEvent>> =  {
         let logs = Arc::new(Storage::new());
         ID.with(|id| {
+            // let's spinlock waiting for our turn
+            let backoff = crossbeam::utils::Backoff::new();
+            while REGISTERED_THREADS_COUNT.load(Ordering::SeqCst) != *id {
+                backoff.spin()
+            }
             LOGS.push_front((*id, logs.clone()));
+            REGISTERED_THREADS_COUNT.fetch_add(1, Ordering::SeqCst);
         });
         logs
     };
