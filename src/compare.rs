@@ -1,12 +1,12 @@
 //! `Comparator` Structure for easy comparisons of different algorithms.
 use crate::stats::Stats;
 use crate::ThreadPool;
+use crate::{fork_join_graph::visualisation, svg::fill_svg_file};
 use crate::{
     log::RunLog,
     raw_logs::RawLogs,
     svg::{histogram, HISTOGRAM_COLORS},
 };
-use crate::{svg::fill_svg_file, visualisation};
 use itertools::{izip, Itertools};
 use std::collections::HashMap;
 use std::fs::File;

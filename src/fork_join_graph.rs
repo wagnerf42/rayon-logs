@@ -377,7 +377,7 @@ fn compute_idle_times(
 }
 
 /// Computes a graphical view of a log. This is intended for the development of logs viewers.
-pub fn visualisation(log: &RunLog) -> Scene {
+pub(crate) fn visualisation(log: &RunLog) -> Scene {
     let mut scene = Scene::new(log);
 
     let tasks = &log.tasks_logs;

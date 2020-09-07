@@ -1,6 +1,6 @@
 //! Provides logging for parallel iterators.
 use crate::pool::{log, next_iterator_id, next_task_id};
-use crate::raw_events::{now, IteratorId, RayonEvent, TaskId};
+use crate::raw_events::{now, IteratorId, RawEvent, TaskId};
 use rayon::iter::plumbing::*;
 use rayon::iter::*;
 
@@ -41,10 +41,9 @@ where
             consumer_id,
             continuing_task_id,
         };
-        //log(RayonEvent::IteratorStart(consumer1.iterator_id));
-        logs!(RayonEvent::Child(consumer_id), RayonEvent::TaskEnd(now()));
+        logs!(RawEvent::Child(consumer_id), RawEvent::TaskEnd(now()));
         let r = self.base.drive_unindexed(consumer1);
-        log(RayonEvent::TaskStart(continuing_task_id, now()));
+        log(RawEvent::TaskStart(continuing_task_id, now()));
         r
     }
 
@@ -73,10 +72,9 @@ where
             consumer_id,
             continuing_task_id,
         };
-        //log(RayonEvent::IteratorStart(consumer1.iterator_id));
-        logs!(RayonEvent::Child(consumer_id), RayonEvent::TaskEnd(now()));
+        logs!(RawEvent::Child(consumer_id), RawEvent::TaskEnd(now()));
         let r = self.base.drive(consumer1);
-        log(RayonEvent::TaskStart(continuing_task_id, now()));
+        log(RawEvent::TaskStart(continuing_task_id, now()));
         r
     }
 
@@ -179,9 +177,9 @@ where
         let consumer_id_2 = next_task_id();
         let continuing_reducer_id = next_task_id();
         logs!(
-            RayonEvent::TaskStart(self.consumer_id, now()),
-            RayonEvent::Child(consumer_id_1),
-            RayonEvent::Child(consumer_id_2)
+            RawEvent::TaskStart(self.consumer_id, now()),
+            RawEvent::Child(consumer_id_1),
+            RawEvent::Child(consumer_id_2)
         );
         let (left, right, reducer) = self.base.split_at(index);
         let left_part = self.part.map(|(s, _)| (s, s + index));
@@ -207,12 +205,12 @@ where
                 continuing_task_id: self.continuing_task_id,
             },
         );
-        log(RayonEvent::TaskEnd(now()));
+        log(RawEvent::TaskEnd(now()));
         r
     }
 
     fn into_folder(self) -> LoggedFolder<C::Folder> {
-        log(RayonEvent::TaskStart(self.consumer_id, now()));
+        log(RawEvent::TaskStart(self.consumer_id, now()));
         //log(RayonEvent::IteratorTask(
         //    self.consumer_id,
         //    self.iterator_id,
@@ -239,7 +237,7 @@ where
     fn split_off_left(&self) -> Self {
         let split_task_id = next_task_id();
         let continuing_task_id = next_task_id();
-        log(RayonEvent::TaskStart(split_task_id, now()));
+        log(RawEvent::TaskStart(split_task_id, now()));
         let consumer_id = next_task_id();
         let r = LoggedConsumer {
             base: self.base.split_off_left(),
@@ -248,7 +246,7 @@ where
             consumer_id,
             continuing_task_id,
         };
-        log(RayonEvent::TaskEnd(now()));
+        log(RawEvent::TaskEnd(now()));
         r
     }
     fn to_reducer(&self) -> LoggedReducer<C::Reducer> {
@@ -287,8 +285,8 @@ where
         let continuing_task_id = self.continuing_task_id;
         let result = self.base.complete();
         logs!(
-            RayonEvent::Child(continuing_task_id),
-            RayonEvent::TaskEnd(now())
+            RawEvent::Child(continuing_task_id),
+            RawEvent::TaskEnd(now())
         );
         result
     }
@@ -312,12 +310,12 @@ where
     T: Send,
 {
     fn reduce(self, left: T, right: T) -> T {
-        log(RayonEvent::TaskStart(self.id, now()));
+        log(RawEvent::TaskStart(self.id, now()));
         let r = self.rayon_reducer.reduce(left, right);
         let continuing_task_id = self.continuing_task_id;
         logs!(
-            RayonEvent::Child(continuing_task_id),
-            RayonEvent::TaskEnd(now())
+            RawEvent::Child(continuing_task_id),
+            RawEvent::TaskEnd(now())
         );
         r
     }

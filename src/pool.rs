@@ -9,7 +9,7 @@ use perfcnt::linux::{CacheId, CacheOpId, CacheOpResultId, HardwareEventType, Sof
 #[cfg(feature = "perf")]
 use perfcnt::{AbstractPerfCounter, PerfCounter};
 
-use crate::raw_events::{now, RayonEvent, TaskId};
+use crate::raw_events::{now, RawEvent, TaskId};
 use crate::Comparator;
 use crate::{scope, scope_fifo, Scope, ScopeFifo};
 use rayon;
@@ -32,7 +32,7 @@ pub fn next_iterator_id() -> usize {
 }
 
 /// Add given event to logs of current thread.
-pub(crate) fn log(event: RayonEvent) {
+pub(crate) fn log(event: RawEvent<&'static str>) {
     crate::raw_logs::THREAD_LOGS.with(|l| l.push(event))
 }
 
@@ -308,12 +308,12 @@ pub fn start_subgraph(tag: &'static str) {
     let subgraph_start_task_id = next_task_id();
     logs!(
         // log child's work and dependencies.
-        RayonEvent::Child(subgraph_start_task_id),
+        RawEvent::Child(subgraph_start_task_id),
         // end current task
-        RayonEvent::TaskEnd(now()),
+        RawEvent::TaskEnd(now()),
         // execute full sequential task
-        RayonEvent::TaskStart(subgraph_start_task_id, now()),
-        RayonEvent::SubgraphStart(tag)
+        RawEvent::TaskStart(subgraph_start_task_id, now()),
+        RawEvent::SubgraphStart(tag)
     );
 }
 
@@ -322,11 +322,11 @@ pub fn start_subgraph(tag: &'static str) {
 pub fn end_subgraph(tag: &'static str, measured_value: usize) {
     let continuation_task_id = next_task_id();
     logs!(
-        RayonEvent::SubgraphEnd(tag, measured_value),
-        RayonEvent::Child(continuation_task_id),
-        RayonEvent::TaskEnd(now()),
+        RawEvent::SubgraphEnd(tag, measured_value),
+        RawEvent::Child(continuation_task_id),
+        RawEvent::TaskEnd(now()),
         // start continuation task
-        RayonEvent::TaskStart(continuation_task_id, now())
+        RawEvent::TaskStart(continuation_task_id, now())
     );
 }
 
@@ -347,27 +347,27 @@ where
     let id_c = next_task_id();
     let id_a = next_task_id();
     let ca = |c| {
-        log(RayonEvent::TaskStart(id_a, now()));
+        log(RawEvent::TaskStart(id_a, now()));
         let result = oper_a(c);
-        logs!(RayonEvent::Child(id_c), RayonEvent::TaskEnd(now()));
+        logs!(RawEvent::Child(id_c), RawEvent::TaskEnd(now()));
         result
     };
 
     let id_b = next_task_id();
     let cb = |c| {
-        log(RayonEvent::TaskStart(id_b, now()));
+        log(RawEvent::TaskStart(id_b, now()));
         let result = oper_b(c);
-        logs!(RayonEvent::Child(id_c), RayonEvent::TaskEnd(now()));
+        logs!(RawEvent::Child(id_c), RawEvent::TaskEnd(now()));
         result
     };
 
     logs!(
-        RayonEvent::Child(id_a),
-        RayonEvent::Child(id_b),
-        RayonEvent::TaskEnd(now())
+        RawEvent::Child(id_a),
+        RawEvent::Child(id_b),
+        RawEvent::TaskEnd(now())
     );
     let r = rayon::join_context(ca, cb);
-    log(RayonEvent::TaskStart(id_c, now()));
+    log(RawEvent::TaskStart(id_c, now()));
     r
 }
 
@@ -461,27 +461,27 @@ where
     let id_c = next_task_id();
     let id_a = next_task_id();
     let ca = || {
-        log(RayonEvent::TaskStart(id_a, now()));
+        log(RawEvent::TaskStart(id_a, now()));
         let result = oper_a();
-        logs!(RayonEvent::Child(id_c), RayonEvent::TaskEnd(now()));
+        logs!(RawEvent::Child(id_c), RawEvent::TaskEnd(now()));
         result
     };
 
     let id_b = next_task_id();
     let cb = || {
-        log(RayonEvent::TaskStart(id_b, now()));
+        log(RawEvent::TaskStart(id_b, now()));
         let result = oper_b();
-        logs!(RayonEvent::Child(id_c), RayonEvent::TaskEnd(now()));
+        logs!(RawEvent::Child(id_c), RawEvent::TaskEnd(now()));
         result
     };
 
     logs!(
-        RayonEvent::Child(id_a),
-        RayonEvent::Child(id_b),
-        RayonEvent::TaskEnd(now())
+        RawEvent::Child(id_a),
+        RawEvent::Child(id_b),
+        RawEvent::TaskEnd(now())
     );
     let r = rayon::join(ca, cb);
-    log(RayonEvent::TaskStart(id_c, now()));
+    log(RawEvent::TaskStart(id_c, now()));
     r
 }
 
@@ -499,9 +499,9 @@ impl ThreadPool {
     {
         let id = next_task_id();
         let c = || {
-            log(RayonEvent::TaskStart(id, now()));
+            log(RawEvent::TaskStart(id, now()));
             let result = op();
-            log(RayonEvent::TaskEnd(now()));
+            log(RawEvent::TaskEnd(now()));
             result
         };
         self.pool.install(c)

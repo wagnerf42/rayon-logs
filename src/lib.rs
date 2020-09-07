@@ -69,11 +69,9 @@ pub use crate::scope::{scope, scope_fifo, Scope, ScopeFifo};
 mod fork_join_graph;
 mod log;
 pub use log::save_svg;
-mod stats;
-pub use crate::fork_join_graph::visualisation;
 pub(crate) mod compare;
-pub use crate::log::RunLog;
 mod rayon_algorithms;
+mod stats;
 pub(crate) mod svg;
 pub use crate::compare::Comparator;
 /// We re-export rayon's `current_num_threads`.

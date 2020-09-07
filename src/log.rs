@@ -57,18 +57,18 @@ impl TaskLog {
 /// This stores tasks information, threads number and run duration.
 /// Obtained by `ThreadPool::install`.
 #[derive(Debug)]
-pub struct RunLog {
+pub(crate) struct RunLog {
     /// total number of threads (some might be unused).
-    pub threads_number: usize,
+    pub(crate) threads_number: usize,
     /// fork-join tasks.
-    pub tasks_logs: Vec<TaskLog>,
+    pub(crate) tasks_logs: Vec<TaskLog>,
     /// total run time in nanoseconds.
-    pub duration: TimeStamp,
+    pub(crate) duration: TimeStamp,
     /// all strings used for tagging tasks.
-    pub tags: Vec<String>,
+    pub(crate) tags: Vec<String>,
     /// subgraphs: some parts of the graph can be tagged with a tag and usize
     /// values are: start task, ending task, tag_id, recorded size
-    pub subgraphs: Vec<(TaskId, TaskId, SubGraphId, usize)>,
+    pub(crate) subgraphs: Vec<(TaskId, TaskId, SubGraphId, usize)>,
 }
 
 /// Re-number tasks to only have contiguous integers as ids (starting from 0).
@@ -361,12 +361,6 @@ impl RunLog {
             *speed = *speed / max_speed;
         });
         hash
-    }
-
-    /// Load a rayon_logs log file and deserializes it into a `RunLog`.
-    pub fn load<P: AsRef<Path>>(path: P) -> Result<RunLog, io::Error> {
-        let file = File::open(path).unwrap();
-        unimplemented!("load log file")
     }
 
     /// Save an svg file of all logged information.

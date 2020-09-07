@@ -20,7 +20,7 @@ pub struct Stats<'a> {
 impl<'l> Stats<'l> {
     /// This method returns a statistics object.
     // logs given to this function are already sorted as per wall-time.
-    pub fn get_statistics(
+    pub(crate) fn get_statistics(
         logs: &'l Vec<Vec<RunLog>>,
         threads_number: usize,
         runs_number: usize,

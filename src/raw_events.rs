@@ -27,22 +27,10 @@ pub(crate) fn now() -> TimeStamp {
 }
 
 /// All types of raw events we can log.
-#[derive(Debug)]
-pub(crate) enum RayonEvent {
-    /// A task starts.
-    TaskStart(TaskId, TimeStamp),
-    /// Active task ends.
-    TaskEnd(TimeStamp),
-    /// Direct link in the graph between two tasks (active one and given one).
-    Child(TaskId),
-    /// Start a subgraph.
-    SubgraphStart(&'static str),
-    /// End a subgraph and register a work amount.
-    SubgraphEnd(&'static str, usize), // TODO: do we need the label here ?
-}
-
+/// It is generic because recorded logs and reloaded logs
+/// don't use the same strings for subgraphs.
 #[derive(Debug, Clone)]
-pub(crate) enum RawEvent {
+pub(crate) enum RawEvent<S> {
     /// A task starts.
     TaskStart(TaskId, TimeStamp),
     /// Active task ends.
@@ -50,19 +38,22 @@ pub(crate) enum RawEvent {
     /// Direct link in the graph between two tasks (active one and given one).
     Child(TaskId),
     /// Start a subgraph.
-    SubgraphStart(usize),
+    SubgraphStart(S),
     /// End a subgraph and register a work amount.
-    SubgraphEnd(usize, usize),
+    SubgraphEnd(S, usize),
 }
 
-impl RawEvent {
-    pub(crate) fn new(rayon_event: &RayonEvent, strings: &HashMap<&str, usize>) -> RawEvent {
+impl RawEvent<TaskId> {
+    pub(crate) fn new(
+        rayon_event: &RawEvent<&'static str>,
+        strings: &HashMap<&str, usize>,
+    ) -> RawEvent<TaskId> {
         match rayon_event {
-            RayonEvent::TaskStart(id, time) => RawEvent::TaskStart(*id, *time),
-            RayonEvent::TaskEnd(time) => RawEvent::TaskEnd(*time),
-            RayonEvent::Child(id) => RawEvent::Child(*id),
-            RayonEvent::SubgraphStart(label) => RawEvent::SubgraphStart(strings[label]),
-            RayonEvent::SubgraphEnd(label, size) => RawEvent::SubgraphEnd(strings[label], *size),
+            RawEvent::TaskStart(id, time) => RawEvent::TaskStart(*id, *time),
+            RawEvent::TaskEnd(time) => RawEvent::TaskEnd(*time),
+            RawEvent::Child(id) => RawEvent::Child(*id),
+            RawEvent::SubgraphStart(label) => RawEvent::SubgraphStart(strings[label]),
+            RawEvent::SubgraphEnd(label, size) => RawEvent::SubgraphEnd(strings[label], *size),
         }
     }
     pub(crate) fn write_to<W: std::io::Write>(&self, destination: &mut W) -> std::io::Result<()> {
@@ -116,21 +107,13 @@ impl RawEvent {
         };
         Ok(event)
     }
+}
+
+impl<S> RawEvent<S> {
     pub(crate) fn time(&self) -> TimeStamp {
         match *self {
             RawEvent::TaskStart(_, t) => t,
             RawEvent::TaskEnd(t) => t,
-            _ => 0,
-        }
-    }
-}
-
-impl RayonEvent {
-    /// return event time or 0 if none
-    pub(crate) fn time(&self) -> TimeStamp {
-        match *self {
-            RayonEvent::TaskStart(_, t) => t,
-            RayonEvent::TaskEnd(t) => t,
             _ => 0,
         }
     }

@@ -20,7 +20,7 @@ pub const HISTOGRAM_COLORS: [&str; 7] = [
 pub(crate) type Point = (f64, f64);
 
 /// all graphics elements for one `RunLog` display.
-pub struct Scene {
+pub(crate) struct Scene {
     /// Each task is an animated rectangle.
     /// We also display a black rectangle underneath.
     /// idle times are also displayed as animated rectangles.
@@ -32,7 +32,7 @@ pub struct Scene {
 }
 
 impl Scene {
-    pub fn new(logs: &RunLog) -> Self {
+    pub(crate) fn new(logs: &RunLog) -> Self {
         Scene {
             rectangles: Vec::new(),
             segments: Vec::new(),

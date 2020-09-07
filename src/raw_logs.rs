@@ -1,7 +1,7 @@
 //! Access to all logs from all threads.
 use crate::list::AtomicLinkedList;
 use crate::log::RunLog;
-use crate::raw_events::{RawEvent, RayonEvent, ThreadId};
+use crate::raw_events::{RawEvent, SubGraphId, ThreadId};
 use crate::storage::Storage;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use itertools::Itertools;
@@ -20,14 +20,14 @@ static REGISTERED_THREADS_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 lazy_static! {
     // we store a list of all logs together with their threads ids
-    static ref LOGS: AtomicLinkedList<(usize, Arc<Storage<RayonEvent>>)> = AtomicLinkedList::new();
+    static ref LOGS: AtomicLinkedList<(usize, Arc<Storage<RawEvent<&'static str>>>)> = AtomicLinkedList::new();
 }
 
 thread_local! {
     /// each thread has a unique id
     pub(crate) static ID: usize = THREADS_COUNT.fetch_add(1, Ordering::Relaxed);
     /// each thread has a storage space for logs
-    pub(crate) static THREAD_LOGS: Arc<Storage<RayonEvent>> =  {
+    pub(crate) static THREAD_LOGS: Arc<Storage<RawEvent<&'static str>>> =  {
         let logs = Arc::new(Storage::new());
         ID.with(|id| {
             // let's spinlock waiting for our turn
@@ -49,7 +49,7 @@ pub(crate) fn reset() {
 
 /// Raw unprocessed logs. Very fast to record but require some postprocessing to be displayed.
 pub(crate) struct RawLogs {
-    pub(crate) thread_events: Vec<Vec<RawEvent>>,
+    pub(crate) thread_events: Vec<Vec<RawEvent<SubGraphId>>>,
     pub(crate) labels: Vec<String>,
 }
 
@@ -63,14 +63,14 @@ impl RawLogs {
         let mut next_label_count = 0;
         let mut seen_labels = HashMap::new();
         let mut labels = Vec::new();
-        let mut events: HashMap<ThreadId, Vec<RawEvent>> = HashMap::new();
+        let mut events: HashMap<ThreadId, Vec<RawEvent<SubGraphId>>> = HashMap::new();
         // loop on all logged  rayon events per thread
         for &(thread_id, ref thread_logs) in LOGS.iter().sorted_by_key(|&(thread_id, _)| thread_id)
         {
             for rayon_event in thread_logs.iter() {
                 // store eventual event label
                 match rayon_event {
-                    RayonEvent::SubgraphStart(label) | RayonEvent::SubgraphEnd(label, _) => {
+                    RawEvent::SubgraphStart(label) | RawEvent::SubgraphEnd(label, _) => {
                         seen_labels.entry(*label).or_insert_with(|| {
                             let label_count = next_label_count;
                             next_label_count += 1;
