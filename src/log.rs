@@ -5,14 +5,11 @@ use crate::fork_join_graph::visualisation;
 use crate::raw_events::{RayonEvent, SubGraphId, TaskId, ThreadId, TimeStamp};
 use crate::svg::write_svg_file;
 use itertools::Itertools;
-use serde_derive::{Deserialize, Serialize};
-use serde_json;
 use std::cmp::Ordering;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io;
-use std::io::ErrorKind;
 use std::iter::successors;
 use std::path::Path;
 
@@ -24,7 +21,7 @@ use std::path::Path;
 /// - the 2 join tasks
 /// - the sequential code executed after the join.
 /// The set of all tasks form a fork join graph.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone)]
 pub struct TaskLog {
     /// starting time (in ns after pool creation)
     pub start_time: TimeStamp,
@@ -58,7 +55,7 @@ impl TaskLog {
 ///
 /// This stores tasks information, threads number and run duration.
 /// Obtained by `ThreadPool::install`.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct RunLog {
     /// total number of threads (some might be unused).
     pub threads_number: usize,
@@ -373,20 +370,13 @@ impl RunLog {
     /// Load a rayon_logs log file and deserializes it into a `RunLog`.
     pub fn load<P: AsRef<Path>>(path: P) -> Result<RunLog, io::Error> {
         let file = File::open(path).unwrap();
-        serde_json::from_reader(file).map_err(|_| ErrorKind::InvalidData.into())
+        unimplemented!("load log file")
     }
 
     /// Save an svg file of all logged information.
     pub fn save_svg<P: AsRef<Path>>(&self, path: P) -> Result<(), io::Error> {
         let scene = visualisation(self);
         write_svg_file(&scene, path)
-    }
-
-    /// Save log file of currently recorded tasks logs.
-    pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), io::Error> {
-        let file = File::create(path)?;
-        serde_json::to_writer(file, &self).expect("failed serializing");
-        Ok(())
     }
 }
 
