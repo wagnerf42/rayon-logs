@@ -26,16 +26,15 @@
 //! ```
 //! extern crate rayon_logs as rayon; // comment me out to go back to using rayon
 //! use rayon::prelude::*;
-//! use rayon::ThreadPoolBuilder;
 //! let v = vec![1; 100_000];
 //! // let's create a logged pool of threads
-//! let pool = ThreadPoolBuilder::new().num_threads(2).build().expect("failed creating pool");
 //! // run and log some computations
-//! assert_eq!(100_000, pool.install(|| v.par_iter().sum::<u32>()));
+//! assert_eq!(100_000, v.par_iter().sum::<u32>());
+//! rayon_logs::save_raw_logs("log.rlog").expect("error saving log file");
 //! ```
 //!
-//! Running this code will create a `log_0.json` file.
-//! You can then use `cargo run --bin json2svg -- log_0.json example_sum.svg` to view the log.
+//! Running this code will create a `log.rlog` file.
+//! You can then use `cargo run --bin rlog2svg -- log.rlog example_sum.svg` to view the log.
 //! The resulting file should be viewed in a web browser since it is animated.
 //! The bars below the graph represent idle times.
 //!
@@ -57,20 +56,17 @@ mod pool; // this comes first because it exports the logs macro
 mod iterator;
 pub use crate::iterator::Logged;
 pub use crate::pool::{
-    custom_subgraph, end_subgraph, join, join_context, start_subgraph, subgraph, ThreadPool,
+    custom_subgraph, end_subgraph, join, join_context, start_subgraph, subgraph,
 };
 #[cfg(feature = "perf")]
 pub use crate::pool::{subgraph_cache_event, subgraph_hardware_event, subgraph_software_event};
-mod builder;
 pub mod prelude;
-pub use crate::builder::ThreadPoolBuilder;
 mod scope;
 pub use crate::scope::{scope, scope_fifo, Scope, ScopeFifo};
 mod fork_join_graph;
 mod log;
 pub use log::save_svg;
 pub(crate) mod compare;
-mod rayon_algorithms;
 mod stats;
 pub(crate) mod svg;
 pub use crate::compare::Comparator;

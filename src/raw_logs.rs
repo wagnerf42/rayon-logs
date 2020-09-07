@@ -35,6 +35,10 @@ thread_local! {
             while REGISTERED_THREADS_COUNT.load(Ordering::SeqCst) != *id {
                 backoff.spin()
             }
+            // TODO: does main always get 0 ?
+            if *id == 0 {
+                logs.push(RawEvent::TaskStart(0, crate::raw_events::now()));
+            }
             LOGS.push_front((*id, logs.clone()));
             REGISTERED_THREADS_COUNT.fetch_add(1, Ordering::SeqCst);
         });
@@ -43,8 +47,13 @@ thread_local! {
 }
 
 /// Erase all logs.
+/// PRE-condition: call from main thread. // TODO: is this acceptable ?
 pub(crate) fn reset() {
-    LOGS.iter().for_each(|(_, log)| log.reset())
+    LOGS.iter().for_each(|(_, log)| log.reset());
+    crate::pool::log(RawEvent::TaskStart(
+        crate::pool::next_task_id(),
+        crate::raw_events::now(),
+    ));
 }
 
 /// Raw unprocessed logs. Very fast to record but require some postprocessing to be displayed.
@@ -58,7 +67,10 @@ impl RawLogs {
     /// It's better to do it when no events are being recorded.
     /// We are able to extract logs during recording but the obtained logs
     /// might be incomplete.
+    /// pre-condition: call from main thread. // TODO: keep it ???
     pub(crate) fn new() -> Self {
+        // stop main task
+        crate::pool::log(RawEvent::TaskEnd(crate::raw_events::now()));
         // associate a unique integer id to each label
         let mut next_label_count = 0;
         let mut seen_labels = HashMap::new();
@@ -67,7 +79,9 @@ impl RawLogs {
         // loop on all logged  rayon events per thread
         for &(thread_id, ref thread_logs) in LOGS.iter().sorted_by_key(|&(thread_id, _)| thread_id)
         {
+            println!("thread: {}", thread_id);
             for rayon_event in thread_logs.iter() {
+                println!("event: {:?}", rayon_event);
                 // store eventual event label
                 match rayon_event {
                     RawEvent::SubgraphStart(label) | RawEvent::SubgraphEnd(label, _) => {
@@ -88,7 +102,6 @@ impl RawLogs {
                     .push(raw_event);
             }
         }
-        reset(); // TODO: is it ok here ?
 
         // now we just need to turn the hash table into a vector, filling the gaps
         // if some threads registered no events yet
@@ -164,9 +177,11 @@ fn write_vec_strings_to<W: std::io::Write>(
 }
 
 /// Save log file of currently recorded raw logs.
+/// This will reset logs.
 pub fn save_raw_logs<P: AsRef<Path>>(path: P) -> Result<(), io::Error> {
     let logs = RawLogs::new();
     logs.save(path)?;
+    reset();
     Ok(())
 }
 

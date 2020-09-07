@@ -1,6 +1,6 @@
 //! Compare several filter collect algorithms and generate an html comparison page.
 use rayon::prelude::*;
-use rayon_logs::{subgraph, Logged, ThreadPoolBuilder};
+use rayon_logs::{subgraph, Comparator, Logged};
 
 const SIZE: usize = 20_000_000;
 
@@ -46,11 +46,7 @@ fn prefixe_tres_par(t: &mut [u64]) -> u64 {
 }
 
 fn main() {
-    let pool = ThreadPoolBuilder::new()
-        .num_threads(3)
-        .build()
-        .expect("building pool failed");
-    pool.compare()
+    Comparator::new()
         .runs_number(3)
         .attach_algorithm_nodisplay_with_setup(
             "seq",

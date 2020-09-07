@@ -1,6 +1,5 @@
 //! `Comparator` Structure for easy comparisons of different algorithms.
 use crate::stats::Stats;
-use crate::ThreadPool;
 use crate::{fork_join_graph::visualisation, svg::fill_svg_file};
 use crate::{
     log::RunLog,
@@ -20,20 +19,20 @@ use std::path::Path;
 /// It runs each algorithm several times before displaying some simple statistics and for each
 /// algorithm the median and best execution trace.
 /// See for example the `filter_collect` example.
-pub struct Comparator<'a> {
+pub struct Comparator {
     labels: Vec<String>,
     logs: Vec<Vec<RunLog>>,
-    pool: &'a ThreadPool,
     runs_number: usize,
     display_preferences: Vec<bool>,
 }
 
-impl<'a> Comparator<'a> {
-    pub(crate) fn new(pool: &'a ThreadPool) -> Self {
+impl Comparator {
+    /// Return a new `Comparator` struct for convenients algorithms comparisons.
+    pub fn new() -> Self {
+        crate::raw_logs::reset();
         Comparator {
             labels: Vec::new(),
             logs: Vec::new(),
-            pool,
             runs_number: 100,
             display_preferences: Vec::new(),
         }
@@ -64,7 +63,6 @@ impl<'a> Comparator<'a> {
         Comparator {
             labels: self.labels,
             logs: self.logs,
-            pool: self.pool,
             runs_number: runs_wanted,
             display_preferences: self.display_preferences,
         }
@@ -84,7 +82,7 @@ impl<'a> Comparator<'a> {
         STR: Into<String>,
     {
         let logs = self.record_experiments(|| {
-            self.pool.install(&algorithm);
+            algorithm();
             RunLog::new(RawLogs::new())
         });
         self.logs.push(logs);
@@ -99,7 +97,7 @@ impl<'a> Comparator<'a> {
         STR: Into<String>,
     {
         let logs = self.record_experiments(|| {
-            self.pool.install(&algorithm);
+            algorithm();
             RunLog::new(RawLogs::new())
         });
         self.logs.push(logs);
@@ -125,7 +123,8 @@ impl<'a> Comparator<'a> {
     {
         let logs = self.record_experiments(|| {
             let input = setup_function();
-            self.pool.install(|| algorithm(input));
+            crate::raw_logs::reset();
+            algorithm(input);
             RunLog::new(RawLogs::new())
         });
         self.logs.push(logs);
@@ -151,7 +150,8 @@ impl<'a> Comparator<'a> {
     {
         let logs = self.record_experiments(|| {
             let input = setup_function();
-            self.pool.install(|| algorithm(input));
+            crate::raw_logs::reset();
+            algorithm(input);
             RunLog::new(RawLogs::new())
         });
         self.logs.push(logs);

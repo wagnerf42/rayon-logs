@@ -1,6 +1,6 @@
 //! Compute recursively a max using join_context.
 extern crate rayon_logs as rayon; // comment me out to go back to rayon
-use rayon::{join_context, ThreadPoolBuilder};
+use rayon::join_context;
 
 fn manual_max(slice: &[u32]) -> u32 {
     if slice.len() < 1000 {
@@ -25,13 +25,8 @@ fn manual_max(slice: &[u32]) -> u32 {
 fn main() {
     let v: Vec<u32> = (0..10_000_000).collect();
 
-    let pool = ThreadPoolBuilder::new()
-        .num_threads(2)
-        .build()
-        .expect("building pool failed");
-
-    let max = pool.install(|| manual_max(&v));
+    let max = manual_max(&v);
     assert_eq!(max, v.last().cloned().unwrap());
 
-    println!("saved \"log_0.json\"");
+    rayon_logs::save_svg("context_max.svg").expect("failed saving svg");
 }

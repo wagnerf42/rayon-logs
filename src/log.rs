@@ -9,7 +9,6 @@ use itertools::Itertools;
 use std::cmp::Ordering;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
-use std::fs::File;
 use std::io;
 use std::iter::successors;
 use std::path::Path;
@@ -373,5 +372,7 @@ impl RunLog {
 /// Save an svg file of all logged information.
 pub fn save_svg<P: AsRef<Path>>(path: P) -> Result<(), io::Error> {
     let log = RunLog::new(RawLogs::new());
-    log.save_svg(path)
+    log.save_svg(path)?;
+    crate::raw_logs::reset();
+    Ok(())
 }

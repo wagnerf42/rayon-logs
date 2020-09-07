@@ -1,6 +1,6 @@
 //! Compare several filter collect algorithms and generate an html comparison page.
 use rayon_logs::prelude::*;
-use rayon_logs::ThreadPoolBuilder;
+use rayon_logs::Comparator;
 use std::collections::LinkedList;
 use std::iter::once;
 
@@ -9,11 +9,7 @@ const LAST: u32 = 2_000_000;
 fn main() {
     let v: Vec<u32> = (0..=LAST).collect();
 
-    let pool = ThreadPoolBuilder::new()
-        .num_threads(3)
-        .build()
-        .expect("building pool failed");
-    pool.compare()
+    Comparator::new()
         .attach_algorithm("map_reduce", || {
             let f = v
                 .par_iter()

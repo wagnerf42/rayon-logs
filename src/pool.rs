@@ -10,14 +10,13 @@ use perfcnt::linux::{CacheId, CacheOpId, CacheOpResultId, HardwareEventType, Sof
 use perfcnt::{AbstractPerfCounter, PerfCounter};
 
 use crate::raw_events::{now, RawEvent, TaskId};
-use crate::Comparator;
-use crate::{scope, scope_fifo, Scope, ScopeFifo};
 use rayon;
 use rayon::FnContext;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// We use an atomic usize to generate unique ids for tasks.
-pub(crate) static NEXT_TASK_ID: AtomicUsize = AtomicUsize::new(0);
+/// We start at 1 since initial task (0) is created manually.
+pub(crate) static NEXT_TASK_ID: AtomicUsize = AtomicUsize::new(1);
 /// We use an atomic usize to generate unique ids for iterators.
 pub(crate) static NEXT_ITERATOR_ID: AtomicUsize = AtomicUsize::new(0);
 
@@ -59,7 +58,7 @@ macro_rules! logs {
 /// Example:
 ///
 /// ```
-/// use rayon_logs::{join, subgraph, ThreadPoolBuilder};
+/// use rayon_logs::{join, subgraph};
 ///
 /// fn manual_max(slice: &[u32]) -> u32 {
 ///     if slice.len() < 200_000 {
@@ -73,11 +72,7 @@ macro_rules! logs {
 /// }
 ///
 /// let v: Vec<u32> = (0..2_000_000).collect();
-/// let pool = ThreadPoolBuilder::new()
-///     .num_threads(2)
-///     .build()
-///     .expect("building pool failed");
-/// let max = pool.install(|| manual_max(&v));
+/// let max = manual_max(&v);
 /// assert_eq!(max, v.last().cloned().unwrap());
 /// ```
 ///
@@ -483,55 +478,4 @@ where
     let r = rayon::join(ca, cb);
     log(RawEvent::TaskStart(id_c, now()));
     r
-}
-
-/// We wrap rayon's pool into our own struct to overload the install method.
-pub struct ThreadPool {
-    pub(crate) pool: rayon::ThreadPool,
-}
-
-impl ThreadPool {
-    /// Execute given closure in the thread pool.
-    pub fn install<OP, R>(&self, op: OP) -> R
-    where
-        OP: FnOnce() -> R + Send,
-        R: Send,
-    {
-        let id = next_task_id();
-        let c = || {
-            log(RawEvent::TaskStart(id, now()));
-            let result = op();
-            log(RawEvent::TaskEnd(now()));
-            result
-        };
-        self.pool.install(c)
-    }
-
-    /// Creates a scope that executes within this thread-pool.
-    /// Equivalent to `self.install(|| scope(...))`.
-    ///
-    /// See also: [the `scope()` function][scope].
-    ///
-    /// [scope]: fn.scope.html
-    pub fn scope<'scope, OP, R>(&self, op: OP) -> R
-    where
-        OP: for<'s> FnOnce(&'s Scope<'scope>) -> R + 'scope + Send,
-        R: Send,
-    {
-        self.install(|| scope(op))
-    }
-
-    /// Like `scope` but fifo.
-    pub fn scope_fifo<'scope, OP, R>(&self, op: OP) -> R
-    where
-        OP: for<'s> FnOnce(&'s ScopeFifo<'scope>) -> R + 'scope + Send,
-        R: Send,
-    {
-        self.install(|| scope_fifo(op))
-    }
-
-    ///This function simply returns a comparator that allows us to add algorithms for comparison.
-    pub fn compare(&self) -> Comparator {
-        Comparator::new(self)
-    }
 }

@@ -117,5 +117,3 @@ impl<'data, I: rayon::prelude::IntoParallelRefMutIterator<'data>> IntoParallelRe
     for I
 {
 }
-
-pub use crate::rayon_algorithms::slice::ParallelSliceMut;
