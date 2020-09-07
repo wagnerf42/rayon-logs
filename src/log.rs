@@ -2,7 +2,8 @@
 //! This structure provides intermediate level information.
 //! It is a dag of tasks stored in a vector (using indices as pointers).
 use crate::fork_join_graph::visualisation;
-use crate::raw_events::{RayonEvent, SubGraphId, TaskId, ThreadId, TimeStamp};
+use crate::raw_events::{RawEvent, SubGraphId, TaskId, ThreadId, TimeStamp};
+use crate::raw_logs::RawLogs;
 use crate::svg::write_svg_file;
 use itertools::Itertools;
 use std::cmp::Ordering;
@@ -93,9 +94,7 @@ fn renumber_tasks(
 
 impl RunLog {
     /// Create a real log from logged events and reset the pool.
-    pub(crate) fn new() -> Self {
-        let mut seen_tags = HashMap::new(); // associate each tag to a usize index
-        let mut tags = Vec::new(); // vector containing all tags strings
+    pub(crate) fn new(raw_logs: RawLogs) -> Self {
         let mut tasks_info: HashMap<TaskId, TaskLog> = HashMap::new();
 
         // remember the active task on each thread
@@ -107,49 +106,46 @@ impl RunLog {
         let mut subgraphs = Vec::new();
         let mut threads_number = 0;
 
-        for (thread_id, event) in crate::raw_logs::recorded_events() {
+        for (thread_id, event) in raw_logs
+            .thread_events
+            .iter()
+            .enumerate()
+            .map(|(thread_id, thread)| thread.iter().map(move |log| (thread_id, log)))
+            .kmerge_by(|a, b| a.1.time() < b.1.time())
+        {
+            // for (thread_id, event) in crate::raw_logs::recorded_events() {
             threads_number = threads_number.max(thread_id + 1);
             match *event {
-                RayonEvent::Child(c) => {
+                RawEvent::Child(c) => {
                     let father = all_active_tasks
                         .get(&thread_id)
                         .expect("child with no active task as father");
                     tasks_info.entry(*father).or_default().children.push(c);
                 }
-                RayonEvent::TaskEnd(time) => {
+                RawEvent::TaskEnd(time) => {
                     if let Some(task) = all_active_tasks.remove(&thread_id) {
                         tasks_info.entry(task).or_default().end_time = time;
                     } else {
                         panic!("ending a non started task. are you mixing logged and un-logged computations ?");
                     }
                 }
-                RayonEvent::TaskStart(task, time) => {
+                RawEvent::TaskStart(task, time) => {
                     let entry = tasks_info.entry(task).or_default();
                     entry.thread_id = thread_id;
                     entry.start_time = time;
                     all_active_tasks.insert(thread_id, task);
                 }
-                RayonEvent::SubgraphStart(work_type) | RayonEvent::SubgraphEnd(work_type, _) => {
+                RawEvent::SubgraphStart(work_type) | RawEvent::SubgraphEnd(work_type, _) => {
                     if let Some(active_task) = all_active_tasks.get(&thread_id) {
-                        let existing_tag = seen_tags.entry(work_type);
-                        let tag_index = match existing_tag {
-                            Entry::Occupied(o) => *o.get(),
-                            Entry::Vacant(v) => {
-                                let index = tags.len();
-                                v.insert(index);
-                                tags.push(work_type.to_string());
-                                index
-                            }
-                        };
                         match *event {
-                            RayonEvent::SubgraphStart(_) => {
+                            RawEvent::SubgraphStart(_) => {
                                 all_active_subgraphs
                                     .entry(thread_id)
                                     .or_insert_with(Vec::new)
                                     .push(subgraphs.len());
-                                subgraphs.push((*active_task, 0, tag_index, 0));
+                                subgraphs.push((*active_task, 0, work_type, 0));
                             }
-                            RayonEvent::SubgraphEnd(_, work_amount) => {
+                            RawEvent::SubgraphEnd(_, work_amount) => {
                                 let graph_index = all_active_subgraphs
                                     .get_mut(&thread_id)
                                     .expect("ending a non started graph")
@@ -182,7 +178,7 @@ impl RunLog {
             threads_number,
             tasks_logs: renumber_tasks(tasks_info, &mut subgraphs),
             duration,
-            tags,
+            tags: raw_logs.labels,
             subgraphs,
         }
     }
@@ -382,6 +378,6 @@ impl RunLog {
 
 /// Save an svg file of all logged information.
 pub fn save_svg<P: AsRef<Path>>(path: P) -> Result<(), io::Error> {
-    let log = RunLog::new();
+    let log = RunLog::new(RawLogs::new());
     log.save_svg(path)
 }

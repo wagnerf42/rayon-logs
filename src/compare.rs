@@ -3,6 +3,7 @@ use crate::stats::Stats;
 use crate::ThreadPool;
 use crate::{
     log::RunLog,
+    raw_logs::RawLogs,
     svg::{histogram, HISTOGRAM_COLORS},
 };
 use crate::{svg::fill_svg_file, visualisation};
@@ -84,7 +85,7 @@ impl<'a> Comparator<'a> {
     {
         let logs = self.record_experiments(|| {
             self.pool.install(&algorithm);
-            RunLog::new()
+            RunLog::new(RawLogs::new())
         });
         self.logs.push(logs);
         self.labels.push(label.into());
@@ -99,7 +100,7 @@ impl<'a> Comparator<'a> {
     {
         let logs = self.record_experiments(|| {
             self.pool.install(&algorithm);
-            RunLog::new()
+            RunLog::new(RawLogs::new())
         });
         self.logs.push(logs);
         self.labels.push(label.into());
@@ -125,7 +126,7 @@ impl<'a> Comparator<'a> {
         let logs = self.record_experiments(|| {
             let input = setup_function();
             self.pool.install(|| algorithm(input));
-            RunLog::new()
+            RunLog::new(RawLogs::new())
         });
         self.logs.push(logs);
         self.labels.push(label.into());
@@ -151,7 +152,7 @@ impl<'a> Comparator<'a> {
         let logs = self.record_experiments(|| {
             let input = setup_function();
             self.pool.install(|| algorithm(input));
-            RunLog::new()
+            RunLog::new(RawLogs::new())
         });
         self.logs.push(logs);
         self.labels.push(label.into());

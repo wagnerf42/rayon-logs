@@ -49,7 +49,7 @@
 pub(crate) mod list;
 pub(crate) mod raw_events;
 pub(crate) mod raw_logs;
-pub use raw_logs::save_raw_logs;
+pub use raw_logs::{log2svg, save_raw_logs};
 pub(crate) mod storage;
 
 mod pool; // this comes first because it exports the logs macro

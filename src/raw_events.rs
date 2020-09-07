@@ -116,6 +116,13 @@ impl RawEvent {
         };
         Ok(event)
     }
+    pub(crate) fn time(&self) -> TimeStamp {
+        match *self {
+            RawEvent::TaskStart(_, t) => t,
+            RawEvent::TaskEnd(t) => t,
+            _ => 0,
+        }
+    }
 }
 
 impl RayonEvent {

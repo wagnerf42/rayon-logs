@@ -1,5 +1,6 @@
 //! Access to all logs from all threads.
 use crate::list::AtomicLinkedList;
+use crate::log::RunLog;
 use crate::raw_events::{RawEvent, RayonEvent, ThreadId};
 use crate::storage::Storage;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -41,21 +42,15 @@ thread_local! {
     };
 }
 
-/// Loop on all recorded events from oldest to newest.
-pub(crate) fn recorded_events() -> impl Iterator<Item = (ThreadId, &'static RayonEvent)> {
-    LOGS.iter()
-        .map(|&(thread_id, ref thread_logs)| thread_logs.iter().map(move |log| (thread_id, log)))
-        .kmerge_by(|a, b| a.1.time() < b.1.time())
-}
-
 /// Erase all logs.
 pub(crate) fn reset() {
     LOGS.iter().for_each(|(_, log)| log.reset())
 }
 
-struct RawLogs {
-    thread_events: Vec<Vec<RawEvent>>,
-    labels: Vec<String>,
+/// Raw unprocessed logs. Very fast to record but require some postprocessing to be displayed.
+pub(crate) struct RawLogs {
+    pub(crate) thread_events: Vec<Vec<RawEvent>>,
+    pub(crate) labels: Vec<String>,
 }
 
 impl RawLogs {
@@ -63,7 +58,7 @@ impl RawLogs {
     /// It's better to do it when no events are being recorded.
     /// We are able to extract logs during recording but the obtained logs
     /// might be incomplete.
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         // associate a unique integer id to each label
         let mut next_label_count = 0;
         let mut seen_labels = HashMap::new();
@@ -93,6 +88,8 @@ impl RawLogs {
                     .push(raw_event);
             }
         }
+        reset(); // TODO: is it ok here ?
+
         // now we just need to turn the hash table into a vector, filling the gaps
         // if some threads registered no events yet
         let threads_number = THREADS_COUNT.load(Ordering::Relaxed);
@@ -103,7 +100,7 @@ impl RawLogs {
             labels,
         }
     }
-    fn load<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
+    pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
         let mut file = File::open(path)?;
         // read vector of strings constituting labels
         let labels = read_vec_strings_from(&mut file)?;
@@ -169,7 +166,14 @@ fn write_vec_strings_to<W: std::io::Write>(
 /// Save log file of currently recorded raw logs.
 pub fn save_raw_logs<P: AsRef<Path>>(path: P) -> Result<(), io::Error> {
     let logs = RawLogs::new();
-    reset();
     logs.save(path)?;
+    Ok(())
+}
+
+/// Convert given log file to interactive svg file.
+pub fn log2svg<P: AsRef<Path>, Q: AsRef<Path>>(log_path: P, svg_path: Q) -> Result<(), io::Error> {
+    let raw_logs = RawLogs::load(log_path)?;
+    let run_log = RunLog::new(raw_logs);
+    run_log.save_svg(svg_path)?;
     Ok(())
 }
