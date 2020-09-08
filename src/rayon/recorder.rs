@@ -1,8 +1,8 @@
 //! Structs, functions and global variables for recording logs.
 use super::list::AtomicLinkedList;
+use super::now;
 use super::storage::Storage;
-use crate::common::raw_events::now;
-use crate::common::raw_events::{RawEvent, SubGraphId, ThreadId};
+use crate::common::raw_events::{RawEvent, SubGraphId, TaskId, ThreadId};
 use crate::common::raw_logs::RawLogs;
 use byteorder::{LittleEndian, WriteBytesExt};
 use itertools::Itertools;
@@ -138,4 +138,46 @@ pub fn save_raw_logs<P: AsRef<Path>>(path: P) -> Result<(), io::Error> {
     logs.save(path)?;
     reset();
     Ok(())
+}
+
+impl RawEvent<TaskId> {
+    pub(crate) fn new(
+        rayon_event: &RawEvent<&'static str>,
+        strings: &HashMap<&str, usize>,
+    ) -> RawEvent<TaskId> {
+        match rayon_event {
+            RawEvent::TaskStart(id, time) => RawEvent::TaskStart(*id, *time),
+            RawEvent::TaskEnd(time) => RawEvent::TaskEnd(*time),
+            RawEvent::Child(id) => RawEvent::Child(*id),
+            RawEvent::SubgraphStart(label) => RawEvent::SubgraphStart(strings[label]),
+            RawEvent::SubgraphEnd(label, size) => RawEvent::SubgraphEnd(strings[label], *size),
+        }
+    }
+    pub(crate) fn write_to<W: std::io::Write>(&self, destination: &mut W) -> std::io::Result<()> {
+        match self {
+            RawEvent::TaskStart(id, time) => {
+                destination.write(&[2u8])?;
+                destination.write_u64::<LittleEndian>(*id as u64)?;
+                destination.write_u64::<LittleEndian>(*time)?;
+            }
+            RawEvent::TaskEnd(time) => {
+                destination.write(&[3u8])?;
+                destination.write_u64::<LittleEndian>(*time)?;
+            }
+            RawEvent::Child(id) => {
+                destination.write(&[4u8])?;
+                destination.write_u64::<LittleEndian>(*id as u64)?;
+            }
+            RawEvent::SubgraphStart(label) => {
+                destination.write(&[5u8])?;
+                destination.write_u64::<LittleEndian>(*label as u64)?;
+            }
+            RawEvent::SubgraphEnd(label, size) => {
+                destination.write(&[6u8])?;
+                destination.write_u64::<LittleEndian>(*label as u64)?;
+                destination.write_u64::<LittleEndian>(*size as u64)?;
+            }
+        }
+        Ok(())
+    }
 }

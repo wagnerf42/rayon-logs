@@ -1,10 +1,19 @@
 //! All code which will move inside rayon.
 #![macro_use]
 
-use crate::common::raw_events::now;
-use crate::common::raw_events::{RawEvent, TaskId};
+use crate::common::raw_events::{RawEvent, TaskId, TimeStamp};
 use rayon::FnContext;
 use std::sync::atomic::{AtomicUsize, Ordering};
+
+use lazy_static::lazy_static;
+lazy_static! {
+    static ref START_TIME: std::time::Instant = std::time::Instant::now();
+}
+
+/// Return number of nano seconds since start.
+pub(crate) fn now() -> TimeStamp {
+    START_TIME.elapsed().as_nanos() as TimeStamp
+}
 
 /// Add given event to logs of current thread.
 pub(crate) fn log(event: RawEvent<&'static str>) {

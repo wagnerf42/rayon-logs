@@ -1,7 +1,7 @@
 //! Subgraphs allow to tag tasks.
 
 use super::next_task_id;
-use crate::common::raw_events::now;
+use super::now;
 use crate::common::raw_events::RawEvent;
 /// We tag all the tasks that op makes as one subgraph.
 ///

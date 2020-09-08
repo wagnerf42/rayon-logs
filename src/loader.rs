@@ -1,4 +1,5 @@
-use crate::common::raw_events::RawEvent;
+//! Functions for loading log files.
+use crate::common::raw_events::{RawEvent, SubGraphId, TaskId};
 use crate::common::raw_logs::RawLogs;
 use crate::log::RunLog;
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -48,4 +49,31 @@ pub fn log2svg<P: AsRef<Path>, Q: AsRef<Path>>(log_path: P, svg_path: Q) -> Resu
     let run_log = RunLog::new(raw_logs);
     run_log.save_svg(svg_path)?;
     Ok(())
+}
+
+impl RawEvent<TaskId> {
+    pub(crate) fn read_from<R: std::io::Read>(source: &mut R) -> std::io::Result<Self> {
+        let mut byte = [0u8];
+        source.read_exact(&mut byte)?;
+        let event = match byte[0] {
+            2 => RawEvent::TaskStart(
+                source.read_u64::<LittleEndian>()? as TaskId,
+                source.read_u64::<LittleEndian>()?,
+            ),
+            3 => RawEvent::TaskEnd(source.read_u64::<LittleEndian>()?),
+            4 => RawEvent::Child(source.read_u64::<LittleEndian>()? as TaskId),
+            5 => RawEvent::SubgraphStart(source.read_u64::<LittleEndian>()? as SubGraphId),
+            6 => RawEvent::SubgraphEnd(
+                source.read_u64::<LittleEndian>()? as SubGraphId,
+                source.read_u64::<LittleEndian>()? as usize,
+            ),
+            _ => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "invalid event discriminant",
+                ))
+            }
+        };
+        Ok(event)
+    }
 }
