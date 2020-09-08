@@ -2,8 +2,7 @@
 use super::list::AtomicLinkedList;
 use super::now;
 use super::storage::Storage;
-use crate::common::raw_events::{RawEvent, SubGraphId, TaskId, ThreadId};
-use crate::common::raw_logs::RawLogs;
+use crate::common_types::{RawEvent, RawLogs, SubGraphId, TaskId, ThreadId};
 use byteorder::{LittleEndian, WriteBytesExt};
 use itertools::Itertools;
 use std::collections::HashMap;

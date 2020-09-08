@@ -3,7 +3,7 @@ use super::stats::Stats;
 use super::time_string;
 use crate::reset;
 use crate::visualisation::{fill_svg_file, histogram, visualisation, HISTOGRAM_COLORS};
-use crate::{common::raw_logs::RawLogs, log::RunLog};
+use crate::{common_types::RawLogs, log::RunLog};
 use itertools::{izip, Itertools};
 use std::collections::HashMap;
 use std::fs::File;

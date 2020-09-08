@@ -1,7 +1,4 @@
-//! We define here all raw events.
-//! Events which are very fast to log and logged on a per thread basis.
-//! These events will be post-processed after execution in order to generate
-//! a tasks graph.
+//! Types which are common between rayon and rayon-logs.
 
 /// unique thread identifier
 pub(crate) type ThreadId = usize;
@@ -29,12 +26,8 @@ pub(crate) enum RawEvent<S> {
     SubgraphEnd(S, usize),
 }
 
-impl<S> RawEvent<S> {
-    pub(crate) fn time(&self) -> TimeStamp {
-        match *self {
-            RawEvent::TaskStart(_, t) => t,
-            RawEvent::TaskEnd(t) => t,
-            _ => 0,
-        }
-    }
+/// Raw unprocessed logs. Very fast to record but require some postprocessing to be displayed.
+pub(crate) struct RawLogs {
+    pub(crate) thread_events: Vec<Vec<RawEvent<SubGraphId>>>,
+    pub(crate) labels: Vec<String>,
 }

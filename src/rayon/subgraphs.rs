@@ -2,7 +2,7 @@
 
 use super::next_task_id;
 use super::now;
-use crate::common::raw_events::RawEvent;
+use crate::common_types::RawEvent;
 /// We tag all the tasks that op makes as one subgraph.
 ///
 /// `work_type` is a str tag and `work_amount` an integer specifying the expected algorithmic cost

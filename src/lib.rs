@@ -9,7 +9,7 @@
 #![deny(missing_docs)]
 #![warn(clippy::all)]
 
-pub(crate) mod common; // this comes first because it exports the logs macro
+pub(crate) mod common_types;
 
 mod loader;
 pub use loader::log2svg;

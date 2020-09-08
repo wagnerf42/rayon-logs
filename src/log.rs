@@ -1,8 +1,7 @@
 //! Provide structures holding all logged information for all tasks.
 //! This structure provides intermediate level information.
 //! It is a dag of tasks stored in a vector (using indices as pointers).
-use crate::common::raw_events::{RawEvent, SubGraphId, TaskId, ThreadId, TimeStamp};
-use crate::common::raw_logs::RawLogs;
+use crate::common_types::{RawEvent, RawLogs, SubGraphId, TaskId, ThreadId, TimeStamp};
 use crate::visualisation::{visualisation, write_svg_file};
 use itertools::Itertools;
 use std::cmp::Ordering;
@@ -372,4 +371,14 @@ pub fn save_svg<P: AsRef<Path>>(path: P) -> Result<(), io::Error> {
     log.save_svg(path)?;
     crate::reset();
     Ok(())
+}
+
+impl<S> RawEvent<S> {
+    pub(crate) fn time(&self) -> TimeStamp {
+        match *self {
+            RawEvent::TaskStart(_, t) => t,
+            RawEvent::TaskEnd(t) => t,
+            _ => 0,
+        }
+    }
 }

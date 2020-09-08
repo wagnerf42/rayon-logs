@@ -1,7 +1,7 @@
 //! All code which will move inside rayon.
 #![macro_use]
 
-use crate::common::raw_events::{RawEvent, TaskId, TimeStamp};
+use crate::common_types::{RawEvent, TaskId, TimeStamp};
 use rayon::FnContext;
 use std::sync::atomic::{AtomicUsize, Ordering};
 

@@ -1,6 +1,5 @@
 //! Functions for loading log files.
-use crate::common::raw_events::{RawEvent, SubGraphId, TaskId};
-use crate::common::raw_logs::RawLogs;
+use crate::common_types::{RawEvent, RawLogs, SubGraphId, TaskId};
 use crate::log::RunLog;
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::fs::File;

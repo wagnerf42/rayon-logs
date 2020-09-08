@@ -1,6 +1,6 @@
 //! Store a trace as a fork join graph (in a vector).
 use super::svg::{Point, Rectangle, Scene, COLORS};
-use crate::common::raw_events::{TaskId, TimeStamp};
+use crate::common_types::{TaskId, TimeStamp};
 type BlockId = usize;
 use crate::log::{RunLog, TaskLog};
 use itertools::{iproduct, Itertools};

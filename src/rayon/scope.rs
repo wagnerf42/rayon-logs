@@ -1,8 +1,6 @@
 //! Logging scope and Scope.
-use super::log;
-use super::next_task_id;
-use super::now;
-use crate::common::raw_events::{RawEvent, TaskId};
+use super::{log, next_task_id, now};
+use crate::common_types::{RawEvent, TaskId};
 use std::mem::transmute;
 
 ///Represents a fork-join scope which can be used to spawn any number of tasks. See [`scope()`] for more information.
