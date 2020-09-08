@@ -11,8 +11,6 @@ pub(crate) type ThreadId = usize;
 pub(crate) type SubGraphId = usize;
 /// unique task identifier
 pub(crate) type TaskId = usize;
-/// unique iterator identifier (currently unused, will come back later)
-pub(crate) type IteratorId = usize;
 /// at which time (in nanoseconds) does the event happen
 pub(crate) type TimeStamp = u64;
 

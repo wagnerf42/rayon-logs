@@ -1,6 +1,6 @@
 //! provides a `Storage` structure with O(1) WORST CASE very fast insertions.
 //! every thread has its own storage and will be the only one to write in it.
-use crate::list::AtomicLinkedList;
+use super::list::AtomicLinkedList;
 
 const BLOCK_SIZE: usize = 10_000;
 

@@ -1,9 +1,9 @@
 //! Provide structures holding all logged information for all tasks.
 //! This structure provides intermediate level information.
 //! It is a dag of tasks stored in a vector (using indices as pointers).
+use crate::common::raw_events::{RawEvent, SubGraphId, TaskId, ThreadId, TimeStamp};
+use crate::common::raw_logs::RawLogs;
 use crate::fork_join_graph::visualisation;
-use crate::raw_events::{RawEvent, SubGraphId, TaskId, ThreadId, TimeStamp};
-use crate::raw_logs::RawLogs;
 use crate::svg::write_svg_file;
 use itertools::Itertools;
 use std::cmp::Ordering;
@@ -170,8 +170,6 @@ impl RunLog {
         });
 
         let duration = tasks_info.values().map(|t| t.end_time).max().unwrap() - min_time;
-
-        crate::raw_logs::reset();
 
         RunLog {
             threads_number,
@@ -373,6 +371,6 @@ impl RunLog {
 pub fn save_svg<P: AsRef<Path>>(path: P) -> Result<(), io::Error> {
     let log = RunLog::new(RawLogs::new());
     log.save_svg(path)?;
-    crate::raw_logs::reset();
+    crate::reset();
     Ok(())
 }

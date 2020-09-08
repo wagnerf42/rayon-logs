@@ -14,7 +14,7 @@ pub(crate) struct AtomicLinkedList<T> {
 }
 
 impl<T: 'static> AtomicLinkedList<T> {
-    pub(crate) fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         AtomicLinkedList {
             head: AtomicPtr::new(null_mut()),
         }

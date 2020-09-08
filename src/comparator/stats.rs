@@ -1,8 +1,9 @@
 //! `LoggedPool` structure for logging raw tasks events.
+use super::time_string;
 use std::{collections::HashMap, iter::repeat};
 
 // use crate::fork_join_graph::{create_graph, Block};
-use crate::{log::RunLog, raw_events::TimeStamp};
+use crate::{common::raw_events::TimeStamp, log::RunLog};
 
 /// This struct mainly supplies the methods that can be used to get various statistics.
 pub struct Stats<'a> {
@@ -77,61 +78,7 @@ impl<'l> Stats<'l> {
                         })
                         .unwrap_or(0)
                 })
-                .map(|t| format!("<td>{}</td>", crate::compare::time_string(t)))
-                .collect::<String>()
-        })
-    }
-
-    /// This iterates on strings for html table in compare.
-    pub fn median_tagged_times<'a>(
-        &'a self,
-        tags: &'a [String],
-    ) -> impl Iterator<Item = String> + 'a {
-        self.tagged_stats.iter().map(move |algorithm| {
-            tags.iter()
-                .map(|t| {
-                    algorithm
-                        .get(t)
-                        .map(|times| times[self.runs_number / 2].1)
-                        .unwrap_or(0)
-                })
-                .map(|t| format!("<td>{}</td>", crate::compare::time_string(t)))
-                .collect::<String>()
-        })
-    }
-
-    pub fn median_tagged_counts<'a>(
-        &'a self,
-        tags: &'a [String],
-    ) -> impl Iterator<Item = String> + 'a {
-        self.tagged_stats.iter().map(move |algorithm| {
-            tags.iter()
-                .map(|t| {
-                    algorithm
-                        .get(t)
-                        .map(|times| times[self.runs_number / 2].0)
-                        .unwrap_or(0)
-                })
-                .map(|t| format!("<td>{}</td>", t))
-                .collect::<String>()
-        })
-    }
-
-    /// Normalised speeds of each tag for median the run of each algorithm.
-    /// Normalisation happens across tags for the same algorithm.
-    pub fn median_tagged_speeds<'a>(
-        &'a self,
-        tags: &'a [String],
-    ) -> impl Iterator<Item = String> + 'a {
-        self.tagged_stats.iter().map(move |algorithm| {
-            tags.iter()
-                .map(|t| {
-                    algorithm
-                        .get(t)
-                        .map(|times| times[self.runs_number / 2].2)
-                        .unwrap_or(0.0)
-                })
-                .map(|t| format!("<td>{}</td>", t))
+                .map(|t| format!("<td>{}</td>", time_string(t)))
                 .collect::<String>()
         })
     }
@@ -153,7 +100,7 @@ impl<'l> Stats<'l> {
                     format!(
                         "<td><table><tr><td>{}</td><td>{}</td><td>{}</td></tr></table></td>",
                         t.0,
-                        crate::compare::time_string(t.1),
+                        time_string(t.1),
                         t.2
                     )
                 })

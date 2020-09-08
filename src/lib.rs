@@ -45,34 +45,25 @@
 #![deny(missing_docs)]
 #![warn(clippy::all)]
 
-pub(crate) mod list;
-pub(crate) mod raw_events;
-pub(crate) mod raw_logs;
-pub use raw_logs::{log2svg, save_raw_logs};
-pub(crate) mod storage;
+pub(crate) mod common; // this comes first because it exports the logs macro
 
-mod pool; // this comes first because it exports the logs macro
+mod loader;
+pub use loader::log2svg;
+mod rayon;
+pub use self::rayon::recorder::{reset, save_raw_logs};
+pub use self::rayon::scope::{scope, scope_fifo, Scope, ScopeFifo};
+pub use self::rayon::subgraphs::{custom_subgraph, subgraph};
+pub use self::rayon::{join, join_context};
 
-mod iterator;
-pub use crate::iterator::Logged;
-pub use crate::pool::{
-    custom_subgraph, end_subgraph, join, join_context, start_subgraph, subgraph,
-};
+mod counters;
 #[cfg(feature = "perf")]
-pub use crate::pool::{subgraph_cache_event, subgraph_hardware_event, subgraph_software_event};
-pub mod prelude;
-mod scope;
-pub use crate::scope::{scope, scope_fifo, Scope, ScopeFifo};
+pub use counters::{subgraph_cache_event, subgraph_hardware_event, subgraph_software_event};
 mod fork_join_graph;
 mod log;
 pub use log::save_svg;
-pub(crate) mod compare;
-mod stats;
+mod comparator;
 pub(crate) mod svg;
-pub use crate::compare::Comparator;
-/// We re-export rayon's `current_num_threads`.
-pub use rayon::current_num_threads;
-pub use rayon::current_thread_index;
+pub use crate::comparator::compare::Comparator;
 
 /// We reexport perf-related types here.
 #[cfg(feature = "perf")]
