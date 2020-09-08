@@ -1,0 +1,3 @@
+[submodule "rayon"]
+	path = rayon
+	url = https://github.com/wagnerf42/rayon.git
