@@ -3,8 +3,7 @@
 //! It is a dag of tasks stored in a vector (using indices as pointers).
 use crate::common::raw_events::{RawEvent, SubGraphId, TaskId, ThreadId, TimeStamp};
 use crate::common::raw_logs::RawLogs;
-use crate::fork_join_graph::visualisation;
-use crate::svg::write_svg_file;
+use crate::visualisation::{visualisation, write_svg_file};
 use itertools::Itertools;
 use std::cmp::Ordering;
 use std::collections::hash_map::Entry;

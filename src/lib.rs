@@ -58,12 +58,11 @@ pub use self::rayon::{join, join_context};
 mod counters;
 #[cfg(feature = "perf")]
 pub use counters::{subgraph_cache_event, subgraph_hardware_event, subgraph_software_event};
-mod fork_join_graph;
 mod log;
 pub use log::save_svg;
 mod comparator;
-pub(crate) mod svg;
 pub use crate::comparator::compare::Comparator;
+mod visualisation;
 
 /// We reexport perf-related types here.
 #[cfg(feature = "perf")]
