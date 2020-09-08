@@ -1,3 +1,4 @@
+//! Main struct for accesses to logs.
 //! Structs, functions and global variables for recording logs.
 use super::list::AtomicLinkedList;
 use super::now;
@@ -11,6 +12,7 @@ use std::io;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::Once;
 
 // each thread will get a unique id and increment this counter
 static THREADS_COUNT: AtomicUsize = AtomicUsize::new(0);
@@ -34,21 +36,13 @@ thread_local! {
                 backoff.spin()
             }
             // TODO: does main always get 0 ?
-            if *id == 0 {
-                logs.push(RawEvent::TaskStart(0, now()));
+            if *id != 0 {
+                LOGS.push_front((*id, logs.clone()));
             }
-            LOGS.push_front((*id, logs.clone()));
             REGISTERED_THREADS_COUNT.fetch_add(1, Ordering::SeqCst);
         });
         logs
     };
-}
-
-/// Erase all logs.
-/// PRE-condition: call from main thread. // TODO: is this acceptable ?
-pub fn reset() {
-    LOGS.iter().for_each(|(_, log)| log.reset());
-    crate::rayon::log(RawEvent::TaskStart(crate::rayon::next_task_id(), now()));
 }
 
 impl RawLogs {
@@ -130,15 +124,6 @@ fn write_vec_strings_to<W: std::io::Write>(
     Ok(())
 }
 
-/// Save log file of currently recorded raw logs.
-/// This will reset logs.
-pub fn save_raw_logs<P: AsRef<Path>>(path: P) -> Result<(), io::Error> {
-    let logs = RawLogs::new();
-    logs.save(path)?;
-    reset();
-    Ok(())
-}
-
 impl RawEvent<TaskId> {
     pub(crate) fn new(
         rayon_event: &RawEvent<&'static str>,
@@ -177,6 +162,48 @@ impl RawEvent<TaskId> {
                 destination.write_u64::<LittleEndian>(*size as u64)?;
             }
         }
+        Ok(())
+    }
+}
+
+static LOGS_START: Once = Once::new();
+
+/// This is the main structure for logging in rayon.
+/// You cannot create it directly, you need to use its constructor.
+#[allow(dead_code)]
+pub struct Logger {
+    fake_content: *const u8, // it's not public so you cannot create a `Logger` manually
+                             // at the same time we avoid Send and Sync
+}
+
+impl Logger {
+    /// Create a new global logger.
+    /// You need to create it BEFORE any parallel operation.
+    /// The thread calling this method will get logged in addition
+    /// to all threads used in rayon.
+    pub fn new() -> Self {
+        LOGS_START.call_once(|| {
+            //TODO: we could put the time init here
+            let logs = Arc::new(Storage::new());
+            logs.push(RawEvent::TaskStart(0, now()));
+            LOGS.push_front((0, logs.clone()));
+        });
+        Logger {
+            fake_content: std::ptr::null(),
+        }
+    }
+    /// Erase all logs and restart logging.
+    pub fn reset(&self) {
+        LOGS.iter().for_each(|(_, log)| log.reset());
+        crate::rayon::log(RawEvent::TaskStart(crate::rayon::next_task_id(), now()));
+    }
+
+    /// Save log file of currently recorded raw logs.
+    /// This will reset logs.
+    pub fn save_raw_logs<P: AsRef<Path>>(&mut self, path: P) -> Result<(), io::Error> {
+        let logs = RawLogs::new();
+        logs.save(path)?;
+        self.reset();
         Ok(())
     }
 }

@@ -1,6 +1,6 @@
 //! Let's try tagging whole subgraphs.
 //! Note that information is logged but only displayed graphically on leaves.
-use rayon_logs::subgraph;
+use rayon_logs::{subgraph, Logger};
 
 fn invert(slice: &mut [u32]) {
     subgraph("invert slice", slice.len(), || {
@@ -14,9 +14,12 @@ fn invert(slice: &mut [u32]) {
 }
 
 fn main() {
+    let mut logger = Logger::new();
     let mut v: Vec<u32> = subgraph("vector creation", 100_000, || (0..100_000).collect());
     invert(&mut v);
     assert_eq!(v[49_999], 25_000);
     assert_eq!(v[50_000], 74_999);
-    rayon_logs::save_svg("subgraph.svg").expect("error saving svg");
+    logger
+        .save_raw_logs("subgraph.rlog")
+        .expect("error saving log");
 }

@@ -3,6 +3,7 @@
 extern crate rayon_logs as rayon;
 
 fn main() {
+    let mut logger = rayon_logs::Logger::new();
     // point start
     rayon::scope(|s| {
         s.spawn(|s| {
@@ -21,5 +22,7 @@ fn main() {
         // point mid
     });
     // point end
-    rayon_logs::save_svg("scope.svg").expect("error saving svg");
+    logger
+        .save_raw_logs("scope.rlog")
+        .expect("error saving svg");
 }

@@ -1,5 +1,5 @@
 //! Example for recursive max and tagging of leaves tasks.
-use rayon_logs::{join, save_svg, subgraph};
+use rayon_logs::{join, subgraph, Logger};
 
 fn manual_max(slice: &[u32]) -> u32 {
     if slice.len() < 200_000 {
@@ -13,12 +13,15 @@ fn manual_max(slice: &[u32]) -> u32 {
 }
 
 fn main() {
+    let mut logger = Logger::new(); // we'll log the vector creation
     let v: Vec<u32> = (0..2_000_000).collect();
 
     let max = manual_max(&v);
     assert_eq!(max, v.last().cloned().unwrap());
 
-    save_svg("manual_max.svg").expect("saving svg file failed");
-    println!("saved \"manual_max.svg\"");
-    println!("hover mouse over tasks to get logged information !");
+    logger
+        .save_raw_logs("manual_max.rlog")
+        .expect("saving raw log file failed");
+    println!("saved \"manual_max.rlog\"");
+    println!("convert it using rlog2svg and open it in firefox");
 }

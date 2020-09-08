@@ -1,8 +1,8 @@
 //! `Comparator` Structure for easy comparisons of different algorithms.
 use super::stats::Stats;
 use super::time_string;
-use crate::reset;
 use crate::visualisation::{fill_svg_file, histogram, visualisation, HISTOGRAM_COLORS};
+use crate::Logger;
 use crate::{common_types::RawLogs, log::RunLog};
 use itertools::{izip, Itertools};
 use std::collections::HashMap;
@@ -22,17 +22,19 @@ pub struct Comparator {
     logs: Vec<Vec<RunLog>>,
     runs_number: usize,
     display_preferences: Vec<bool>,
+    logger: Logger,
 }
 
 impl Comparator {
     /// Return a new `Comparator` struct for convenients algorithms comparisons.
-    pub fn new() -> Self {
-        reset();
+    pub fn new(logger: Logger) -> Self {
+        logger.reset();
         Comparator {
             labels: Vec::new(),
             logs: Vec::new(),
             runs_number: 100,
             display_preferences: Vec::new(),
+            logger,
         }
     }
     /// Renumber all tags accross all logs such that tags number match.
@@ -63,6 +65,7 @@ impl Comparator {
             logs: self.logs,
             runs_number: runs_wanted,
             display_preferences: self.display_preferences,
+            logger: self.logger,
         }
     }
 
@@ -121,7 +124,7 @@ impl Comparator {
     {
         let logs = self.record_experiments(|| {
             let input = setup_function();
-            reset();
+            self.logger.reset();
             algorithm(input);
             RunLog::new(RawLogs::new())
         });
@@ -148,7 +151,7 @@ impl Comparator {
     {
         let logs = self.record_experiments(|| {
             let input = setup_function();
-            reset();
+            self.logger.reset();
             algorithm(input);
             RunLog::new(RawLogs::new())
         });

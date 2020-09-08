@@ -9,24 +9,31 @@
 #![deny(missing_docs)]
 #![warn(clippy::all)]
 
+// this contains data structs shared between rayon and rayon-logs
 pub(crate) mod common_types;
-
-mod loader;
-pub use loader::log2svg;
+// this contains all stuff which will move inside rayon
 mod rayon;
-pub use self::rayon::recorder::{reset, save_raw_logs};
+pub use self::rayon::recorder::Logger;
 pub use self::rayon::scope::{scope, scope_fifo, Scope, ScopeFifo};
 pub use self::rayon::subgraphs::{custom_subgraph, subgraph};
 pub use self::rayon::{join, join_context};
 
+// everything below is rayon-logs only:
+// logs postprocessing, graphs, svg,...
+mod loader;
+pub use loader::log2svg;
+
+mod log;
+
+mod comparator;
+pub use crate::comparator::compare::Comparator;
+
+mod visualisation;
+
+#[cfg(feature = "perf")]
 mod counters;
 #[cfg(feature = "perf")]
 pub use counters::{subgraph_cache_event, subgraph_hardware_event, subgraph_software_event};
-mod log;
-pub use log::save_svg;
-mod comparator;
-pub use crate::comparator::compare::Comparator;
-mod visualisation;
 
 /// We reexport perf-related types here.
 #[cfg(feature = "perf")]

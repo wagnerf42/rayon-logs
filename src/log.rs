@@ -110,7 +110,6 @@ impl RunLog {
             .map(|(thread_id, thread)| thread.iter().map(move |log| (thread_id, log)))
             .kmerge_by(|a, b| a.1.time() < b.1.time())
         {
-            // for (thread_id, event) in crate::raw_logs::recorded_events() {
             threads_number = threads_number.max(thread_id + 1);
             match *event {
                 RawEvent::Child(c) => {
@@ -162,9 +161,14 @@ impl RunLog {
 
         let min_time = tasks_info.values().map(|t| t.start_time).min().unwrap();
         // let's start time at 0
-        tasks_info.values_mut().for_each(|t| {
+        tasks_info.values_mut().enumerate().for_each(|(id, t)| {
             t.start_time -= min_time;
-            t.end_time -= min_time;
+            t.end_time = if t.end_time == 0 {
+                eprintln!("warning, task {} is not ended", id);
+                t.start_time
+            } else {
+                t.end_time - min_time
+            };
         });
 
         let duration = tasks_info.values().map(|t| t.end_time).max().unwrap() - min_time;
@@ -363,14 +367,6 @@ impl RunLog {
         let scene = visualisation(self);
         write_svg_file(&scene, path)
     }
-}
-
-/// Save an svg file of all logged information.
-pub fn save_svg<P: AsRef<Path>>(path: P) -> Result<(), io::Error> {
-    let log = RunLog::new(RawLogs::new());
-    log.save_svg(path)?;
-    crate::reset();
-    Ok(())
 }
 
 impl<S> RawEvent<S> {
