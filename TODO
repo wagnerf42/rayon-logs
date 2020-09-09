@@ -1,4 +1,6 @@
 - should we filter out the main thread if he is only waiting ?
 - don't crash when child in no task
 - don't crash if no single root (strengthen graph visualisation)
-- public stuff in rayon-core
+- deactivate logging in rayon-core
+  -> is it ok to duplicate join's code ? :-( i see no other solution
+  -> is testing the registry's option fast enough ? should we have a thread local var ?
