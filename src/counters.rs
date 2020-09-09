@@ -1,6 +1,6 @@
-//! `LoggedPool` structure for logging raw tasks events.
-#![macro_use]
+//! Performance counters based subgraphs.
 
+use rayon_core::custom_subgraph;
 // we can now use performance counters to tag subgraphs
 #[cfg(feature = "perf")]
 use perfcnt::linux::PerfCounterBuilderLinux;

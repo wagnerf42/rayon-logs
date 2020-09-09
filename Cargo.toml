@@ -24,7 +24,7 @@ rayon={path="./rayon/"}
 itertools="^0"
 rand="^0.7"
 libc="^0.2"
-x86={version="^0.19", optional=true}
-perfcnt={version="^0.5", optional=true}
+x86={version="^0.34", optional=true}
+perfcnt={version="^0.6", optional=true}
 crossbeam="^0.7"
 byteorder="*"

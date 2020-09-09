@@ -22,13 +22,13 @@ fn main() {
     }
     let v: Vec<u32> = (0..2_000_000).collect();
 
-    let logger = Logger::new();
+    let mut logger = Logger::new();
     logger.pool_builder().build_global().unwrap();
     let max = manual_max(&v);
     assert_eq!(max, v.last().cloned().unwrap());
 
     logger
-        .save_raw_log("hardware_max.rlog")
+        .save_raw_logs("hardware_max.rlog")
         .expect("saving log file failed");
 }
 
