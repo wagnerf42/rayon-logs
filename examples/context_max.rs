@@ -25,6 +25,10 @@ fn manual_max(slice: &[u32]) -> u32 {
 fn main() {
     let v: Vec<u32> = (0..10_000_000).collect();
     let mut logger = Logger::new();
+    logger
+        .pool_builder()
+        .build_global()
+        .expect("failed building pool");
 
     let max = manual_max(&v);
     assert_eq!(max, v.last().cloned().unwrap());

@@ -15,6 +15,10 @@ fn manual_max(slice: &[u32]) -> u32 {
 
 fn main() {
     let mut logger = Logger::new(); // we'll log the vector creation
+    logger
+        .pool_builder()
+        .build_global()
+        .expect("failed building pool");
     let v: Vec<u32> = (0..2_000_000).collect();
 
     let max = manual_max(&v);

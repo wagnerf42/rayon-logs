@@ -1,9 +1,10 @@
 //! Example for recursive max with hardware events logging.
 #[cfg(feature = "perf")]
 fn main() {
-    use rayon_logs::save_svg;
+    use rayon::join;
+    use rayon_core::Logger;
+    use rayon_logs::subgraph_hardware_event;
     use rayon_logs::HardwareEventType;
-    use rayon_logs::{join, subgraph_hardware_event, ThreadPoolBuilder};
 
     fn manual_max(slice: &[u32]) -> u32 {
         if slice.len() < 200_000 {
@@ -21,16 +22,14 @@ fn main() {
     }
     let v: Vec<u32> = (0..2_000_000).collect();
 
-    let pool = ThreadPoolBuilder::new()
-        .num_threads(2)
-        .build()
-        .expect("building pool failed");
-    let max = pool.install(|| manual_max(&v));
+    let logger = Logger::new();
+    logger.pool_builder().build_global().unwrap();
+    let max = manual_max(&v);
     assert_eq!(max, v.last().cloned().unwrap());
 
-    save_svg("hardware_max.svg").expect("saving svg file failed");
-    println!("saved \"hardware_max.svg\"");
-    println!("hover mouse over tasks to get logged information !");
+    logger
+        .save_raw_log("hardware_max.rlog")
+        .expect("saving log file failed");
 }
 
 #[cfg(not(feature = "perf"))]

@@ -1,10 +1,4 @@
-rethink the initial task
-currently : * created on start and not sure it's always ok (is main thread always number 0 ???)
-            * ended on RawLogs::new -> only callable from main thread, is it bad ?
-            * re-created on reset : reset now only callable from main thread -> is it bad ?
-
-another possible option would be to not have it and create a fake task on the fly.
-
-*****
-
-should we filter out the main thread if he is only waiting ?
+- should we filter out the main thread if he is only waiting ?
+- don't crash when child in no task
+- don't crash if no single root (strengthen graph visualisation)
+- public stuff in rayon-core

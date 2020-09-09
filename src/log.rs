@@ -75,7 +75,13 @@ fn renumber_tasks(
     tasks: HashMap<TaskId, TaskLog>,
     subgraphs: &mut Vec<(TaskId, TaskId, SubGraphId, usize)>,
 ) -> Vec<TaskLog> {
-    let ids_changes: HashMap<TaskId, TaskId> = tasks.keys().sorted().copied().enumerate().collect();
+    let ids_changes: HashMap<TaskId, TaskId> = tasks
+        .keys()
+        .sorted()
+        .copied()
+        .enumerate()
+        .map(|(a, b)| (b, a))
+        .collect();
     subgraphs.iter_mut().for_each(|s| {
         s.0 = ids_changes[&s.0];
         s.1 = ids_changes[&s.1];
@@ -111,6 +117,7 @@ impl RunLog {
             .map(|(thread_id, thread)| thread.iter().map(move |log| (thread_id, log)))
             .kmerge_by(|a, b| event_time(a.1) < event_time(b.1))
         {
+            // println!("thread {} event {:?}", thread_id, event);
             threads_number = threads_number.max(thread_id + 1);
             match *event {
                 RawEvent::Child(c) => {
@@ -174,7 +181,7 @@ impl RunLog {
             };
         });
 
-        let duration = tasks_info.values().map(|t| t.end_time).max().unwrap_or(0) - min_time;
+        let duration = tasks_info.values().map(|t| t.end_time).max().unwrap_or(0);
 
         RunLog {
             threads_number,

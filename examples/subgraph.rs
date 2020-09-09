@@ -15,6 +15,8 @@ fn invert(slice: &mut [u32]) {
 
 fn main() {
     let mut logger = Logger::new();
+    logger.pool_builder().build_global().unwrap();
+    logger.reset(); // let's forget pool creation time
     let mut v: Vec<u32> = subgraph("vector creation", 100_000, || (0..100_000).collect());
     invert(&mut v);
     assert_eq!(v[49_999], 25_000);
