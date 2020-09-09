@@ -3,7 +3,7 @@ use super::time_string;
 use std::{collections::HashMap, iter::repeat};
 
 // use crate::fork_join_graph::{create_graph, Block};
-use crate::{common_types::TimeStamp, log::RunLog};
+use crate::{log::RunLog, TimeStamp};
 
 /// This struct mainly supplies the methods that can be used to get various statistics.
 pub struct Stats<'a> {

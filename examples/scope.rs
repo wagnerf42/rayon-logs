@@ -1,9 +1,8 @@
 //! This is rayon's scope documentation example.
 //! Log will be saved as "log_0.json".
-extern crate rayon_logs as rayon;
 
 fn main() {
-    let mut logger = rayon_logs::Logger::new();
+    let mut logger = rayon_core::Logger::new();
     // point start
     rayon::scope(|s| {
         s.spawn(|s| {

@@ -1,8 +1,8 @@
 //! Provide structures holding all logged information for all tasks.
 //! This structure provides intermediate level information.
 //! It is a dag of tasks stored in a vector (using indices as pointers).
-use crate::common_types::{RawEvent, RawLogs, SubGraphId, TaskId, ThreadId, TimeStamp};
 use crate::visualisation::{visualisation, write_svg_file};
+use crate::{RawEvent, RawLogs, SubGraphId, TaskId, TimeStamp};
 use itertools::Itertools;
 use std::cmp::Ordering;
 use std::collections::hash_map::Entry;
@@ -10,6 +10,7 @@ use std::collections::{HashMap, HashSet};
 use std::io;
 use std::iter::successors;
 use std::path::Path;
+type ThreadId = usize;
 
 /// The final information produced for log viewers.
 /// A 'task' here is not a rayon task but a subpart of one.
@@ -108,7 +109,7 @@ impl RunLog {
             .iter()
             .enumerate()
             .map(|(thread_id, thread)| thread.iter().map(move |log| (thread_id, log)))
-            .kmerge_by(|a, b| a.1.time() < b.1.time())
+            .kmerge_by(|a, b| event_time(a.1) < event_time(b.1))
         {
             threads_number = threads_number.max(thread_id + 1);
             match *event {
@@ -369,12 +370,10 @@ impl RunLog {
     }
 }
 
-impl<S> RawEvent<S> {
-    pub(crate) fn time(&self) -> TimeStamp {
-        match *self {
-            RawEvent::TaskStart(_, t) => t,
-            RawEvent::TaskEnd(t) => t,
-            _ => 0,
-        }
+pub(crate) fn event_time<S>(event: &RawEvent<S>) -> TimeStamp {
+    match *event {
+        RawEvent::TaskStart(_, t) => t,
+        RawEvent::TaskEnd(t) => t,
+        _ => 0,
     }
 }

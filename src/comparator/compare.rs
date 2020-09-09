@@ -1,10 +1,10 @@
 //! `Comparator` Structure for easy comparisons of different algorithms.
 use super::stats::Stats;
 use super::time_string;
+use crate::log::RunLog;
 use crate::visualisation::{fill_svg_file, histogram, visualisation, HISTOGRAM_COLORS};
-use crate::Logger;
-use crate::{common_types::RawLogs, log::RunLog};
 use itertools::{izip, Itertools};
+use rayon_core::Logger;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
@@ -84,7 +84,7 @@ impl Comparator {
     {
         let logs = self.record_experiments(|| {
             algorithm();
-            RunLog::new(RawLogs::new())
+            RunLog::new(self.logger.extract_logs())
         });
         self.logs.push(logs);
         self.labels.push(label.into());
@@ -99,7 +99,7 @@ impl Comparator {
     {
         let logs = self.record_experiments(|| {
             algorithm();
-            RunLog::new(RawLogs::new())
+            RunLog::new(self.logger.extract_logs())
         });
         self.logs.push(logs);
         self.labels.push(label.into());
@@ -126,7 +126,7 @@ impl Comparator {
             let input = setup_function();
             self.logger.reset();
             algorithm(input);
-            RunLog::new(RawLogs::new())
+            RunLog::new(self.logger.extract_logs())
         });
         self.logs.push(logs);
         self.labels.push(label.into());
@@ -153,7 +153,7 @@ impl Comparator {
             let input = setup_function();
             self.logger.reset();
             algorithm(input);
-            RunLog::new(RawLogs::new())
+            RunLog::new(self.logger.extract_logs())
         });
         self.logs.push(logs);
         self.labels.push(label.into());

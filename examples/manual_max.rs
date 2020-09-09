@@ -1,5 +1,6 @@
 //! Example for recursive max and tagging of leaves tasks.
-use rayon_logs::{join, subgraph, Logger};
+use rayon::join;
+use rayon_core::{subgraph, Logger};
 
 fn manual_max(slice: &[u32]) -> u32 {
     if slice.len() < 200_000 {

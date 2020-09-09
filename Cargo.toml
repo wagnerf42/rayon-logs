@@ -19,7 +19,8 @@ perf = ["perfcnt", "x86"]
 
 [dependencies]
 lazy_static = "^1.4"
-rayon="^1"
+rayon-core={path="./rayon/rayon-core"}
+rayon={path="./rayon/"}
 itertools="^0"
 rand="^0.7"
 libc="^0.2"
@@ -27,6 +28,3 @@ x86={version="^0.19", optional=true}
 perfcnt={version="^0.5", optional=true}
 crossbeam="^0.7"
 byteorder="*"
-
-[dev-dependencies]
-criterion="^0.2"

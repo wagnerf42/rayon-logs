@@ -1,7 +1,6 @@
 //! Compute recursively a max using join_context.
-extern crate rayon_logs as rayon; // comment me out to go back to rayon
 use rayon::join_context;
-use rayon_logs::Logger;
+use rayon_core::Logger;
 
 fn manual_max(slice: &[u32]) -> u32 {
     if slice.len() < 1000 {

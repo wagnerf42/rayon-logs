@@ -1,6 +1,5 @@
 //! Basic iterator log.
-extern crate rayon_logs as rayon;
-use rayon::Logger;
+use rayon_core::Logger;
 
 fn main() {
     let mut logger = Logger::new();

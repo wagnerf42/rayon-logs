@@ -1,6 +1,6 @@
 //! Let's try tagging whole subgraphs.
 //! Note that information is logged but only displayed graphically on leaves.
-use rayon_logs::{subgraph, Logger};
+use rayon_core::{subgraph, Logger};
 
 fn invert(slice: &mut [u32]) {
     subgraph("invert slice", slice.len(), || {
@@ -8,7 +8,7 @@ fn invert(slice: &mut [u32]) {
             (0..slice.len() / 2).for_each(|i| slice.swap(i, slice.len() - i - 1))
         } else {
             let (left, right) = slice.split_at_mut(slice.len() / 2);
-            rayon_logs::join(|| invert(left), || invert(right));
+            rayon::join(|| invert(left), || invert(right));
         }
     })
 }

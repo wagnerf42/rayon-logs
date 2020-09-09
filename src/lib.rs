@@ -9,15 +9,7 @@
 #![deny(missing_docs)]
 #![warn(clippy::all)]
 
-// this contains data structs shared between rayon and rayon-logs
-pub(crate) mod common_types;
-// this contains all stuff which will move inside rayon
-mod rayon;
-pub use self::rayon::recorder::Logger;
-pub use self::rayon::scope::{scope, scope_fifo, Scope, ScopeFifo};
-pub use self::rayon::subgraphs::{custom_subgraph, subgraph};
-pub use self::rayon::{join, join_context};
-
+use rayon_core::{RawEvent, RawLogs, SubGraphId, TaskId, TimeStamp};
 // everything below is rayon-logs only:
 // logs postprocessing, graphs, svg,...
 mod loader;
