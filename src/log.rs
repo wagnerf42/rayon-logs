@@ -123,7 +123,9 @@ impl RunLog {
                     if let Some(task) = all_active_tasks.remove(&thread_id) {
                         tasks_info.entry(task).or_default().end_time = time;
                     } else {
-                        panic!("ending a non started task. are you mixing logged and un-logged computations ?");
+                        eprintln!(
+                            "warning, ending a non started task. this task will be discarded"
+                        );
                     }
                 }
                 RawEvent::TaskStart(task, time) => {
@@ -160,7 +162,7 @@ impl RunLog {
             }
         }
 
-        let min_time = tasks_info.values().map(|t| t.start_time).min().unwrap();
+        let min_time = tasks_info.values().map(|t| t.start_time).min().unwrap_or(0);
         // let's start time at 0
         tasks_info.values_mut().enumerate().for_each(|(id, t)| {
             t.start_time -= min_time;
@@ -172,7 +174,7 @@ impl RunLog {
             };
         });
 
-        let duration = tasks_info.values().map(|t| t.end_time).max().unwrap() - min_time;
+        let duration = tasks_info.values().map(|t| t.end_time).max().unwrap_or(0) - min_time;
 
         RunLog {
             threads_number,

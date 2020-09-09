@@ -336,8 +336,8 @@ fn compute_idle_times(
 ) {
     // do one pass to figure out the last recorded time.
     // we need it to figure out who is idle at the end.
-    let last_time = tasks.iter().map(|t| t.end_time).max().unwrap();
-    let first_time = tasks.iter().map(|t| t.start_time).min().unwrap();
+    let last_time = tasks.iter().map(|t| t.end_time).max().unwrap_or(0);
+    let first_time = tasks.iter().map(|t| t.start_time).min().unwrap_or(0);
 
     // sort everyone by time (yes i know, again).
     // we add fake tasks at the end for last idle periods.

@@ -3,6 +3,10 @@ use rayon_core::Logger;
 
 fn main() {
     let mut logger = Logger::new();
+    logger
+        .pool_builder()
+        .build_global()
+        .expect("failed building pool");
     let (s1, s2) = rayon::join(
         || (0..10_000_000).sum::<u64>(),
         || (0..20_000_000).sum::<u64>(),
