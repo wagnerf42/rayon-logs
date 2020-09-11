@@ -1,0 +1,59 @@
+[
+    {
+        "ID": 1,
+        "parent": 0,
+        "start": 0,
+        "end": 10000,
+        "tag": "task",
+        "thread": 0,
+        "records": {"cycles": 3000}
+    },
+    {
+        "ID": 2,
+        "parent": 1,
+        "start": 1000,
+        "end": 4000,
+        "tag": "join",
+        "thread": 0
+    },
+    {
+        "ID": 3,
+        "parent": 2,
+        "start": 1400,
+        "end": 2000,
+        "tag": "task",
+        "thread": 1
+    },
+    {
+        "ID": 4,
+        "parent": 2,
+        "start": 2400,
+        "end": 3000,
+        "tag": "task",
+        "thread": 0
+    },
+    {
+        "ID": 5,
+        "parent": 1,
+        "start": 5200,
+        "end": 8000,
+        "tag": "join",
+        "thread": 0
+    },
+    {
+        "ID": 6,
+        "parent": 5,
+        "start": 5500,
+        "end": 7000,
+        "tag": "task",
+        "thread": 0
+    },
+    {
+        "ID": 7,
+        "parent": 5,
+        "start": 5800,
+        "end": 8000,
+        "tag": "task",
+        "thread": 0
+    }
+]
