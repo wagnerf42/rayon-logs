@@ -4,7 +4,7 @@ import sys
 import json
 from collections import defaultdict
 from functools import reduce
-from itertools import chain
+from itertools import chain, product
 from more_itertools import windowed, roundrobin
 
 COLORS = ["red", "green", "blue"]
@@ -46,6 +46,25 @@ x='{}' y='{}' style='fill:{}'\
            self.position[0] * scales[0],
            # let's skip some height to leave space for edges
            (self.position[1]+0.25) * scales[1], color))
+
+    def entry_points(self, scales):
+        """
+        return (scaled) coordinates of entry point
+        (for edges)
+        """
+        return [((self.position[0]+self.width/2)*scales[0],
+                 (self.position[1]+0.25) * scales[1])]
+
+    def exit_points(self, scales):
+        """
+        return (scaled) coordinates of entry point
+        (for edges)
+        """
+        return [((self.position[0]+self.width/2)*scales[0],
+                 (self.position[1]+0.75) * scales[1])]
+
+    def draw_edges(self, entry_points, exit_points, scales):
+        pass
 
 
 class SubGraph:
@@ -96,6 +115,36 @@ class SubGraph:
             else:
                 pos[1] += subsize[1]
             subgraph.compute_positions()
+
+    def entry_points(self, scales):
+        if self.is_parallel:
+            return [x for c in self.content for x in c.entry_points(scales)]
+        return self.content[0].entry_points(scales)
+
+    def exit_points(self, scales):
+        if self.is_parallel:
+            return [x for c in self.content for x in c.exit_points(scales)]
+        return self.content[-1].exit_points(scales)
+
+    def draw_edges(self, entry_points, exit_points, scales):
+        if self.is_parallel:
+            for subgraph in self.content:
+                subgraph.draw_edges(entry_points, exit_points, scales)
+        else:
+            for start, end in product(entry_points, self.content[0].entry_points(scales)):
+                edge(start, end)
+            for start, end in product(exit_points, self.content[-1].exit_points(scales)):
+                edge(start, end)
+            for s1, s2, s3 in windowed(self.content, 3):
+                if s3 is not None:
+                    s2.draw_edges(s1.exit_points(scales), s3.entry_points(scales), scales)
+
+
+def edge(start, end):
+    """
+    draw svg segment
+    """
+    print("<line x1='{}' y1='{}' x2='{}' y2='{}' stroke='black' stroke-width='3'/>".format(*start, *end))
 
 
 def build_graph(root, children, spans):
@@ -170,6 +219,7 @@ class Graph:
         size = self.root.dimensions()
         scales = (1920/size[0], 1080/size[1])
         self.root.svg(scales)
+        self.root.draw_edges([], [], scales)
         print('</svg>')
 
 
